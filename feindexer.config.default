@@ -1,0 +1,18 @@
+
+if [ "${MGICONFIG}" = "" ]
+then
+    MGICONFIG=/usr/local/mgi/live/mgiconfig
+    export MGICONFIG
+fi
+
+. ${MGICONFIG}/master.config.sh
+
+CONFIG_MASTER=${MGICONFIG}/master.config.sh
+export CONFIG_MASTER
+
+INSTALL_DIR=/home/mhall/devwi/feindexer
+export INSTALL_DIR
+
+LIB_DIR=$INSTALL_DIR/lib
+export LIB_DIR
+
