@@ -47,6 +47,7 @@
      <jar jarfile="${dist}/feindexer.jar"
           basedir="${build}"
           excludes="**/*Test.class">
+     <copy file="${lib_java_fe.dir}/fe.jar" todir="${lib}/" overwrite="true"/>
      <fileset dir="lib"/>
      <fileset file="${conf}/log4j.xml" />
      <fileset file="${conf}/config.props" />
