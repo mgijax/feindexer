@@ -4,8 +4,16 @@ cd `dirname $0`
 
 # The location of the config file
 INDEX_CONFIG=../feindexer.config
-INSTALL_DIR=/home/mhall/devwi/feindexer
-LIB_DIR=$INSTALL_DIR/lib
+
+if [ ! -r ${INDEX_CONFIG} ]
+then
+    echo "Cannot read configuration file: ${INDEX_CONFIG}" | tee -a ${LOG}
+    exit 1
+fi
+. ${INDEX_CONFIG}
+
+echo $INSTALL_DIR
+echo $LIB_DIR
 
 # What is the memory footprint we want for the jvm for these indexes.
 MEMORY_ARGS="-d64 -Xms2g -Xmx4g"
