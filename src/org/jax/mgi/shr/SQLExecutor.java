@@ -18,16 +18,15 @@ import org.slf4j.LoggerFactory;
 
 
 /**
- * The SQLExecutor class knows how to create connections to both MGD and the
- * SNP Database.  It can also clean up the connections after they are done,
+ * The SQLExecutor class knows how to create connections to MGD.
+ * It can also clean up the connections after they are done,
  * and execute queries against a given database.
  * 
  * The class is also smart enough to only open connections when they are needed.
  * If we go to run a new query and a connection hasn't been created yet, we create one.
  * @author mhall
  * 
- * @has An instance of the IndexCfg object, which is used to setup this object.
- * @does Executes SQL Queries against either the SNP or MGD Database.
+ * @does Executes SQL Queries against either the MGD Database.
  *
  */
 
@@ -43,13 +42,9 @@ public class SQLExecutor {
     private Date start;
     private Date end;
         
-    protected String DB_DRIVER = "org.postgresql.Driver";
-    
-
     
     /**
-     * The default constructor sets up all the configuration variables from
-     * IndexCfg.
+     * The default constructor pulls in connection information from the property files.
      * 
      * @param config
      */
@@ -64,7 +59,7 @@ public class SQLExecutor {
             e1.printStackTrace();
         }
         
-        Class.forName(DB_DRIVER);
+        Class.forName(props.getProperty("database.JDBC.driver"));
         user = props.getProperty("mgd.user");
         password = props.getProperty("mgd.password");
         mgdJDBCUrl = props.getProperty("mgd.JDBC.url");
