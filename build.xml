@@ -1,10 +1,11 @@
-<project name="hibernateExample" default="jar" basedir=".">
+<project name="feindexer" default="jar" basedir=".">
 	
   <description>
     feindexer build file
   </description>
 
   <property name="src" location="src"/>
+  <property name="lib" location="lib"/>
   <property name="conf" location="conf"/>
   <property name="build" location="build"/>
   <property name="dist" location="dist"/>
@@ -23,6 +24,7 @@
   <target name="init">
     <mkdir dir="${build}"/>
     <mkdir dir="${dist}"/>
+    <copy file="${lib_java_fe.dir}/fe.jar" todir="${lib}/" overwrite="true"/>
   </target>
 
   <target name="clean"
@@ -47,7 +49,6 @@
      <jar jarfile="${dist}/feindexer.jar"
           basedir="${build}"
           excludes="**/*Test.class">
-     <copy file="${lib_java_fe.dir}/fe.jar" todir="${lib}/" overwrite="true"/>
      <fileset dir="lib"/>
      <fileset file="${conf}/log4j.xml" />
      <fileset file="${conf}/config.props" />
