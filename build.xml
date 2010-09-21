@@ -1,0 +1,53 @@
+<project name="hibernateExample" default="jar" basedir=".">
+	
+  <description>
+    feindexer build file
+  </description>
+
+  <property name="src" location="src"/>
+  <property name="conf" location="conf"/>
+  <property name="build" location="build"/>
+  <property name="dist" location="dist"/>
+  <property name="deploy" location="dist"/>
+
+  <path id="class.path">
+    <fileset dir="lib">
+      <include name="**/*.jar" />
+    </fileset>
+  </path>
+
+  <!-- init -->
+  <target name="init">
+    <mkdir dir="${build}"/>
+    <mkdir dir="${dist}"/>
+  </target>
+
+  <target name="clean"
+        description="clean up" >
+    <!-- Delete the ${build} directory tree -->
+    <delete dir="${build}"/>
+  </target>  
+
+  <!-- compile -->
+  <target name="compile" depends="clean, init" >
+    <javac debug="on" srcdir="${src}" destdir="${build}" >
+	<classpath>
+		<fileset dir="lib">
+			<include name="**/*.jar"/>
+		</fileset>
+        </classpath>
+    </javac>
+  </target>
+  
+  <target name="jar" depends="compile"
+          description="Generates a jar.">
+     <jar jarfile="${dist}/feindexer.jar"
+          basedir="${build}"
+          excludes="**/*Test.class">
+     <fileset dir="lib"/>
+     <fileset file="${conf}/log4j.xml" />
+     <fileset file="${conf}/config.props" />
+     </jar>          
+  </target>
+
+</project>

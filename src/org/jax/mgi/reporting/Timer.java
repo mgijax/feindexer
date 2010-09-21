@@ -1,0 +1,34 @@
+package org.jax.mgi.reporting;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+public class Timer {
+    private static long lastTime = System.currentTimeMillis();
+    private static long firstTime = lastTime;
+    private static Logger logger = LoggerFactory.getLogger(Timer.class);
+    
+    public static long getElapsed () {
+    	long now = System.currentTimeMillis();
+    	long elapsed = now - lastTime;
+    	lastTime = now;
+    	return elapsed;
+    }
+    
+    public static long write (String message) {
+    	long elapsed = getElapsed();
+    	logger.info(elapsed + "ms : " + message);
+    	return elapsed;
+    }
+
+    public static void writeTotal () {
+    	long now = System.currentTimeMillis();
+    	logger.info((now - firstTime) + "ms : total time");
+    	return;
+    }
+    
+    public static String getTotal () {
+        long now = System.currentTimeMillis();
+        return (now - firstTime) + "ms : total time";        
+    }
+}
