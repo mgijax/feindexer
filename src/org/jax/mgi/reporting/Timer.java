@@ -3,6 +3,13 @@ package org.jax.mgi.reporting;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * This used to be used to setup a timer, but has since been overtaken by 
+ * log4j, so this might just go away entirely
+ * @author mhall
+ *
+ */
+
 public class Timer {
     private static long lastTime = System.currentTimeMillis();
     private static long firstTime = lastTime;
