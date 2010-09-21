@@ -1,0 +1,9 @@
+index.url.journalAC=http://cardolan.informatics.jax.org:8983/solr/journalsAC/
+index.url.reference=http://cardolan.informatics.jax.org:8983/solr/reference/
+index.url.authorsAC=http://cardolan.informatics.jax.org:8983/solr/authorsAC/
+index.url.sequence=http://cardolan.informatics.jax.org:8983/solr/sequence/
+index.url.cre=http://cardolan.informatics.jax.org:8983/solr/cre/
+
+mgd.user=mgddbo
+mgd.password=mgddbo
+mgd.JDBC.url=jdbc:postgresql://cardolan/fe_frontend
