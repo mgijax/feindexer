@@ -26,4 +26,4 @@ CLASSPATH=$INSTALL_DIR/dist/feindexer.jar:$CLASSPATH
 
 export CLASSPATH
 
-/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.Indexer.CreIndexerSQL
+/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.indexer.CreIndexerSQL
