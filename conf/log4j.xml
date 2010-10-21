@@ -26,6 +26,6 @@
 
         <root>
                 <priority value="info"/>
-                <appender-ref ref="FILE"/>
+                <appender-ref ref="ASYNC"/>
         </root>
 </log4j:configuration>

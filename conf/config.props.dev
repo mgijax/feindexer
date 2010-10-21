@@ -1,0 +1,12 @@
+index.url.journalAC=http://cardolan.informatics.jax.org:8985/solr/journalsAC/
+index.url.reference=http://cardolan.informatics.jax.org:8985/solr/reference/
+index.url.authorsAC=http://cardolan.informatics.jax.org:8985/solr/authorsAC/
+index.url.sequence=http://cardolan.informatics.jax.org:8985/solr/sequence/
+index.url.cre=http://cardolan.informatics.jax.org:8985/solr/cre/
+index.url.marker=http://cardolan.informatics.jax.org:8985/solr/marker/
+index.url.allele=http://cardolan.informatics.jax.org:8985/solr/allele/
+
+mgd.user=mgddbo
+mgd.password=mgddbo
+mgd.JDBC.url=jdbc:postgresql://cardolan/fe_frontend
+database.JDBC.driver=org.postgresql.Driver
