@@ -4,17 +4,11 @@ cd `dirname $0`
 
 # The location of the config file
 INDEX_CONFIG=../feindexer.config
-
-if [ ! -r ${INDEX_CONFIG} ]
-then
-    echo "Cannot read configuration file: ${INDEX_CONFIG}" | tee -a ${LOG}
-    exit 1
-fi
-. ${INDEX_CONFIG}
-
+INSTALL_DIR=/home/mhall/devwi/feindexer
+LIB_DIR=$INSTALL_DIR/lib
 
 # What is the memory footprint we want for the jvm for these indexes.
-MEMORY_ARGS="-d64 -Xms4g -Xmx10g"
+MEMORY_ARGS="-d64 -Xms2g -Xmx4g"
 
 for i in `ls -1 $LIB_DIR`
 do
@@ -26,4 +20,4 @@ CLASSPATH=$INSTALL_DIR/dist/feindexer.jar:$CLASSPATH
 
 export CLASSPATH
 
-/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.indexer.SequenceIndexerSQL
+/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.indexer.AlleleIndexerSQL
