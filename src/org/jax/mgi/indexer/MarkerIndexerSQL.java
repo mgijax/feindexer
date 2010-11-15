@@ -17,11 +17,11 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * fairly small dataset there is no real need to do actual chunking.
  */
 
-public class RefIndexerSQL extends Indexer {
+public class MarkerIndexerSQL extends Indexer {
 
    
    
-    public RefIndexerSQL (String httpConnection) {
+    public MarkerIndexerSQL (String httpConnection) {
         super(httpConnection);
     }
     
@@ -32,7 +32,7 @@ public class RefIndexerSQL extends Indexer {
      */
     public static void main(String[] args) {
 
-        RefIndexerSQL ri = new RefIndexerSQL("index.url.reference");
+        MarkerIndexerSQL ri = new MarkerIndexerSQL("index.url.marker");
         ri.doChunks();
          
     }
@@ -50,28 +50,26 @@ public class RefIndexerSQL extends Indexer {
             
             // How many references are there total?
             
-            ResultSet rs_tmp = ex.executeProto("select max(reference_Key) as maxRefKey from reference");
+            ResultSet rs_tmp = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
             rs_tmp.next();
             
-            logger.info("Max Ref Number: " + rs_tmp.getString("maxRefKey") + " Timing: "+ ex.getTiming());
+            logger.info("Max Marker Number: " + rs_tmp.getString("maxMarkerKey") + " Timing: "+ ex.getTiming());
             String start = "0";
-            String end = rs_tmp.getString("maxRefKey");
+            String end = rs_tmp.getString("maxMarkerKey");
                
             // Get all reference -> marker relationships, by marker key
             
-            logger.info("Seleceting all reference -> marker");
-            String markerToRefSQL = "select reference_key, marker_key from marker_to_reference where reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(markerToRefSQL);
-            HashMap <String, HashSet <String>> refToMarkers = makeHash(markerToRefSQL, "reference_key", "marker_key");
+            logger.info("Seleceting all vocab terms/ID's -> marker");
+            String markerToTermSQL = "select distinct marker_key, term, annotation_type, term_id from marker_annotation where marker_key > " + start + " and marker_key <= "+ end;
+            logger.info(markerToTermSQL);
+            HashMap <String, HashSet <String>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
 
-            // Get all reference -> allele relationships, by allele key
             
-            logger.info("Seleceting all reference -> allele");
-            String alleleToRefSQL = "select reference_key, allele_key from allele_to_reference where reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(alleleToRefSQL);
-            HashMap <String, HashSet <String>> refToAlleles = makeHash(alleleToRefSQL, "reference_key", "allele_key");
-            
-            // Get all reference -> sequence relationships, by sequence key
+            logger.info("Seleceting all vocab terms/ID's -> marker");
+            String markerToTermIDSQL = "select distinct marker_key, term_id from marker_annotation where marker_key > " + start + " and marker_key <= "+ end;
+            logger.info(markerToTermIDSQL);
+            HashMap <String, HashSet <String>> termToMarkersID = makeHash(markerToTermSQL, "marker_key", "term_id");
+            /*// Get all reference -> sequence relationships, by sequence key
             
             logger.info("Seleceting all reference -> sequence associations");
             String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
@@ -91,22 +89,18 @@ public class RefIndexerSQL extends Indexer {
             HashMap <String, HashSet <String>> refAuthorsLast = makeHash(referenceAuthorLastSQL,"reference_key","author");
             
             // first Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> first author");
+            logger.info("Seleceting all reference -> sequence associations");
             String referenceAuthorFirstSQL = "select reference_key, author from reference_individual_authors where sequence_num = 1 and reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceAuthorFirstSQL);
             HashMap <String, HashSet <String>> refAuthorsFirst = makeHash(referenceAuthorFirstSQL,"reference_key","author");
-            
+            */
             // The main reference query.
             
-            logger.info("Getting all references");
-            String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title," +
-                " r.journal, r.vol, r.issue, ra.abstract," +
-                " rc.marker_count, rc.probe_count, rc.mapping_expt_count, rc.gxd_index_count, rc.gxd_result_count," +
-                " rc.gxd_structure_count, rc.gxd_assay_count, rc.allele_count, rc.sequence_count " +
-                "from reference as r " +
-                "inner join reference_abstract ra on r.reference_key = ra.reference_key inner join reference_counts as rc on r.reference_key = rc.reference_key";
-            logger.info(referenceSQL);
-            ResultSet rs_overall = ex.executeProto(referenceSQL);
+            logger.info("Getting all markers");
+            String markerSQL = "select distinct marker_key, symbol," +
+            		" name, marker_type, status, organism from marker";
+            logger.info(markerSQL);
+            ResultSet rs_overall = ex.executeProto(markerSQL);
             
             rs_overall.next();
             
@@ -117,21 +111,28 @@ public class RefIndexerSQL extends Indexer {
             logger.info("Parsing them");
             while (!rs_overall.isAfterLast()) {
                 SolrInputDocument doc = new SolrInputDocument();
-                doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
-                doc.addField(IndexConstants.JNUM_ID, rs_overall.getString("jnum_id"));
-                String jnumID [] = rs_overall.getString("jnum_id").split(":");
-                doc.addField(IndexConstants.JNUM_ID, jnumID[1]);
-                doc.addField(IndexConstants.PUBMED_ID, rs_overall.getString("pubMed_id"));
-                doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
-                doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
-                doc.addField(IndexConstants.REF_KEY, rs_overall.getString("reference_key"));
-                doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
-                doc.addField(IndexConstants.REF_YEAR, rs_overall.getString("year"));
-                doc.addField(IndexConstants.REF_ABSTRACT, rs_overall.getString("abstract"));
-                doc.addField(IndexConstants.REF_ISSUE, rs_overall.getString("issue"));
-                doc.addField(IndexConstants.REF_VOLUME, rs_overall.getString("vol"));
                 
-                doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
+                doc.addField(IndexConstants.MRK_KEY, rs_overall.getString("marker_key"));
+                doc.addField(IndexConstants.MRK_SYMBOL, rs_overall.getString("symbol"));
+                doc.addField(IndexConstants.MRK_NAME, rs_overall.getString("name"));
+                doc.addField(IndexConstants.MRK_TYPE, rs_overall.getString("marker_type"));
+                doc.addField(IndexConstants.MRK_STATUS, rs_overall.getString("status"));
+                doc.addField(IndexConstants.MRK_ORGANISM, rs_overall.getString("organism"));
+                
+                // Parse the 1->N marker relationship here, adding in the marker keys
+                
+                if (termToMarkers.containsKey(rs_overall.getString("marker_key"))) {
+                    for (String markerKey: termToMarkers.get(rs_overall.getString("marker_key"))) {
+                        doc.addField(IndexConstants.MRK_TERM, markerKey);
+                    }
+                }
+                
+                if (termToMarkersID.containsKey(rs_overall.getString("marker_key"))) {
+                    for (String markerKey: termToMarkersID.get(rs_overall.getString("marker_key"))) {
+                        doc.addField(IndexConstants.MRK_TERM_ID, markerKey);
+                    }
+                }
+/*                doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
                 if (convertCount(rs_overall.getInt("marker_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
                 }
@@ -173,23 +174,15 @@ public class RefIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.SEQ_COUNT, convertCount(rs_overall.getInt("sequence_count")));
                 if (convertCount(rs_overall.getInt("sequence_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Sequences");
-                }
+                }*/
                 // Count of orthologs isn't implemented yet.
-                doc.addField(IndexConstants.ORTHO_COUNT, 0);
+/*                doc.addField(IndexConstants.ORTHO_COUNT, 0);
                 
                 // Add in the 1->n marker relationships
                 
                 if (refToMarkers.containsKey(rs_overall.getString("reference_key"))) {
                     for (String markerKey: refToMarkers.get(rs_overall.getString("reference_key"))) {
                         doc.addField(IndexConstants.MRK_KEY, markerKey);
-                    }
-                }
-
-                // Add in the 1->n allele relationships
-                
-                if (refToAlleles.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String alleleKey: refToAlleles.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.ALL_KEY, alleleKey);
                     }
                 }
                 
@@ -199,7 +192,7 @@ public class RefIndexerSQL extends Indexer {
                     for (String sequenceKey: refToSequences.get(rs_overall.getString("reference_key"))) {
                         doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
                     }
-                }
+                }*/
                 
                 // Add in all of the indivudual authors, specifically formatted for 
                 // searching.
@@ -207,7 +200,7 @@ public class RefIndexerSQL extends Indexer {
                 // In a nutshell we split on whitespace, and then add in each resulting
                 // token into the database, as well as the entirety of the author string.
                 
-                if (refAuthors.containsKey(rs_overall.getString("reference_key"))) {
+/*                if (refAuthors.containsKey(rs_overall.getString("reference_key"))) {
                     for (String author: refAuthors.get(rs_overall.getString("reference_key"))) {
                         doc.addField(IndexConstants.REF_AUTHOR_FORMATTED, author);
                         
@@ -232,11 +225,11 @@ public class RefIndexerSQL extends Indexer {
                             }
                         }
                     }
-                }
+                }*/
 
                 // Add all possible prefixes for the first author only
                 
-                if (refAuthorsFirst.containsKey(rs_overall.getString("reference_key"))) {
+/*                if (refAuthorsFirst.containsKey(rs_overall.getString("reference_key"))) {
                     for (String author: refAuthorsFirst.get(rs_overall.getString("reference_key"))) {
                         doc.addField(IndexConstants.REF_FIRST_AUTHOR, author);
                         
@@ -258,11 +251,11 @@ public class RefIndexerSQL extends Indexer {
                                 }
                             }
                     }
-                }
+                }*/
                 
                 // Add all possible prefixes for the last author only
                 
-                if (refAuthorsLast.containsKey(rs_overall.getString("reference_key"))) {
+/*                if (refAuthorsLast.containsKey(rs_overall.getString("reference_key"))) {
                     for (String author: refAuthorsLast.get(rs_overall.getString("reference_key"))) {
                         doc.addField(IndexConstants.REF_LAST_AUTHOR, author);
                         
@@ -284,7 +277,7 @@ public class RefIndexerSQL extends Indexer {
                                 }
                             }
                     }
-                }
+                }*/
                 
                 rs_overall.next();
                 
@@ -303,5 +296,62 @@ public class RefIndexerSQL extends Indexer {
         } catch (Exception e) {
             logger.error("In the exception part.");
             e.printStackTrace();}
+    }
+    
+    protected HashMap <String, HashSet <String>> makeVocabHash(String sql, String keyString, String valueString) {
+        
+        HashMap <String, HashSet <String>> tempMap = new HashMap <String, HashSet <String>> ();
+        
+        try {
+            ResultSet rs = ex.executeProto(sql);         
+
+            String key = null;
+            String value = null;
+            String vocab = null;
+            String vocabID = null;
+            
+            while (rs.next()) {
+                key = rs.getString(keyString);
+                value = rs.getString(valueString);
+                vocab = rs.getString("annotation_type");
+                vocabID = rs.getString("term_id");
+                if (tempMap.containsKey(key)) {
+                    tempMap.get(key).add(translateVocab(value, vocab));
+/*                    System.out.println(value);
+                    System.out.println(vocab);
+                    System.out.println(translateVocab(value, vocab));
+                    tempMap.get(key).add(vocabID);
+                    System.out.println(vocabID);*/
+                }
+                else {
+                    HashSet <String> temp = new HashSet <String> ();
+                    temp.add(translateVocab(value, vocab));
+                    tempMap.put(key, temp);
+/*                    System.out.println(value);
+                    System.out.println(vocab);
+                    System.out.println(translateVocab(value, vocab));
+                    tempMap.get(key).add(vocabID);
+                    System.out.println(vocabID);*/
+                }
+            }
+        } catch (Exception e) {e.printStackTrace();}
+        return tempMap;
+        
+    }
+    
+    protected String translateVocab(String value, String vocab) {
+        if (vocab.equals("GO/Marker")) {
+            return "Function: " + value;
+        }
+        if (vocab.equals("InterPro/Marker")) {
+            return "Protein Domain: " + value;
+        }
+        if (vocab.equals("PIRSF/Marker")) {
+            return "Protein Family: " + value;
+        }
+        if (vocab.equals("OMIM/Human Marker")) {
+            return "Disease Model: " + value;
+        }
+        return "";
     }
 }

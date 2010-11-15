@@ -75,13 +75,16 @@ public class CreIndexerSQL extends Indexer {
                 "ars.in_embryo_other, ars.in_postnatal_other, " + 
                 "ars.detected_count, ars.not_detected_count, " + 
                 "asn.by_symbol, asn.by_allele_type, asn.by_driver, " +
-                "ac.reference_count, a.driver, a.inducible_note " +  
+                "ac.reference_count, a.driver, a.inducible_note, " +
+                "aic.strain_count " +  
                 "from allele_recombinase_systems as ars " +
-                "inner join allele_sequence_num as asn " +
+                "left outer join allele_sequence_num as asn " +
                 "on ars.allele_key = asn.allele_key  " +
-                "inner join allele_counts as ac " +
+                "left outer join allele_counts as ac " +
                 "on ars.allele_key = ac.allele_key " +
-                "inner join allele as a on ars.allele_key = a.allele_key " +
+                "left outer join allele_imsr_counts as aic " + 
+                "on ars.allele_key = aic.allele_key  " +
+                "left outer join allele as a on ars.allele_key = a.allele_key " +
                 "order by ars.allele_key");
             
             rs_overall.next();
@@ -98,38 +101,38 @@ public class CreIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.ALL_DRIVER_SORT, rs_overall.getString("by_driver"));
                 doc.addField(IndexConstants.ALL_DRIVER, rs_overall.getString("driver"));
                 doc.addField(IndexConstants.ALL_INDUCIBLE, rs_overall.getString("inducible_note"));
-                // This isn't currently implemented, and will be later on.
-                doc.addField(IndexConstants.ALL_IMSR_COUNT, "");
+                doc.addField(IndexConstants.ALL_IMSR_COUNT, rs_overall.getString("strain_count"));
                 doc.addField(IndexConstants.ALL_REFERENCE_COUNT_SORT, rs_overall.getString("reference_count"));
                 doc.addField(IndexConstants.ALL_TYPE_SORT, rs_overall.getString("by_allele_type"));
                 doc.addField(IndexConstants.ALL_SYMBOL_SORT, rs_overall.getString("by_symbol"));
-                doc.addField(IndexConstants.ALL_SYMBOL_SORT, rs_overall.getString("inducible_note"));
-                doc.addField(IndexConstants.CRE_IN_ADIPOSE_TISSUE, rs_overall.getString("in_adipose_tissue"));
-                doc.addField(IndexConstants.CRE_IN_ALIMENTARY_SYSTEM, rs_overall.getString("in_alimentary_system"));
-                doc.addField(IndexConstants.CRE_IN_BRANCHIAL_ARCHES, rs_overall.getString("in_branchial_arches"));
-                doc.addField(IndexConstants.CRE_IN_CARDIOVASCULAR_SYSTEM, rs_overall.getString("in_cardiovascular_system"));
-                doc.addField(IndexConstants.CRE_IN_CAVITIES_AND_LININGS, rs_overall.getString("in_cavities_and_linings"));
-                doc.addField(IndexConstants.CRE_IN_EARLY_EMBRYO, rs_overall.getString("in_early_embryo"));
-                doc.addField(IndexConstants.CRE_IN_EMBRYO_OTHER, rs_overall.getString("in_embryo_other"));
-                doc.addField(IndexConstants.CRE_IN_ENDOCRINE_SYSTEM, rs_overall.getString("in_endocrine_system"));
-                doc.addField(IndexConstants.CRE_IN_EXTRAEMBRYONIC_COMPONENT, rs_overall.getString("in_extraembryonic_component"));
-                doc.addField(IndexConstants.CRE_IN_HEAD, rs_overall.getString("in_head"));
-                doc.addField(IndexConstants.CRE_IN_HEMOLYMPHOID_SYSTEM, rs_overall.getString("in_hemolymphoid_system"));
-                doc.addField(IndexConstants.CRE_IN_INTEGUMENTAL_SYSTEM, rs_overall.getString("in_integumental_system"));
-                doc.addField(IndexConstants.CRE_IN_LIMBS, rs_overall.getString("in_limbs"));
-                doc.addField(IndexConstants.CRE_IN_LIVER_AND_BILIARY_SYSTEM, rs_overall.getString("in_liver_and_biliary_system"));
-                doc.addField(IndexConstants.CRE_IN_MESENCHYME, rs_overall.getString("in_mesenchyme"));
-                doc.addField(IndexConstants.CRE_IN_MUSCLE, rs_overall.getString("in_muscle"));
-                doc.addField(IndexConstants.CRE_IN_NERVOUS_SYSTEM, rs_overall.getString("in_nervous_system"));
-                doc.addField(IndexConstants.CRE_IN_POSTNATAL_OTHER, rs_overall.getString("in_postnatal_other"));
-                doc.addField(IndexConstants.CRE_IN_RENAL_AND_URINARY_SYSTEM, rs_overall.getString("in_renal_and_urinary_system"));
-                doc.addField(IndexConstants.CRE_IN_REPRODUCTIVE_SYSTEM, rs_overall.getString("in_reproductive_system"));
-                doc.addField(IndexConstants.CRE_IN_RESPIRATORY_SYSTEM, rs_overall.getString("in_respiratory_system"));
-                doc.addField(IndexConstants.CRE_IN_SENSORY_ORGANS, rs_overall.getString("in_sensory_organs"));
-                doc.addField(IndexConstants.CRE_IN_SKELETAL_SYSTEM, rs_overall.getString("in_skeletal_system"));
-                doc.addField(IndexConstants.CRE_IN_TAIL, rs_overall.getString("in_tail"));
+                doc.addField(IndexConstants.ALL_INDUCIBLE, rs_overall.getString("inducible_note"));
+                doc.addField(IndexConstants.CRE_IN_ADIPOSE_TISSUE, doBit(rs_overall.getString("in_adipose_tissue")));
+                doc.addField(IndexConstants.CRE_IN_ALIMENTARY_SYSTEM, doBit(rs_overall.getString("in_alimentary_system")));
+                doc.addField(IndexConstants.CRE_IN_BRANCHIAL_ARCHES, doBit(rs_overall.getString("in_branchial_arches")));
+                doc.addField(IndexConstants.CRE_IN_CARDIOVASCULAR_SYSTEM, doBit(rs_overall.getString("in_cardiovascular_system")));
+                doc.addField(IndexConstants.CRE_IN_CAVITIES_AND_LININGS, doBit(rs_overall.getString("in_cavities_and_linings")));
+                doc.addField(IndexConstants.CRE_IN_EARLY_EMBRYO, doBit(rs_overall.getString("in_early_embryo")));
+                doc.addField(IndexConstants.CRE_IN_EMBRYO_OTHER, doBit(rs_overall.getString("in_embryo_other")));
+                doc.addField(IndexConstants.CRE_IN_ENDOCRINE_SYSTEM, doBit(rs_overall.getString("in_endocrine_system")));
+                doc.addField(IndexConstants.CRE_IN_EXTRAEMBRYONIC_COMPONENT, doBit(rs_overall.getString("in_extraembryonic_component")));
+                doc.addField(IndexConstants.CRE_IN_HEAD, doBit(rs_overall.getString("in_head")));
+                doc.addField(IndexConstants.CRE_IN_HEMOLYMPHOID_SYSTEM, doBit(rs_overall.getString("in_hemolymphoid_system")));
+                doc.addField(IndexConstants.CRE_IN_INTEGUMENTAL_SYSTEM, doBit(rs_overall.getString("in_integumental_system")));
+                doc.addField(IndexConstants.CRE_IN_LIMBS, doBit(rs_overall.getString("in_limbs")));
+                doc.addField(IndexConstants.CRE_IN_LIVER_AND_BILIARY_SYSTEM, doBit(rs_overall.getString("in_liver_and_biliary_system")));
+                doc.addField(IndexConstants.CRE_IN_MESENCHYME, doBit(rs_overall.getString("in_mesenchyme")));
+                doc.addField(IndexConstants.CRE_IN_MUSCLE, doBit(rs_overall.getString("in_muscle")));
+                doc.addField(IndexConstants.CRE_IN_NERVOUS_SYSTEM, doBit(rs_overall.getString("in_nervous_system")));
+                doc.addField(IndexConstants.CRE_IN_POSTNATAL_OTHER, doBit(rs_overall.getString("in_postnatal_other")));
+                doc.addField(IndexConstants.CRE_IN_RENAL_AND_URINARY_SYSTEM, doBit(rs_overall.getString("in_renal_and_urinary_system")));
+                doc.addField(IndexConstants.CRE_IN_REPRODUCTIVE_SYSTEM, doBit(rs_overall.getString("in_reproductive_system")));
+                doc.addField(IndexConstants.CRE_IN_RESPIRATORY_SYSTEM, doBit(rs_overall.getString("in_respiratory_system")));
+                doc.addField(IndexConstants.CRE_IN_SENSORY_ORGANS, doBit(rs_overall.getString("in_sensory_organs")));
+                doc.addField(IndexConstants.CRE_IN_SKELETAL_SYSTEM, doBit(rs_overall.getString("in_skeletal_system")));
+                doc.addField(IndexConstants.CRE_IN_TAIL, doBit(rs_overall.getString("in_tail")));
                 doc.addField(IndexConstants.CRE_NOT_DETECTED_COUNT, rs_overall.getString("not_detected_count"));
                 doc.addField(IndexConstants.CRE_DETECTED_COUNT, rs_overall.getString("detected_count"));
+                doc.addField(IndexConstants.CRE_DETECTED_TOTAL_COUNT, rs_overall.getInt("not_detected_count") + rs_overall.getInt("detected_count"));
                 
                 // Bring in the multi-valued field allele system. 
                 
@@ -155,5 +158,15 @@ public class CreIndexerSQL extends Indexer {
             server.commit();
             
         } catch (Exception e) {e.printStackTrace();}
+    }
+    
+    String doBit(String bit) {
+        if (bit == null) {
+            return "-1";
+        }
+        if (bit.equals("1")) {
+            return "1";
+        }
+        return "0";
     }
 }

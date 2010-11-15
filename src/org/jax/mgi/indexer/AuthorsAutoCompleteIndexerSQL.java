@@ -52,7 +52,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
     
     private void parseAuthor(SolrInputDocument doc, String author) {
         
-        String [] temp = author.split("\\W");
+        String [] temp = author.split("[\\W&&[^']]");
         
         //if (temp.length > 1) {
             for (int i = 0; i < temp.length; i++) {

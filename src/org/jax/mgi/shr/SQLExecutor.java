@@ -9,8 +9,8 @@ import java.sql.SQLException;
 import java.util.Date;
 import java.util.Properties;
 
-import org.jax.mgi.Indexer.Indexer;
-import org.jax.mgi.Indexer.RefIndexerSQL;
+import org.jax.mgi.indexer.Indexer;
+import org.jax.mgi.indexer.RefIndexerSQL;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
