@@ -56,7 +56,13 @@ public class MarkerIndexerSQL extends Indexer {
             logger.info("Max Marker Number: " + rs_tmp.getString("maxMarkerKey") + " Timing: "+ ex.getTiming());
             String start = "0";
             String end = rs_tmp.getString("maxMarkerKey");
-               
+            
+            // Get all marker id -> marker relationships
+            logger.info("Seleceting all Marker ID's -> marker");
+            String markerToIDSQL = "select distinct marker_key, acc_id from marker_id where marker_key > " + start + " and marker_key <= "+ end;
+            logger.info(markerToIDSQL);
+            HashMap <String, HashSet <String>> idToMarkers = makeHash(markerToIDSQL, "marker_key", "acc_id");
+                        
             // Get all reference -> marker relationships, by marker key
             
             logger.info("Seleceting all vocab terms/ID's -> marker");
@@ -69,32 +75,6 @@ public class MarkerIndexerSQL extends Indexer {
             String markerToTermIDSQL = "select distinct marker_key, term_id from marker_annotation where marker_key > " + start + " and marker_key <= "+ end;
             logger.info(markerToTermIDSQL);
             HashMap <String, HashSet <String>> termToMarkersID = makeHash(markerToTermSQL, "marker_key", "term_id");
-            /*// Get all reference -> sequence relationships, by sequence key
-            
-            logger.info("Seleceting all reference -> sequence associations");
-            String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(referenceToSeqSQL);
-            HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
-            
-            // Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> sequence associations");
-            String referenceAuthorSQL = "select reference_key, author from reference_individual_authors where reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(referenceAuthorSQL);
-            HashMap <String, HashSet <String>> refAuthors = makeHash(referenceAuthorSQL,"reference_key","author");
-
-            // last Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> sequence associations");
-            String referenceAuthorLastSQL = "select reference_key, author from reference_individual_authors where is_last = 1 and reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(referenceAuthorLastSQL);
-            HashMap <String, HashSet <String>> refAuthorsLast = makeHash(referenceAuthorLastSQL,"reference_key","author");
-            
-            // first Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> sequence associations");
-            String referenceAuthorFirstSQL = "select reference_key, author from reference_individual_authors where sequence_num = 1 and reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(referenceAuthorFirstSQL);
-            HashMap <String, HashSet <String>> refAuthorsFirst = makeHash(referenceAuthorFirstSQL,"reference_key","author");
-            */
-            // The main reference query.
             
             logger.info("Getting all markers");
             String markerSQL = "select distinct marker_key, symbol," +
@@ -127,157 +107,18 @@ public class MarkerIndexerSQL extends Indexer {
                     }
                 }
                 
+                if (idToMarkers.containsKey(rs_overall.getString("marker_key"))) {
+                    for (String id: idToMarkers.get(rs_overall.getString("marker_key"))) {
+                        doc.addField(IndexConstants.MRK_ID, id);
+                    }
+                }
+
+                
                 if (termToMarkersID.containsKey(rs_overall.getString("marker_key"))) {
                     for (String markerKey: termToMarkersID.get(rs_overall.getString("marker_key"))) {
                         doc.addField(IndexConstants.MRK_TERM_ID, markerKey);
                     }
                 }
-/*                doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
-                if (convertCount(rs_overall.getInt("marker_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
-                }
-                doc.addField(IndexConstants.PRB_COUNT, convertCount(rs_overall.getInt("probe_count")));
-                if (convertCount(rs_overall.getInt("probe_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Molecular probes and clones");
-                }
-                
-                doc.addField(IndexConstants.MAP_EXPT_COUNT, convertCount(rs_overall.getInt("mapping_expt_count")));
-                if (convertCount(rs_overall.getInt("mapping_expt_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Mapping data");
-                }
-                
-                doc.addField(IndexConstants.GXD_INDEX_COUNT, convertCount(rs_overall.getInt("gxd_index_count")));
-                if (convertCount(rs_overall.getInt("gxd_index_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Gene expression literature content records");
-                }
-                
-                doc.addField(IndexConstants.GXD_RESULT_COUNT, convertCount(rs_overall.getInt("gxd_result_count")));
-                if (convertCount(rs_overall.getInt("gxd_result_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays, results, tissues");
-                }
-
-                doc.addField(IndexConstants.GXD_STRUCT_COUNT, convertCount(rs_overall.getInt("gxd_structure_count")));
-                if (convertCount(rs_overall.getInt("gxd_result_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays, results, tissues");
-                }
-                
-                doc.addField(IndexConstants.GXD_ASSAY_COUNT, convertCount(rs_overall.getInt("gxd_assay_count")));
-                if (convertCount(rs_overall.getInt("gxd_assay_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays, results, tissues");
-                }
-
-                doc.addField(IndexConstants.ALL_COUNT, convertCount(rs_overall.getInt("allele_count")));
-                if (convertCount(rs_overall.getInt("allele_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Phenotypic alleles");
-                }
-
-                doc.addField(IndexConstants.SEQ_COUNT, convertCount(rs_overall.getInt("sequence_count")));
-                if (convertCount(rs_overall.getInt("sequence_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Sequences");
-                }*/
-                // Count of orthologs isn't implemented yet.
-/*                doc.addField(IndexConstants.ORTHO_COUNT, 0);
-                
-                // Add in the 1->n marker relationships
-                
-                if (refToMarkers.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String markerKey: refToMarkers.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.MRK_KEY, markerKey);
-                    }
-                }
-                
-                // Add in the 1->n sequence relationships
-                
-                if (refToSequences.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String sequenceKey: refToSequences.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
-                    }
-                }*/
-                
-                // Add in all of the indivudual authors, specifically formatted for 
-                // searching.
-                
-                // In a nutshell we split on whitespace, and then add in each resulting
-                // token into the database, as well as the entirety of the author string.
-                
-/*                if (refAuthors.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String author: refAuthors.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.REF_AUTHOR_FORMATTED, author);
-                        
-                        // Add in a single untouched version of the formatted authors
-                        doc.addField(IndexConstants.REF_AUTHOR_FACET, author);
-                        
-                        if (author != null) {
-                        String [] temp = author.split("[\\W-&&[^']]");
-                        
-                        // Add all possible permutations of this author into the index.
-                        if (temp.length > 1) {
-                            String tempString = "";
-                            for (int i = 0; i< temp.length; i++) {
-                                    if (i == 0) {
-                                        tempString = temp[i];
-                                    }
-                                    else {
-                                        tempString = tempString + " " + temp[i];
-                                    }
-                                    doc.addField(IndexConstants.REF_AUTHOR_FORMATTED, tempString);
-                                }
-                            }
-                        }
-                    }
-                }*/
-
-                // Add all possible prefixes for the first author only
-                
-/*                if (refAuthorsFirst.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String author: refAuthorsFirst.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.REF_FIRST_AUTHOR, author);
-                        
-                        if (author != null) {
-                            String [] temp = author.split(" ");
-                            
-                            // Add all possible permutations of this author into the index.
-                            if (temp.length > 1) {
-                                String tempString = "";
-                                for (int i = 0; i< temp.length -1; i++) {
-                                        if (i == 0) {
-                                            tempString = temp[i];
-                                        }
-                                        else {
-                                            tempString = tempString + " " + temp[i];
-                                        }
-                                        doc.addField(IndexConstants.REF_FIRST_AUTHOR, tempString);
-                                    }
-                                }
-                            }
-                    }
-                }*/
-                
-                // Add all possible prefixes for the last author only
-                
-/*                if (refAuthorsLast.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String author: refAuthorsLast.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.REF_LAST_AUTHOR, author);
-                        
-                        if (author != null) {
-                            String [] temp = author.split(" ");
-                            
-                            // Add all possible permutations of this author into the index.
-                            if (temp.length > 1) {
-                                String tempString = "";
-                                for (int i = 0; i< temp.length -1; i++) {
-                                        if (i == 0) {
-                                            tempString = temp[i];
-                                        }
-                                        else {
-                                            tempString = tempString + " " + temp[i];
-                                        }
-                                        doc.addField(IndexConstants.REF_LAST_AUTHOR, tempString);
-                                    }
-                                }
-                            }
-                    }
-                }*/
                 
                 rs_overall.next();
                 
