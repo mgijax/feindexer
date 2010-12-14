@@ -134,6 +134,11 @@ public class SequenceIndexerSQL extends Indexer {
                     logger.info("Done adding to solr, Moving on");
                 }
             }
+            // Add in the last set of docs, in case there is less than 10000, since solr
+            // will just replace the documents with new copies, there shouldn't be an issue.
+            if (! docs.isEmpty()) {
+                server.add(docs);
+            }
             }
             server.commit();
         } catch (Exception e) {e.printStackTrace();}
