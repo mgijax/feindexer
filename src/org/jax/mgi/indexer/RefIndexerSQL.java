@@ -126,8 +126,45 @@ public class RefIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_KEY, rs_overall.getString("reference_key"));
                 doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
+                
+                // Temporary new way to put in the title
+                
+                // This string is used for the overall smushed title and abstract field.
+                String titleAndAbstract = "";
+                
+                if (rs_overall.getString("title") != null) {
+                    String tempTitle = rs_overall.getString("title").replaceAll("\\p{Punct}", " ");
+                    
+                    doc.addField(IndexConstants.REF_TITLE_STEMMED, tempTitle);
+                    doc.addField(IndexConstants.REF_TITLE_UNSTEMMED, tempTitle);
+                    titleAndAbstract = tempTitle;
+                }
+                
                 doc.addField(IndexConstants.REF_YEAR, rs_overall.getString("year"));
                 doc.addField(IndexConstants.REF_ABSTRACT, rs_overall.getString("abstract"));
+                 
+                
+                if (rs_overall.getString("abstract") != null) {                
+                    String tempAbstract = rs_overall.getString("abstract").replaceAll("\\p{Punct}", " ");
+    
+                    doc.addField(IndexConstants.REF_ABSTRACT_STEMMED, tempAbstract);
+                    doc.addField(IndexConstants.REF_ABSTRACT_UNSTEMMED, tempAbstract);
+                
+                    // Put together the second part of the smushed title and abstract
+                    
+                    if (titleAndAbstract.equals("")) {
+                        titleAndAbstract = tempAbstract;
+                    } else {
+                        titleAndAbstract = titleAndAbstract + " WORDTHATCANTEXIST " + tempAbstract;
+                    }
+                    
+                }
+                
+                // Add the smushed title and abstract into the document
+                
+                doc.addField(IndexConstants.REF_TITLE_ABSTRACT_STEMMED, titleAndAbstract);
+                doc.addField(IndexConstants.REF_TITLE_ABSTRACT_UNSTEMMED, titleAndAbstract);
+                                
                 doc.addField(IndexConstants.REF_ISSUE, rs_overall.getString("issue"));
                 doc.addField(IndexConstants.REF_VOLUME, rs_overall.getString("vol"));
                 
@@ -220,7 +257,7 @@ public class RefIndexerSQL extends Indexer {
                         // Add all possible permutations of this author into the index.
                         if (temp.length > 1) {
                             String tempString = "";
-                            for (int i = 0; i< temp.length; i++) {
+                            for (int i = 0; i< temp.length && i <= 3; i++) {
                                     if (i == 0) {
                                         tempString = temp[i];
                                     }
@@ -241,12 +278,12 @@ public class RefIndexerSQL extends Indexer {
                         doc.addField(IndexConstants.REF_FIRST_AUTHOR, author);
                         
                         if (author != null) {
-                            String [] temp = author.split(" ");
+                            String [] temp = author.split("[\\W-&&[^']]");
                             
                             // Add all possible permutations of this author into the index.
                             if (temp.length > 1) {
                                 String tempString = "";
-                                for (int i = 0; i< temp.length -1; i++) {
+                                for (int i = 0; i< temp.length && i <= 3; i++) {
                                         if (i == 0) {
                                             tempString = temp[i];
                                         }
@@ -267,12 +304,12 @@ public class RefIndexerSQL extends Indexer {
                         doc.addField(IndexConstants.REF_LAST_AUTHOR, author);
                         
                         if (author != null) {
-                            String [] temp = author.split(" ");
+                            String [] temp = author.split("[\\W-&&[^']]");
                             
                             // Add all possible permutations of this author into the index.
                             if (temp.length > 1) {
                                 String tempString = "";
-                                for (int i = 0; i< temp.length -1; i++) {
+                                for (int i = 0; i< temp.length && i <= 3; i++) {
                                         if (i == 0) {
                                             tempString = temp[i];
                                         }
