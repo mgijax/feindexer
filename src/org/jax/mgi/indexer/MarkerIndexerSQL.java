@@ -48,7 +48,7 @@ public class MarkerIndexerSQL extends Indexer {
                 
         try {
             
-            // How many references are there total?
+            // How many markers are there total?
             
             ResultSet rs_tmp = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
             rs_tmp.next();
@@ -62,8 +62,15 @@ public class MarkerIndexerSQL extends Indexer {
             String markerToIDSQL = "select distinct marker_key, acc_id from marker_id where marker_key > " + start + " and marker_key <= "+ end;
             logger.info(markerToIDSQL);
             HashMap <String, HashSet <String>> idToMarkers = makeHash(markerToIDSQL, "marker_key", "acc_id");
+
+            // Get all marker -> reference relationships, by marker key
+            
+            logger.info("Seleceting all reference keys -> marker");
+            String markerToReferenceSQL = "select distinct marker_key, reference_key from marker_to_reference where marker_key > " + start + " and marker_key <= "+ end;
+            logger.info(markerToReferenceSQL);
+            HashMap <String, HashSet <String>> referenceToMarkers = makeHash(markerToReferenceSQL, "marker_key", "reference_key");
                         
-            // Get all reference -> marker relationships, by marker key
+            // Get all marker -> vocab relationships, by marker key
             
             logger.info("Seleceting all vocab terms/ID's -> marker");
             String markerToTermSQL = "select distinct marker_key, term, annotation_type, term_id from marker_annotation where marker_key > " + start + " and marker_key <= "+ end;
@@ -100,6 +107,12 @@ public class MarkerIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.MRK_ORGANISM, rs_overall.getString("organism"));
                 
                 // Parse the 1->N marker relationship here, adding in the marker keys
+                
+                if (referenceToMarkers.containsKey(rs_overall.getString("marker_key"))) {
+                    for (String key: referenceToMarkers.get(rs_overall.getString("marker_key"))) {
+                        doc.addField(IndexConstants.REF_KEY, key);
+                    }
+                }
                 
                 if (termToMarkers.containsKey(rs_overall.getString("marker_key"))) {
                     for (String markerKey: termToMarkers.get(rs_overall.getString("marker_key"))) {

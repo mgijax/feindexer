@@ -64,6 +64,13 @@ public class RefIndexerSQL extends Indexer {
             logger.info(markerToRefSQL);
             HashMap <String, HashSet <String>> refToMarkers = makeHash(markerToRefSQL, "reference_key", "marker_key");
 
+            // Get all reference -> book publisher relationships, by publisher
+            
+            logger.info("Seleceting all reference -> publisher");
+            String pubToRefSQL = "select reference_key, publisher from reference_book where reference_key > " + start + " and reference_key <= "+ end;
+            logger.info(pubToRefSQL);
+            HashMap <String, HashSet <String>> pubToRefs = makeHash(pubToRefSQL, "reference_key", "publisher");            
+            
             // Get all reference -> allele relationships, by allele key
             
             logger.info("Seleceting all reference -> allele");
@@ -122,8 +129,10 @@ public class RefIndexerSQL extends Indexer {
                 String jnumID [] = rs_overall.getString("jnum_id").split(":");
                 doc.addField(IndexConstants.JNUM_ID, jnumID[1]);
                 doc.addField(IndexConstants.PUBMED_ID, rs_overall.getString("pubMed_id"));
+                
                 doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
+                
                 doc.addField(IndexConstants.REF_KEY, rs_overall.getString("reference_key"));
                 doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
                 
@@ -168,48 +177,63 @@ public class RefIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.REF_ISSUE, rs_overall.getString("issue"));
                 doc.addField(IndexConstants.REF_VOLUME, rs_overall.getString("vol"));
                 
+                Boolean foundACount = Boolean.FALSE;
+                
                 doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
                 if (convertCount(rs_overall.getInt("marker_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
+                    foundACount = Boolean.TRUE;
                 }
                 doc.addField(IndexConstants.PRB_COUNT, convertCount(rs_overall.getInt("probe_count")));
                 if (convertCount(rs_overall.getInt("probe_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Molecular probes and clones");
+                    foundACount = Boolean.TRUE;
                 }
                 
                 doc.addField(IndexConstants.MAP_EXPT_COUNT, convertCount(rs_overall.getInt("mapping_expt_count")));
                 if (convertCount(rs_overall.getInt("mapping_expt_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Mapping data");
+                    foundACount = Boolean.TRUE;
                 }
                 
                 doc.addField(IndexConstants.GXD_INDEX_COUNT, convertCount(rs_overall.getInt("gxd_index_count")));
                 if (convertCount(rs_overall.getInt("gxd_index_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Gene expression literature content records");
+                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression literature records");
+                    foundACount = Boolean.TRUE;
                 }
                 
                 doc.addField(IndexConstants.GXD_RESULT_COUNT, convertCount(rs_overall.getInt("gxd_result_count")));
                 if (convertCount(rs_overall.getInt("gxd_result_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays, results, tissues");
+                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
+                    foundACount = Boolean.TRUE;
                 }
 
                 doc.addField(IndexConstants.GXD_STRUCT_COUNT, convertCount(rs_overall.getInt("gxd_structure_count")));
                 if (convertCount(rs_overall.getInt("gxd_result_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays, results, tissues");
+                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
+                    foundACount = Boolean.TRUE;
                 }
                 
                 doc.addField(IndexConstants.GXD_ASSAY_COUNT, convertCount(rs_overall.getInt("gxd_assay_count")));
                 if (convertCount(rs_overall.getInt("gxd_assay_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays, results, tissues");
+                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
+                    foundACount = Boolean.TRUE;
                 }
 
                 doc.addField(IndexConstants.ALL_COUNT, convertCount(rs_overall.getInt("allele_count")));
                 if (convertCount(rs_overall.getInt("allele_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Phenotypic alleles");
+                    foundACount = Boolean.TRUE;
                 }
 
                 doc.addField(IndexConstants.SEQ_COUNT, convertCount(rs_overall.getInt("sequence_count")));
                 if (convertCount(rs_overall.getInt("sequence_count")) > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Sequences");
+                    foundACount = Boolean.TRUE;
+                }
+                
+                if (!foundACount) {
+                    doc.addField(IndexConstants.REF_HAS_DATA, "No curated data");
                 }
                 // Count of orthologs isn't implemented yet.
                 doc.addField(IndexConstants.ORTHO_COUNT, 0);
@@ -221,6 +245,14 @@ public class RefIndexerSQL extends Indexer {
                         doc.addField(IndexConstants.MRK_KEY, markerKey);
                     }
                 }
+                
+                // Add in the 1->1 publisher relationships, this only applies to books.
+                
+                if (pubToRefs.containsKey(rs_overall.getString("reference_key"))) {
+                    for (String publisher: pubToRefs.get(rs_overall.getString("reference_key"))) {
+                        doc.addField(IndexConstants.REF_JOURNAL_FACET, publisher);
+                    }
+                }                
 
                 // Add in the 1->n allele relationships
                 
@@ -249,7 +281,12 @@ public class RefIndexerSQL extends Indexer {
                         doc.addField(IndexConstants.REF_AUTHOR_FORMATTED, author);
                         
                         // Add in a single untouched version of the formatted authors
-                        doc.addField(IndexConstants.REF_AUTHOR_FACET, author);
+                        if (author == null || author.equals(" ")) {
+                            doc.addField(IndexConstants.REF_AUTHOR_FACET, "No author listed");
+                        }
+                        else {
+                            doc.addField(IndexConstants.REF_AUTHOR_FACET, author);
+                        }
                         
                         if (author != null) {
                         String [] temp = author.split("[\\W-&&[^']]");
@@ -270,6 +307,7 @@ public class RefIndexerSQL extends Indexer {
                         }
                     }
                 }
+
 
                 // Add all possible prefixes for the first author only
                 
