@@ -48,6 +48,7 @@ public abstract class Indexer {
         try { server = new CommonsHttpSolrServer( props.getProperty(httpPropName) );}
         catch (Exception e) {e.printStackTrace();}
 
+        logger.info("Working with index: " + props.getProperty(httpPropName) );
         logger.info("Past the initial connection.");
         
         server.setSoTimeout(100000);  // socket read timeout
