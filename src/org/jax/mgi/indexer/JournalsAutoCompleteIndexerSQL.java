@@ -45,7 +45,18 @@ public class JournalsAutoCompleteIndexerSQL extends Indexer {
         try {
             
             logger.info("Getting all distinct journals");
-            ResultSet rs_overall = ex.executeProto("select distinct(journal) from reference where journal is not null");
+            ResultSet rs_overall = ex.executeProto("select distinct(r.journal), r.indexed_for_gxd from reference as r " + 
+				"where r.indexed_for_gxd = 1 " + 
+				"and r.journal is not null " + 
+				"union " + 
+				"select distinct(r.journal), r.indexed_for_gxd from reference as r " + 
+				"where r.indexed_for_gxd = 0 " + 
+				"and not exists (select 1 " + 
+				"from reference r2 " + 
+				"where r2.reference_key != r.reference_key " +
+				"and r2.journal = r.journal " + 
+				"and r.indexed_for_gxd = 0 ) " +
+				"and journal is not null");
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
             
@@ -72,6 +83,7 @@ public class JournalsAutoCompleteIndexerSQL extends Indexer {
                 }
                 
                 doc.addField(IndexConstants.REF_JOURNAL_SORT, rs_overall.getString("journal"));
+                doc.addField(IndexConstants.AC_FOR_GXD, rs_overall.getString("indexed_for_gxd"));
                 
                 docs.add(doc);                
             }

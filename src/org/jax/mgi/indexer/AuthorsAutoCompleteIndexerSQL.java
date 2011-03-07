@@ -79,7 +79,22 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
             // Get the distinct author list from the database.
             
             logger.info("Getting all distinct author");
-            ResultSet rs_overall = ex.executeProto("select distinct(author) from reference_individual_authors where author is not null");
+            ResultSet rs_overall = ex.executeProto("select distinct a.author, r.indexed_for_gxd " + 
+				"from reference r, reference_individual_authors a " + 
+				"where r.reference_key = a.reference_key " + 
+				"and r.indexed_for_gxd = 1 " +
+				"and a.author is not null " + 
+				"union " + 
+				"select distinct a.author, r.indexed_for_gxd " + 
+				"from reference r, reference_individual_authors a " + 
+				"where r.reference_key = a.reference_key " + 
+				"and r.indexed_for_gxd = 0 " + 
+				"and not exists (select 1 " + 
+				"from reference_individual_authors a2, reference r2 " + 
+				"where r2.reference_key = a2.reference_key " + 
+				"and a.author = a2.author " +
+				"and r2.indexed_for_gxd = 1) " +
+				"and a.author is not null");
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
             
@@ -98,7 +113,9 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                 
                 parseAuthor(doc, rs_overall.getString("author"));
                 doc.addField(IndexConstants.REF_AUTHOR_SORT, rs_overall.getString("author"));
-                doc.addField("testString", rs_overall.getString("author"));
+                doc.addField(IndexConstants.AC_FOR_GXD, rs_overall.getString("indexed_for_gxd"));
+                doc.addField(IndexConstants.AC_UNIQUE_KEY,"0"+rs_overall.getString("author"));
+                doc.addField(IndexConstants.AC_IS_GENERATED, "0");
                 docs.add(doc);
                 
                 // Parse out the first 4 tokens of the author field, and make display tokens for them.
@@ -123,6 +140,9 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                 
                                 if (tempString != "") {
                                     doc.addField(IndexConstants.REF_AUTHOR_SORT, tempString);
+                                    doc.addField(IndexConstants.AC_FOR_GXD, rs_overall.getString("indexed_for_gxd"));
+                                    doc.addField(IndexConstants.AC_UNIQUE_KEY,"1"+ tempString);
+                                    doc.addField(IndexConstants.AC_IS_GENERATED, "1");
                                     parseAuthor(doc, tempString);
                                     docs.add(doc);
                                     doc = new SolrInputDocument();
