@@ -4,7 +4,13 @@ index.url.authorsAC=http://cardolan.informatics.jax.org:8983/solr/authorsAC/
 index.url.sequence=http://cardolan.informatics.jax.org:8983/solr/sequence/
 index.url.cre=http://cardolan.informatics.jax.org:8983/solr/cre/
 index.url.marker=http://cardolan.informatics.jax.org:8983/solr/marker/
+index.url.image=http://cardolan.informatics.jax.org:8983/solr/image/
+index.url.markerPanesetImage=http://cardolan.informatics.jax.org:8983/solr/markerPanesetImage/
 index.url.allele=http://cardolan.informatics.jax.org:8983/solr/allele/
+index.url.markerAnnotation=http://cardolan.informatics.jax.org:8983/solr/markerAnnotation/
+index.url.creAlleleSystem=http://cardolan.informatics.jax.org:8983/solr/creAlleleSystem/
+index.url.creAssayResult=http://cardolan.informatics.jax.org:8983/solr/creAssayResult/
+index.url.gxdLitIndex=http://cardolan.informatics.jax.org:8983/solr/gxdLitIndex/
 
 mgd.user=mgddbo
 mgd.password=mgddbo

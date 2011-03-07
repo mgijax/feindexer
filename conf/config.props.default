@@ -3,6 +3,9 @@ index.url.reference=http://cardolan.informatics.jax.org:8983/solr/reference/
 index.url.authorsAC=http://cardolan.informatics.jax.org:8983/solr/authorsAC/
 index.url.sequence=http://cardolan.informatics.jax.org:8983/solr/sequence/
 index.url.cre=http://cardolan.informatics.jax.org:8983/solr/cre/
+index.url.marker=http://cardolan.informatics.jax.org:8983/solr/marker/
+index.url.allele=http://cardolan.informatics.jax.org:8983/solr/allele/
+index.url.markerAnnotation=http://cardolan.informatics.jax.org:8983/solr/markerAnnotation/
 
 mgd.user=mgddbo
 mgd.password=mgddbo
