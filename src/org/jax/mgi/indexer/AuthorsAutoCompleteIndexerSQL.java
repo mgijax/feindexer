@@ -3,7 +3,9 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -73,6 +75,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
     private void doChunks() {
                 
         HashSet<String> authorSet = new HashSet<String>();
+        Map<String, String> fabAuthorsForGXD = new HashMap<String, String>(); 
         
         try {
             
@@ -140,11 +143,22 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                 
                                 if (tempString != "") {
                                     doc.addField(IndexConstants.REF_AUTHOR_SORT, tempString);
-                                    doc.addField(IndexConstants.AC_FOR_GXD, rs_overall.getString("indexed_for_gxd"));
+                                    String forGxd = rs_overall.getString("indexed_for_gxd");
+                                    doc.addField(IndexConstants.AC_FOR_GXD, forGxd);
                                     doc.addField(IndexConstants.AC_UNIQUE_KEY,"1"+ tempString);
                                     doc.addField(IndexConstants.AC_IS_GENERATED, "1");
                                     parseAuthor(doc, tempString);
-                                    docs.add(doc);
+                                    if (!fabAuthorsForGXD.containsKey(tempString)) {
+                                    	docs.add(doc);
+                                    	fabAuthorsForGXD.put(tempString, forGxd);
+                                    }
+                                    else if (fabAuthorsForGXD.get(tempString).equals("0") && forGxd.equals("1")) {
+                                    	// We have a diverging case, add it into the index, overwriting the old case
+                                    	// Also update the fabAuthors hashMap so that this cannot happen
+                                    	// again.
+                                    	docs.add(doc);
+                                    	fabAuthorsForGXD.put(tempString, forGxd);                                    	
+                                    }
                                     doc = new SolrInputDocument();
                                 }
                             }
