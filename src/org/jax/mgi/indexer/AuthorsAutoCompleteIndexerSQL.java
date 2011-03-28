@@ -3,9 +3,12 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -76,6 +79,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                 
         HashSet<String> authorSet = new HashSet<String>();
         Map<String, String> fabAuthorsForGXD = new HashMap<String, String>(); 
+        HashMap<String, String> uniqueAuthors = new HashMap<String, String>();
         
         try {
             
@@ -99,38 +103,58 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
 				"and r2.indexed_for_gxd = 1) " +
 				"and a.author is not null");
             
+            String author;
+            String indexedForGxd;
+            
+            while (rs_overall.next()) {
+            	author = rs_overall.getString("author");
+            	indexedForGxd = rs_overall.getString("indexed_for_gxd");
+            	
+            	if (!uniqueAuthors.containsKey(author)) {
+            		uniqueAuthors.put(author, indexedForGxd);
+            	} else if (indexedForGxd.equals("1")) {
+            		uniqueAuthors.put(author, indexedForGxd);
+            	}
+            }
+            logger.info("Build HashMap of " + uniqueAuthors.size() + " authors");
+            
+            List<String> authors = new ArrayList(uniqueAuthors.keySet());
+            Collections.sort(authors);
+            
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
             
             // Parse out the solr documents
             
+            String authorIndexedForGxd;
             logger.info("Parsing them");
-            while (rs_overall.next()) {
+            for (String thisAuthor:authors) {
+            	authorIndexedForGxd = uniqueAuthors.get(thisAuthor);
                 
                 SolrInputDocument doc = new SolrInputDocument();
                 
                 // Add in the author, with no changes to the author.
                 
-                doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("author"));
+                doc.addField(IndexConstants.REF_AUTHOR, thisAuthor);
                 
-                // For testing purposes.. add in the authors a second time.
-                
-                parseAuthor(doc, rs_overall.getString("author"));
-                doc.addField(IndexConstants.REF_AUTHOR_SORT, rs_overall.getString("author"));
-                doc.addField(IndexConstants.AC_FOR_GXD, rs_overall.getString("indexed_for_gxd"));
-                doc.addField(IndexConstants.AC_UNIQUE_KEY,"0"+rs_overall.getString("author"));
+                parseAuthor(doc, thisAuthor);
+                doc.addField(IndexConstants.REF_AUTHOR_SORT, thisAuthor);
+                doc.addField(IndexConstants.AC_FOR_GXD, authorIndexedForGxd);
+                doc.addField(IndexConstants.AC_UNIQUE_KEY, thisAuthor);
                 doc.addField(IndexConstants.AC_IS_GENERATED, "0");
                 docs.add(doc);
                 
                 // Parse out the first 4 tokens of the author field, and make display tokens for them.
                 
-                String [] temp = rs_overall.getString("author").split("[\\W-&&[^']]");
+                String [] temp = thisAuthor.split("[\\W-&&[^']]");
                 
                 //doc = new SolrInputDocument();
                 
                 doc = new SolrInputDocument();
                 
+                String forGXD = null;
                 if (temp.length > 1) {
                     for (int i = temp.length - 1; i>= 0; i--) {
+                    		forGXD = "0";
                             String tempString = "";
                             for (int j = 0; j < temp.length - 1 && j < 4; j++) {
                                 //System.out.println("getting here");
@@ -143,22 +167,18 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                 
                                 if (tempString != "") {
                                     doc.addField(IndexConstants.REF_AUTHOR_SORT, tempString);
-                                    String forGxd = rs_overall.getString("indexed_for_gxd");
-                                    doc.addField(IndexConstants.AC_FOR_GXD, forGxd);
-                                    doc.addField(IndexConstants.AC_UNIQUE_KEY,"1"+ tempString);
+                                    if (authorIndexedForGxd.equals("1")) {
+                                    	forGXD = "1";
+                                    } else if (uniqueAuthors.containsKey(tempString)) {
+                                    	forGXD = uniqueAuthors.get(tempString);
+                                    }
+                                    doc.addField(IndexConstants.AC_FOR_GXD, forGXD);
+                                    doc.addField(IndexConstants.AC_UNIQUE_KEY, tempString);
                                     doc.addField(IndexConstants.AC_IS_GENERATED, "1");
                                     parseAuthor(doc, tempString);
-                                    if (!fabAuthorsForGXD.containsKey(tempString)) {
-                                    	docs.add(doc);
-                                    	fabAuthorsForGXD.put(tempString, forGxd);
-                                    }
-                                    else if (fabAuthorsForGXD.get(tempString).equals("0") && forGxd.equals("1")) {
-                                    	// We have a diverging case, add it into the index, overwriting the old case
-                                    	// Also update the fabAuthors hashMap so that this cannot happen
-                                    	// again.
-                                    	docs.add(doc);
-                                    	fabAuthorsForGXD.put(tempString, forGxd);                                    	
-                                    }
+
+                                   	docs.add(doc);
+
                                     doc = new SolrInputDocument();
                                 }
                             }
