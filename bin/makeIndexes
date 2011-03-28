@@ -33,4 +33,5 @@ export CLASSPATH
 ./makeIndexGXDLit
 ./makeIndexMarkerPaneset
 ./makeIndexImage
+./makeIndexMarkerTissue
 
