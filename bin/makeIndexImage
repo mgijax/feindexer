@@ -4,7 +4,7 @@ cd `dirname $0`
 
 # The location of the config file
 INDEX_CONFIG=../feindexer.config
-INSTALL_DIR=/home/mhall/devwi/feindexer
+INSTALL_DIR=/home/jsb/feindexer
 LIB_DIR=$INSTALL_DIR/lib
 
 # What is the memory footprint we want for the jvm for these indexes.
