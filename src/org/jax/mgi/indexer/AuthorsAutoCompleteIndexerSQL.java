@@ -90,7 +90,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
 				"from reference r, reference_individual_authors a " + 
 				"where r.reference_key = a.reference_key " + 
 				"and r.indexed_for_gxd = 1 " +
-				"and a.author is not null " + 
+				"and a.author is not null " +
 				"union " + 
 				"select distinct a.author, r.indexed_for_gxd " + 
 				"from reference r, reference_individual_authors a " + 
@@ -169,6 +169,9 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                     doc.addField(IndexConstants.REF_AUTHOR_SORT, tempString);
                                     if (authorIndexedForGxd.equals("1")) {
                                     	forGXD = "1";
+                                    	if (! uniqueAuthors.containsKey(tempString)) {
+                                    		uniqueAuthors.put(tempString, "1");
+                                    	}
                                     } else if (uniqueAuthors.containsKey(tempString)) {
                                     	forGXD = uniqueAuthors.get(tempString);
                                     }
@@ -177,6 +180,8 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                     doc.addField(IndexConstants.AC_IS_GENERATED, "1");
                                     parseAuthor(doc, tempString);
 
+                                    forGXD = "0";
+                                    
                                    	docs.add(doc);
 
                                     doc = new SolrInputDocument();
