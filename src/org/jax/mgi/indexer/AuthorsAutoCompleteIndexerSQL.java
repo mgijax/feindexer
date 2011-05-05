@@ -152,10 +152,13 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                 doc = new SolrInputDocument();
                 
                 String forGXD = null;
+                String isGenerated = null;
+                
                 if (temp.length > 1) {
-                    for (int i = temp.length - 1; i>= 0; i--) {
+                    //for (int i = temp.length - 1; i>= 0; i--) {
                     		forGXD = "0";
                             String tempString = "";
+                            Boolean first = Boolean.FALSE;
                             for (int j = 0; j < temp.length - 1 && j < 4; j++) {
                                 //System.out.println("getting here");
                                 if (j == 0) {
@@ -167,27 +170,39 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                 
                                 if (tempString != "") {
                                     doc.addField(IndexConstants.REF_AUTHOR_SORT, tempString);
+                                    
+                                    isGenerated = "0";
+                                    
                                     if (authorIndexedForGxd.equals("1")) {
                                     	forGXD = "1";
-                                    	if (! uniqueAuthors.containsKey(tempString)) {
-                                    		uniqueAuthors.put(tempString, "1");
-                                    	}
-                                    } else if (uniqueAuthors.containsKey(tempString)) {
-                                    	forGXD = uniqueAuthors.get(tempString);
                                     }
+                                    
+                                    if (uniqueAuthors.containsKey(tempString)) {
+                                    	forGXD = uniqueAuthors.get(tempString);
+                                    	isGenerated="1";
+                                    	first = Boolean.FALSE;
+                                    }
+                                    
+                                    else {
+                                    	uniqueAuthors.put(tempString, forGXD);
+                                    	first = Boolean.TRUE;
+                                    }
+                                    
                                     doc.addField(IndexConstants.AC_FOR_GXD, forGXD);
                                     doc.addField(IndexConstants.AC_UNIQUE_KEY, tempString);
-                                    doc.addField(IndexConstants.AC_IS_GENERATED, "1");
+                                    doc.addField(IndexConstants.AC_IS_GENERATED, isGenerated);
                                     parseAuthor(doc, tempString);
 
                                     forGXD = "0";
                                     
-                                   	docs.add(doc);
+                                    if (! first) {
+                                    	docs.add(doc);
+                                    }
 
                                     doc = new SolrInputDocument();
                                 }
                             }
-                    }
+                    //}
                 }
                 
 
