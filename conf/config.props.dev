@@ -4,6 +4,7 @@ index.url.authorsAC=http://cardolan.informatics.jax.org:8985/solr/authorsAC/
 index.url.sequence=http://cardolan.informatics.jax.org:8985/solr/sequence/
 index.url.cre=http://cardolan.informatics.jax.org:8985/solr/cre/
 index.url.marker=http://cardolan.informatics.jax.org:8985/solr/marker/
+index.url.markerTissue=http://cardolan.informatics.jax.org:8985/solr/markerTissue/
 index.url.markerPanesetImage=http://cardolan.informatics.jax.org:8985/solr/markerPanesetImage/
 index.url.image=http://cardolan.informatics.jax.org:8985/solr/image/
 index.url.allele=http://cardolan.informatics.jax.org:8985/solr/allele/

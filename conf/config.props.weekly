@@ -11,6 +11,7 @@ index.url.markerAnnotation=http://cardolan.informatics.jax.org:8995/solr/markerA
 index.url.creAlleleSystem=http://cardolan.informatics.jax.org:8995/solr/creAlleleSystem/
 index.url.creAssayResult=http://cardolan.informatics.jax.org:8995/solr/creAssayResult/
 index.url.gxdLitIndex=http://cardolan.informatics.jax.org:8995/solr/gxdLitIndex/
+index.url.markerTissue=http://cardolan.informatics.jax.org:8995/solr/markerTissue/
 
 mgd.user=mgddbo
 mgd.password=mgddbo
