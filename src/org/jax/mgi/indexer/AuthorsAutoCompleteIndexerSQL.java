@@ -175,6 +175,9 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                     
                                     if (authorIndexedForGxd.equals("1")) {
                                     	forGXD = "1";
+                                    	if (uniqueAuthors.containsKey(tempString) && uniqueAuthors.get(tempString).equals("0")) {
+                                    		uniqueAuthors.put(tempString, forGXD);
+                                    	}
                                     }
                                     
                                     if (uniqueAuthors.containsKey(tempString)) {
