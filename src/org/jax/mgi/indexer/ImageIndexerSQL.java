@@ -48,12 +48,21 @@ public class ImageIndexerSQL extends Indexer {
             String imagesToMrkSQL = "select distinct marker_key, image_key from marker_to_phenotype_image";
             System.out.println(imagesToMrkSQL);
             HashMap <String, HashSet <String>> imagesToMarkers = makeHash(imagesToMrkSQL, "image_key", "marker_key");
+	    logger.info ("Got markers for " + imagesToMarkers.size() + " images");
 
             logger.info("Seleceting all phenotype image -> alleles");
-            String imagesToAllSQL = "select distinct image_key, allele_key from image_alleles";
+            String imagesToAllSQL = "select distinct image_key, allele_key "
+		    + "from allele_to_image "
+		    + "union "
+		    + "select distinct thumbnail_image_key, allele_key "
+		    + "from allele_to_image a, image i "
+		    + "where a.image_key = i.image_key";
+
             System.out.println(imagesToAllSQL);
             HashMap <String, HashSet <String>> imagesToAlleles = makeHash(imagesToAllSQL, "image_key", "allele_key");        	
-        	
+
+	    logger.info ("Got alleles for " + imagesToAlleles.size() + " images");
+
             logger.info("Getting all images");
             ResultSet rs_overall = ex.executeProto("select i.mgi_id, i.image_key, isn.by_default, i.is_thumbnail, i.image_class " +   
 				"from image i, image_sequence_num isn " + 
