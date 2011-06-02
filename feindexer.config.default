@@ -10,7 +10,7 @@ fi
 CONFIG_MASTER=${MGICONFIG}/master.config.sh
 export CONFIG_MASTER
 
-INSTALL_DIR=/home/mhall/devwi/feindexer
+INSTALL_DIR=/home/jsb/feindexer
 export INSTALL_DIR
 
 LIB_DIR=$INSTALL_DIR/lib
