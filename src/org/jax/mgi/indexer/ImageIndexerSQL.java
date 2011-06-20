@@ -44,13 +44,19 @@ public class ImageIndexerSQL extends Indexer {
         try {
         	
         	
-            logger.info("Seleceting all phenotype image -> markers");
+            logger.info("Selecting all phenotype image -> markers");
             String imagesToMrkSQL = "select distinct marker_key, image_key from marker_to_phenotype_image";
             System.out.println(imagesToMrkSQL);
             HashMap <String, HashSet <String>> imagesToMarkers = makeHash(imagesToMrkSQL, "image_key", "marker_key");
 	    logger.info ("Got markers for " + imagesToMarkers.size() + " images");
 
-            logger.info("Seleceting all phenotype image -> alleles");
+            logger.info("Selecting all expression image -> markers");
+            String gxdImagesToMrkSQL = "select distinct marker_key, image_key from marker_to_expression_image";
+            System.out.println(gxdImagesToMrkSQL);
+            HashMap <String, HashSet <String>> gxdImagesToMarkers = makeHash(gxdImagesToMrkSQL, "image_key", "marker_key");
+	    logger.info ("Got markers for " + gxdImagesToMarkers.size() + " images");
+
+            logger.info("Selecting all phenotype image -> alleles");
             String imagesToAllSQL = "select distinct image_key, allele_key "
 		    + "from allele_to_image "
 		    + "union "
@@ -83,12 +89,21 @@ public class ImageIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.IS_THUMB, rs_overall.getString("is_thumbnail"));
                 doc.addField(IndexConstants.IMAGE_CLASS, rs_overall.getString("image_class"));
                 
+		// markers for a phenotype image
                 if (imagesToMarkers.containsKey(rs_overall.getString("image_key"))) {
                     for (String markerKey: imagesToMarkers.get(rs_overall.getString("image_key"))) {
                         doc.addField(IndexConstants.MRK_KEY, markerKey);
                     }
                 }
+
+		// markers for an expression image
+                if (gxdImagesToMarkers.containsKey(rs_overall.getString("image_key"))) {
+                    for (String markerKey: gxdImagesToMarkers.get(rs_overall.getString("image_key"))) {
+                        doc.addField(IndexConstants.MRK_KEY, markerKey);
+                    }
+                }
                 
+		// alleles for a phenotype image
                 if (imagesToAlleles.containsKey(rs_overall.getString("image_key"))) {
                     for (String alleleKey: imagesToAlleles.get(rs_overall.getString("image_key"))) {
                         doc.addField(IndexConstants.ALL_KEY, alleleKey);
