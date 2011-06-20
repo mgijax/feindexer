@@ -86,7 +86,7 @@ public class SequenceIndexerSQL extends Indexer {
             // The main query
             
             logger.info("Getting all sequences");
-            ResultSet rs_overall = ex.executeProto("select s.sequence_key, ssn.by_sequence_type, ssn.by_provider, s.length " +
+            ResultSet rs_overall = ex.executeProto("select s.sequence_key, ssn.by_sequence_type, ssn.by_provider, s.length, s.provider " +
                     "from sequence as s left outer join sequence_sequence_num ssn on s.sequence_key = ssn.sequence_key where s.sequence_key > " 
                     + start + " and s.sequence_key <= " + end);
             
@@ -98,6 +98,7 @@ public class SequenceIndexerSQL extends Indexer {
             while (rs_overall.next()) {
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.SEQ_KEY, rs_overall.getString("sequence_key"));
+                doc.addField(IndexConstants.SEQ_PROVIDER, rs_overall.getString("provider"));
                 doc.addField(IndexConstants.SEQ_TYPE_SORT, rs_overall.getString("by_sequence_type"));
                 doc.addField(IndexConstants.SEQ_PROVIDER_SORT, rs_overall.getString("by_provider"));
                 if (rs_overall.getString("length") != null && ! rs_overall.getString("length").equals("")) {
