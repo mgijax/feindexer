@@ -73,13 +73,13 @@ public class MarkerIndexerSQL extends Indexer {
             // Get all marker -> vocab relationships, by marker key
             
             logger.info("Seleceting all vocab terms/ID's -> marker");
-            String markerToTermSQL = "select distinct marker_key, term, annotation_type, term_id from marker_annotation where marker_key > " + start + " and marker_key <= "+ end;
+            String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
             logger.info(markerToTermSQL);
             HashMap <String, HashSet <String>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
 
             
             logger.info("Seleceting all vocab terms/ID's -> marker");
-            String markerToTermIDSQL = "select distinct marker_key, term_id from marker_annotation where marker_key > " + start + " and marker_key <= "+ end;
+            String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
             logger.info(markerToTermIDSQL);
             HashMap <String, HashSet <String>> termToMarkersID = makeHash(markerToTermSQL, "marker_key", "term_id");
             
