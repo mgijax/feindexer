@@ -1,0 +1,73 @@
+#!/bin/sh
+
+# Name: configure
+# Purpose: to build a new config file for the feindexer product and run 'ant'
+#	to re-compile the software and bundle in the new config file
+
+USAGE='Usage: $0 <Solr index host name> <Solr port> <db server> <db database> <db username> <password file>
+'
+
+# ensure that we are not executing this script via a symbolic link
+
+if [ -h $0 ]; then
+    echo "Error: cannot invoke $0 as a symbolic link"
+    exit 1
+fi
+
+# check our number of parameters
+
+if [ $# -lt 6 ]; then
+	echo $USAGE
+	echo "Error: too few parameters"
+	exit 1
+fi
+
+# remember where we started
+
+CURRENT_DIR=`pwd`
+
+# ensure that we are in the bin directory of the feindexer product
+
+BASENAME=`basename $0`
+NOTBASENAME=`echo $0 | sed "s/${BASENAME}$//"`
+
+if [ "${NOTBASENAME}" != "" ]; then
+    cd ${NOTBASENAME}
+fi
+
+# go to the directory of config files
+
+cd ../conf
+
+# pick up our variables
+
+SOLR_HOST=$1
+SOLR_PORT=$2
+DB_SERVER=$3
+DB_DATABASE=$4
+DB_USER=$5
+
+if [ ! -f $6 ]; then
+	echo $USAGE
+	echo "Error: cannot find password file ($6)"
+	exit 1
+fi
+
+HTTP_HOST=`nslookup ${SOLR_HOST} | grep "^Name" | awk '{print $2}'`
+
+DB_PASSWORD=`cat $6`
+
+BASE_URL="http://${HTTP_HOST}:${SOLR_PORT}/solr"
+
+cat config.props.template \
+	| sed "s={BASE_URL}=${BASE_URL}=" \
+	| sed "s={DB_USER}=${DB_USER}=" \
+	| sed "s={DB_PASSWORD}=${DB_PASSWORD}=" \
+	| sed "s={DB_SERVER}=${DB_SERVER}=" \
+	| sed "s={DB_DATABASE}=${DB_DATABASE}=" > config.props
+
+cd ..
+ant
+
+# go back where we started
+cd ${currentDir}

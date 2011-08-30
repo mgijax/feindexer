@@ -1,0 +1,133 @@
+#!/usr/local/bin/python
+
+# Name: buildAllIndexes
+# Purpose: to rebuild all the indexes for the current Solr instance (where the
+#	Solr instance has already been configured using the 'configure'
+#	script)
+
+import sys
+sys.path.insert (0, '.')
+import time
+import copy
+import Dispatcher
+
+###--- Globals ---###
+
+# float; time (in sec) at which the script started
+START_TIME = time.time()
+
+# list of (index name, min memory in Gb, max memory in Gb), ordered by which
+# we want to build first
+STANDARD_INDEXES = [
+	('reference', 2, 4),
+	('marker', 2, 4),
+	('allele', 2, 4),
+	('markerAnnotation', 2, 4),
+	('authorsAC', 2, 4),
+	('journalsAC', 2, 4),
+	('cre', 2, 4),
+	('creAlleleSystem', 2, 4),
+	('creAssayResult', 2, 4),
+	('gxdLitIndex', 2, 4),
+	('markerPanesetImage', 2, 4),
+	('image', 2, 4),
+	('markerTissue', 4, 10),
+	]
+
+# same as STANDARD_INDEXES, but for indexers which can produce a large amount
+# of output to stdout or stderr
+LARGE_IO_INDEXES = [
+	('sequence', 4, 10),
+	]
+
+# number of indexing subprocesses to allow simultaneously
+CONCURRENT_INDEXERS = 3
+
+# Dispatcher to handle management of simultaneous indexers (except for those
+# with large I/O)
+INDEX_DISPATCHER = Dispatcher.Dispatcher(CONCURRENT_INDEXERS - 1)
+
+# Dispatcher to handle management of simultaneous indexers which produce large
+# amounts of I/O (do one at a time with a 10Mb I/O buffer)
+LARGE_IO_DISPATCHER = Dispatcher.Dispatcher(1, bufsize=10000000)
+
+# maps index name -> (dispatcher object, dispatcher process ID)
+IDS = {}
+
+###--- Functions ---###
+
+def log (s):
+	elapsed = time.time() - START_TIME
+	sys.stderr.write ('%8.2f sec : %s\n' % (elapsed, s))
+	return
+
+def report():
+	global IDS
+
+	for (name, (dispatcher, id)) in IDS.items():
+		status = dispatcher.getStatus(id)
+
+		if dispatcher.getStatus(id) != Dispatcher.FINISHED:
+			continue
+
+		exitCode = dispatcher.getReturnCode(id)
+		stderr = dispatcher.getStderr(id)
+		stdout = dispatcher.getStdout(id)
+		elapsed = dispatcher.getElapsedTime(id)
+
+		if (exitCode != 0):
+			log ('Failed on index %s in %0.2f seconds' % (name,
+				elapsed))
+			sys.stderr.write('stdout:\n')
+			sys.stderr.write(''.join(stdout) + '\n')
+			sys.stderr.write('stderr:\n')
+			sys.stderr.write(''.join(stderr) + '\n')
+			sys.exit(1)
+
+		log ('Finished %s in %0.2f seconds' % (name, elapsed))
+		del IDS[name]
+	return
+
+def main():
+	global IDS
+
+	log ('Starting indexers, up to %d running concurrently' % \
+		CONCURRENT_INDEXERS)
+
+	for (name, minMem, maxMem) in STANDARD_INDEXES:
+		IDS[name] = (INDEX_DISPATCHER, 
+			INDEX_DISPATCHER.schedule (
+			'./buildIndex %s %d %d' % (name, minMem, maxMem)) )
+
+	for (name, minMem, maxMem) in LARGE_IO_INDEXES:
+		IDS[name] = (LARGE_IO_DISPATCHER,
+			LARGE_IO_DISPATCHER.schedule (
+			'./buildIndex %s %d %d' % (name, minMem, maxMem)) )
+
+	IDS_COPY = copy.copy (IDS)
+
+	INDEX_DISPATCHER.wait(report)
+	LARGE_IO_DISPATCHER.wait(report)
+
+	log ('Finished all indexers')
+
+	divider = '-' * 60
+
+	for (name, (dispatcher, id)) in IDS_COPY.items():
+		print divider
+		print 'Name: %s    Elapsed: %0.2f sec' % (name,
+			dispatcher.getElapsedTime(id))
+		print divider
+		print 'Name: %s    stdout:' % name
+		print ''.join (dispatcher.getStdout(id))
+		print divider
+		print 'Name: %s    stderr:' % name
+		print ''.join (dispatcher.getStderr(id))
+	print divider
+	print "Completed successfully"
+	return 
+
+###--- Main Program ---###
+
+if __name__ == '__main__':
+	main()

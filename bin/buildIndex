@@ -1,0 +1,104 @@
+#!/bin/sh
+
+# Name: buildIndex
+# Purpose: build a single index, specified on the command-line
+
+USAGE="Usage: $0 <index name> [<min memory in Gb>] [<max memory in Gb>]
+"
+
+# check number of parameters
+
+if [ $# -lt 1 ]; then
+    echo $USAGE
+    echo "Error: missing index name"
+    exit 1
+fi
+
+# ensure that we're in the bin/ directory
+
+cd `dirname $0`
+
+# import the general feindexer config file
+
+INDEX_CONFIG=../feindexer.config
+
+if [ ! -r ${INDEX_CONFIG} ]
+then
+    echo "Cannot read configuration file: ${INDEX_CONFIG}" | tee -a ${LOG}
+    exit 1
+fi
+. ${INDEX_CONFIG}
+
+# get memory settings
+
+MIN_MEM=2
+MAX_MEM=4
+
+if [ $# -gt 1 ]; then
+    MIN_MEM=$2
+
+    if [ $# -gt 2 ]; then
+	MAX_MEM=$3
+    fi
+fi
+
+# prepare the memory settings for the JVM
+
+MEMORY_ARGS="-d64 -Xms${MIN_MEM}g -Xmx${MAX_MEM}g"
+
+# set up the classpath for the JVM
+
+for i in `ls -1 $LIB_DIR`
+do
+CLASSPATH=$LIB_DIR/$i:$CLASSPATH
+done
+
+CLASSPATH=$INSTALL_DIR/dist/feindexer.jar:$CLASSPATH
+export CLASSPATH
+
+# map the index name to its Java class
+
+INDEX_CLASS="unknown"
+
+if [ "$1" = "journalsAC" ]; then
+    INDEX_CLASS="JournalsAutoCompleteIndexerSQL"
+elif [ "$1" = "reference" ]; then
+    INDEX_CLASS="RefIndexerSQL"
+elif [ "$1" = "authorsAC" ]; then
+    INDEX_CLASS="AuthorsAutoCompleteIndexerSQL"
+elif [ "$1" = "sequence" ]; then
+    INDEX_CLASS="SequenceIndexerSQL"
+elif [ "$1" = "cre" ]; then
+    INDEX_CLASS="CreIndexerSQL"
+elif [ "$1" = "marker" ]; then
+    INDEX_CLASS="MarkerIndexerSQL"
+elif [ "$1" = "markerPanesetImage" ]; then
+    INDEX_CLASS="MarkerPanesetIndexerSQL"
+elif [ "$1" = "image" ]; then
+    INDEX_CLASS="ImageIndexerSQL"
+elif [ "$1" = "allele" ]; then
+    INDEX_CLASS="AlleleIndexerSQL"
+elif [ "$1" = "markerAnnotation" ]; then
+    INDEX_CLASS="MarkerAnnotationIndexerSQL"
+elif [ "$1" = "creAlleleSystem" ]; then
+    INDEX_CLASS="CreAlleleSystemIndexerSQL"
+elif [ "$1" = "creAssayResult" ]; then
+    INDEX_CLASS="CreAssayResultIndexerSQL"
+elif [ "$1" = "gxdLitIndex" ]; then
+    INDEX_CLASS="GXDLitIndexerSQL"
+elif [ "$1" = "markerTissue" ]; then
+    INDEX_CLASS="MarkerTissueIndexerSQL"
+fi
+
+# if we found no mapping, given an error message
+
+if [ "${INDEX_CLASS}" = "unknown" ]; then
+    echo $USAGE
+    echo "Error: Unknown index name ($1)"
+    exit 1
+fi
+
+# run the indexer
+
+/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.indexer.${INDEX_CLASS}
+exit $?
