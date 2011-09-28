@@ -4,8 +4,6 @@ index.url.authorsAC=http://cardolan.informatics.jax.org:8990/solr/authorsAC/
 index.url.sequence=http://cardolan.informatics.jax.org:8990/solr/sequence/
 index.url.cre=http://cardolan.informatics.jax.org:8990/solr/cre/
 index.url.marker=http://cardolan.informatics.jax.org:8990/solr/marker/
-index.url.markerImage=http://cardolan.informatics.jax.org:8990/solr/markerImage/
-index.url.phenotypeImage=http://cardolan.informatics.jax.org:8990/solr/phenotypeImage/
 index.url.markerPanesetImage=http://cardolan.informatics.jax.org:8990/solr/markerPanesetImage/
 index.url.image=http://cardolan.informatics.jax.org:8990/solr/image/
 index.url.allele=http://cardolan.informatics.jax.org:8990/solr/allele/
@@ -17,5 +15,5 @@ index.url.markerTissue=http://cardolan.informatics.jax.org:8990/solr/markerTissu
 
 mgd.user=mgddbo
 mgd.password=mgddbo
-mgd.JDBC.url=jdbc:postgresql://cardolan/fe_stable
+mgd.JDBC.url=jdbc:postgresql://mtdoom/fe
 database.JDBC.driver=org.postgresql.Driver
