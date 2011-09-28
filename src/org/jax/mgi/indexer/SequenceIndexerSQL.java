@@ -36,6 +36,7 @@ public class SequenceIndexerSQL extends Indexer {
     
     private void doChunks() {
         
+	String provider;
         try {
             
             // Find out how big the result set can be, and then setup the chunking.
@@ -46,7 +47,7 @@ public class SequenceIndexerSQL extends Indexer {
             logger.info("Max Seq Number: " + rs_tmp.getString("max_seq_key") + " Timing: "+ ex.getTiming());
             Integer start = 0;
             Integer end = rs_tmp.getInt("max_seq_key");
-            
+
             // This needs to be a configurable value
             
             int chunkSize = 500000;
@@ -63,42 +64,51 @@ public class SequenceIndexerSQL extends Indexer {
 
             // Sequence -> References
             
-            logger.info("Seleceting all sequence references");
+	    logger.info ("Processing seq key > " + start + " and <= " + end);
+
+            //logger.info("Selecting all sequence references");
             String sequenceToRefSQL = "select sequence_key, reference_key from reference_to_sequence where sequence_key > " + start + " and sequence_key <= "+ end;
-            logger.info(sequenceToRefSQL);
+            //logger.info(sequenceToRefSQL);
             HashMap <String, HashSet <String>> seqToReference = makeHash(sequenceToRefSQL, "sequence_key", "reference_key");
 
             // Sequence -> Markers
             
-            logger.info("Seleceting all sequence Markers");
+            //logger.info("Selecting all sequence Markers");
             String sequenceToMarkerSQL = "select sequence_key, marker_key from marker_to_sequence where sequence_key > " + start + " and sequence_key <= "+ end;
-            logger.info(sequenceToMarkerSQL);
+            //logger.info(sequenceToMarkerSQL);
             HashMap <String, HashSet <String>> seqToMarker = makeHash(sequenceToMarkerSQL, "sequence_key", "marker_key");
             
             // Sequence -> IDs
             
-            logger.info("Seleceting all sequence ids");
+            //logger.info("Selecting all sequence ids");
             String sequenceIDs = "select sequence_key, acc_id from sequence_id where private != 1 and sequence_key > " + start + " and sequence_key <= "+ end;
-            logger.info(sequenceIDs);
+            //logger.info(sequenceIDs);
             HashMap <String, HashSet <String>> seqIDs = makeHash(sequenceIDs, "sequence_key", "acc_id");
 
             
             // The main query
             
-            logger.info("Getting all sequences");
+            //logger.info("Getting all sequences");
             ResultSet rs_overall = ex.executeProto("select s.sequence_key, ssn.by_sequence_type, ssn.by_provider, s.length, s.provider " +
-                    "from sequence as s left outer join sequence_sequence_num ssn on s.sequence_key = ssn.sequence_key where s.sequence_key > " 
+                    "from sequence as s inner join sequence_sequence_num ssn on s.sequence_key = ssn.sequence_key where s.sequence_key > " 
                     + start + " and s.sequence_key <= " + end);
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
             
             // Parse the main query results here.
             
-            logger.info("Parsing them");
+            //logger.info("Parsing them");
             while (rs_overall.next()) {
+                provider = rs_overall.getString("provider");
+
+		if (provider.equals("TrEMBL") ||
+		    provider.equals("SWISS-PROT")) {
+		    	provider = "UniProt";
+		}
+
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.SEQ_KEY, rs_overall.getString("sequence_key"));
-                doc.addField(IndexConstants.SEQ_PROVIDER, rs_overall.getString("provider"));
+                doc.addField(IndexConstants.SEQ_PROVIDER, provider);
                 doc.addField(IndexConstants.SEQ_TYPE_SORT, rs_overall.getString("by_sequence_type"));
                 doc.addField(IndexConstants.SEQ_PROVIDER_SORT, rs_overall.getString("by_provider"));
                 if (rs_overall.getString("length") != null && ! rs_overall.getString("length").equals("")) {
@@ -136,10 +146,10 @@ public class SequenceIndexerSQL extends Indexer {
                 docs.add(doc);
                 
                 if (docs.size() > 10000) {
-                    logger.info("Adding a stack of the documents to Solr");
+                    //logger.info("Adding a stack of the documents to Solr");
                     server.add(docs);
                     docs = new ArrayList<SolrInputDocument>();
-                    logger.info("Done adding to solr, Moving on");
+                    //logger.info("Done adding to solr, Moving on");
                 }
             }
             // Add in the last set of docs, in case there is less than 10000, since solr
