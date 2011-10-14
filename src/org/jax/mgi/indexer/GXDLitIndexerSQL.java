@@ -106,7 +106,8 @@ public class GXDLitIndexerSQL extends Indexer {
     			
     			MarkerSearchInfo msi = markerSearchInfo.get(rs_base.getString("marker_key"));
     			for (String nomen: msi.getNomen()) {
-        			doc.addField(IndexConstants.GXD_MRK_NOMEN, nomen);    				
+        			doc.addField(IndexConstants.GXD_MRK_NOMEN,
+				    this.translateString(nomen));
     			}
     			
     			// Add in all the reference information for this tuple.
@@ -167,6 +168,16 @@ public class GXDLitIndexerSQL extends Indexer {
     	
     }
     
+    /** translate String 's' to have any unacceptable characters converted to
+     * be whitespace.  Also ensures no more than one consecutive space in the
+     * returned String.
+     * @param s input String
+     * @return a cleansed version of s
+     */
+    private String translateString (String s) {
+	return s.replaceAll ("[^A-Za-z0-9]", " ").replaceAll("  +", " ");
+    }
+
     private Map<String, List <GxdLitAgeAssayTypePair>> getAgeAssayTypeInfo() {
     	
     	Map <String, List <GxdLitAgeAssayTypePair>> records = new HashMap<String, List <GxdLitAgeAssayTypePair>>();
