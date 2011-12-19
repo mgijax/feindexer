@@ -1,3 +1,8 @@
+TAG: feindexer-5-0-0-2
+DATE: 12/19/2011
+STAFF: jsb
+CHANGES: parallelized calls to indexers
+
 TAG: feindexer-5-0-0-1
 DATE: 9/21/10
 STAFF: mhall
