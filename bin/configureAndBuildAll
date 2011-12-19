@@ -1,0 +1,65 @@
+#!/bin/sh
+
+# Name: configureAndBuildAll
+# Purpose: serves as a convenience wrapper over the 'configure' and
+#	'buildAllIndexes' scripts, with pre-configured selections for known
+#	Solr instances (see USAGE for known names)
+
+USAGE='Usage: $0 [ frontend | backend | weekly | proto | mgi-fewi1 ]
+'
+
+# ensure that we are not running via a symbolic link
+
+if [ -h $0 ]; then
+	echo "Error: cannot invoke $0 as a symbolic link"
+	exit 1
+fi
+
+# check that we have an input parameter
+
+if [ $# -lt 1 ]; then
+	echo ${USAGE}
+	echo "Error: no Solr instance specified"
+	exit 1
+fi
+
+# get into the bin/ directory
+
+cd `dirname $0`
+
+# set of standard parameters, to be updated based on 'INSTANCE'
+# (settings are for 'backend' by default)
+
+SOLR_HOST=cardolan
+SOLR_PORT=8983
+DB_HOST=cardolan
+DB_NAME=fe_backend
+DB_USER=mgddbo
+DB_PASSWORDFILE=/home/jsb/schemaSpy/mgddbo.pwd
+
+# now go through and fill in our parameters based on 'INSTANCE'
+
+if [ "${1}" = "frontend" ]; then
+	SOLR_PORT=8985
+	DB_NAME=fe_frontend
+elif [ "${1}" = "backend" ]; then
+	sleep 1
+elif [ "${1}" = "proto" ]; then
+	SOLR_PORT=8990
+	DB_HOST=mtdoom
+	DB_NAME=fe
+elif [ "${1}" = "weekly" ]; then
+	SOLR_PORT=8995
+	DB_NAME=fe_weekly
+elif [ "${1}" = "mgi-fewi1" ]; then
+        SOLR_HOST=mgi-fewi1.jax.org
+        SOLR_PORT=9995
+        DB_HOST=mgi-fedb1.jax.org
+        DB_NAME=fe
+        DB_USER=mgd_public
+        DB_PASSWORDFILE=/usr/local/mgi/live/dbutils/mgidbutilities/.mgd_public_password
+fi
+
+./configure ${SOLR_HOST} ${SOLR_PORT} ${DB_HOST} ${DB_NAME} ${DB_USER} ${DB_PASSWORDFILE}
+./buildAllIndexes > $1.out
+echo "Done; output in $1.out"
