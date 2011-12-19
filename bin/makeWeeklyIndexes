@@ -1,6 +1,0 @@
-#!/bin/sh
-
-cd `dirname $0`
-
-./configure cardolan 8995 mtdoom fe mgddbo /home/jsb/schemaSpy/mgddbo.pwd
-./buildAllIndexes
