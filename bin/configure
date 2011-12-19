@@ -67,7 +67,7 @@ cat config.props.template \
 	| sed "s={DB_DATABASE}=${DB_DATABASE}=" > config.props
 
 cd ..
-ant
+./Install
 
 # go back where we started
 cd ${currentDir}
