@@ -15,11 +15,11 @@ import org.jax.mgi.searchInfo.ReferenceSearchInfo;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
- * RefIndexerSQL
- * @author mhall
- * This class has the primary responsibility for populating the reference index.
- * It has a fairly large number of sub object relationships, but since its a 
- * fairly small dataset there is no real need to do actual chunking.
+ * GXDLitIndexerSQL
+ * This class has the primary responsibility for populating the Solr index for
+ * the GXD Literature Index.  It has a fairly large number of sub object
+ * relationships, but since its a fairly small dataset there is no real need
+ * to do actual chunking.
  */
 
 public class GXDLitIndexerSQL extends Indexer {
@@ -48,29 +48,24 @@ public class GXDLitIndexerSQL extends Indexer {
      * main query.  We then enter a parsing phase where we place the data into
      * solr documents, and put them into the index.
      */
-    
     private void doChunks() {
     	
     	logger.info("Gathering up the marker information.");
-    	
     	Map <String, MarkerSearchInfo> markerSearchInfo = getMarkerInfo();
     	
-    	logger.info("Past the marker info step");
-
     	logger.info("Gathering the reference information");
-    	
     	Map <String, ReferenceSearchInfo> referenceSearchInfo = getReferenceInfo();
     	
     	logger.info("Gathering the assay type/age pairings.");
-    	
     	Map <String, List <GxdLitAgeAssayTypePair>> records = getAgeAssayTypeInfo();
     	
-    	logger.info("Past the reference info step.");
+    	logger.info("Gathering the expression index records");
     	
-    	logger.info("Generating the solr documents.");
-    	
-    	logger.info("Gathering the expression unique results");
-    	
+	/* Each index record is a marker/reference pair that is identified
+	 * uniquely by an index key.  The by_symbol and by_author fields are
+	 * used for sorting these records by marker symbol or author,
+	 * respectively.
+	 */
     	ResultSet rs_base = ex.executeProto("select distinct ei.marker_key, ei.reference_key, ei.index_key, " +
     		"msn.by_symbol, rsn.by_author " + 
 			"from expression_index as ei " + 
@@ -78,10 +73,18 @@ public class GXDLitIndexerSQL extends Indexer {
 			"join reference_sequence_num as rsn on ei.reference_key = rsn.reference_key " + 
 			"order by ei.marker_key, ei.reference_key, ei.index_key");
 
-    	logger.info("Creating solr documents");
+    	logger.info("Creating solr documents...");
     	
     	Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
     	
+	/* define a List with Integer objects, one for each Theiler stage, to
+	 * share them and thus reduce drag due to individual object creations
+	 */
+	List<Integer> myInts = new ArrayList<Integer>(30);
+	for (int i = 0; i < 30; i++) {
+		myInts.add(new Integer(i));
+	}
+
     	try {
     		rs_base.next();
     		
@@ -92,13 +95,63 @@ public class GXDLitIndexerSQL extends Indexer {
     			doc.addField(IndexConstants.MRK_BY_SYMBOL, rs_base.getString("by_symbol"));
     			doc.addField(IndexConstants.REF_AUTHOR_SORT, rs_base.getString("by_author"));
     			
-    			
-    			for (GxdLitAgeAssayTypePair pair: records.get(rs_base.getString("index_key"))) {
+			/* to reduce redundancy, we'll walk through the various
+			 * age/assay type pairs and collate their values to get
+			 * unique sets for the index
+			 */
+			HashSet<String> ageStrings = new HashSet<String>();
+			HashSet<String> assayTypes = new HashSet<String>();
+			HashSet<String> fcAssayTypes = new HashSet<String>();
+			HashSet<Integer> stages = new HashSet<Integer>();
+			String fcAssayType;
+			Integer minTS;
+			Integer maxTS;
+			int minTSint;
+			int maxTSint;
 
-        			doc.addField(IndexConstants.GXD_LIT_AGE, pair.getAge());
-        			doc.addField(IndexConstants.GXD_LIT_ASSAY_TYPE, pair.getAssayType());
-    				
-    			}
+			for (GxdLitAgeAssayTypePair pair: records.get(rs_base.getString("index_key"))) {
+				ageStrings.add(pair.getAge());
+				assayTypes.add(pair.getAssayType());
+
+				fcAssayType = pair.getFullCodedAssayType();
+				minTS = pair.getMinTheilerStage();
+				maxTS = pair.getMaxTheilerStage();
+
+				if (fcAssayType != null) {
+					fcAssayTypes.add (fcAssayType);
+				}
+
+				if ((minTS != null) && (maxTS != null)) {
+					minTSint = minTS.intValue();
+					maxTSint = maxTS.intValue();
+
+					for (int i = minTSint; i <= maxTSint; i++) {
+						stages.add (myInts.get(i));
+					}
+				} 
+			}
+
+			/* now, we can add those collated items to the index
+			 */
+			for (String age: ageStrings) {
+        			doc.addField(IndexConstants.GXD_LIT_AGE, age); 
+			}
+			for (String assayType: assayTypes) {
+        			doc.addField(
+					IndexConstants.GXD_LIT_ASSAY_TYPE,
+					assayType);
+			}
+			for (String fcat: fcAssayTypes) {
+				doc.addField(
+					IndexConstants.GXD_LIT_FC_ASSAY_TYPE,
+					fcat);
+			}
+			for (Integer stage: stages) {
+				doc.addField(
+					IndexConstants.GXD_LIT_THEILER_STAGE,
+					stage);
+			}
+
     			doc.addField(IndexConstants.REF_KEY, rs_base.getString("reference_key"));
     			doc.addField(IndexConstants.MRK_KEY, rs_base.getString("marker_key"));    	
     			
@@ -182,10 +235,23 @@ public class GXDLitIndexerSQL extends Indexer {
     	
     	Map <String, List <GxdLitAgeAssayTypePair>> records = new HashMap<String, List <GxdLitAgeAssayTypePair>>();
     	
-    	ResultSet rs_assay_age_pair = ex.executeProto("select index_key, assay_type, age_string " +
-    			"from expression_index_stages " +
-    			"order by index_key");
-    	
+	String minTS;
+	String maxTS;
+
+    	ResultSet rs_assay_age_pair = ex.executeProto(
+		"select eis.index_key, "
+		+ "  eis.assay_type, "
+		+ "  eis.age_string, "
+		+ "  age.min_theiler_stage, "
+		+ "  age.max_theiler_stage, "
+		+ "  assay_type.full_coding_assay_type "
+		+ "from expression_index_stages eis "
+		+ "left outer join expression_index_age_map age on "
+		+ "  (eis.age_string = age.age_string) "
+		+ "left outer join expression_index_assay_type_map "
+		+ "  assay_type on (eis.assay_type = assay_type.assay_type) "
+		+ "order by eis.index_key");
+		
     	try {
     		rs_assay_age_pair.next();
     		
@@ -194,6 +260,19 @@ public class GXDLitIndexerSQL extends Indexer {
     			GxdLitAgeAssayTypePair pair = new GxdLitAgeAssayTypePair();
     			pair.setAge(rs_assay_age_pair.getString("age_string"));
     			pair.setAssayType(rs_assay_age_pair.getString("assay_type"));
+			pair.setFullCodedAssayType(
+				rs_assay_age_pair.getString(
+					"full_coding_assay_type"));
+
+			minTS = rs_assay_age_pair.getString(
+				"min_theiler_stage");
+			maxTS = rs_assay_age_pair.getString(
+				"max_theiler_stage");
+
+			if ((minTS != null) && (maxTS != null)) {
+				pair.setMinTheilerStage(new Integer(minTS));
+				pair.setMaxTheilerStage(new Integer(maxTS));
+			}
 
     			if (records.containsKey(rs_assay_age_pair.getString("index_key"))) {
     				records.get(rs_assay_age_pair.getString("index_key")).add(pair);
