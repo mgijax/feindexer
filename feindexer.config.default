@@ -10,14 +10,8 @@ fi
 CONFIG_MASTER=${MGICONFIG}/master.config.sh
 export CONFIG_MASTER
 
-INSTALL_DIR=/home/jsb/feindexer
+INSTALL_DIR=${FEINDEXER}
 export INSTALL_DIR
 
 LIB_DIR=$INSTALL_DIR/lib
 export LIB_DIR
-
-PATH=/usr/mgijava6/bin/:/usr/local/apache-ant-1.7.1/bin/:${PATH}
-export PATH
-
-JAVA_HOME=/usr/mgijava6/
-export JAVA_HOME

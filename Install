@@ -14,4 +14,4 @@ cd `dirname $0`
 
 . ./feindexer.config
 
-ant
+${ANT}
