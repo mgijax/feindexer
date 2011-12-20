@@ -1,6 +1,0 @@
-project.name=feindexer
-
-
-<!--MGI lib directories -->
-lib_java_fe.dir=/home/mhall/devwi/lib_java_fe
-
