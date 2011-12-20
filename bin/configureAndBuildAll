@@ -41,7 +41,10 @@ DB_PASSWORDFILE=/home/jsb/schemaSpy/mgddbo.pwd
 
 if [ "${1}" = "frontend" ]; then
 	SOLR_PORT=8985
-	DB_NAME=fe_frontend
+        DB_HOST=mgi-fedb1.jax.org
+        DB_NAME=fe
+        DB_USER=mgd_public
+        DB_PASSWORDFILE=/usr/local/mgi/live/dbutils/mgidbutilities/.mgd_public_password
 elif [ "${1}" = "backend" ]; then
 	sleep 1
 elif [ "${1}" = "proto" ]; then
