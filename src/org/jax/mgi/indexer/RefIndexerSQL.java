@@ -59,50 +59,56 @@ public class RefIndexerSQL extends Indexer {
                
             // Get all reference -> marker relationships, by marker key
             
-            logger.info("Seleceting all reference -> marker");
+            logger.info("Selecting all reference -> marker");
             String markerToRefSQL = "select reference_key, marker_key from marker_to_reference where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(markerToRefSQL);
             HashMap <String, HashSet <String>> refToMarkers = makeHash(markerToRefSQL, "reference_key", "marker_key");
 
             // Get all reference -> book publisher relationships, by publisher
             
-            logger.info("Seleceting all reference -> publisher");
+            logger.info("Selecting all reference -> publisher");
             String pubToRefSQL = "select reference_key, publisher from reference_book where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(pubToRefSQL);
             HashMap <String, HashSet <String>> pubToRefs = makeHash(pubToRefSQL, "reference_key", "publisher");            
             
             // Get all reference -> allele relationships, by allele key
             
-            logger.info("Seleceting all reference -> allele");
+            logger.info("Selecting all reference -> allele");
             String alleleToRefSQL = "select reference_key, allele_key from allele_to_reference where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(alleleToRefSQL);
             HashMap <String, HashSet <String>> refToAlleles = makeHash(alleleToRefSQL, "reference_key", "allele_key");
             
             // Get all reference -> sequence relationships, by sequence key
             
-            logger.info("Seleceting all reference -> sequence associations");
+            logger.info("Selecting all reference -> sequence associations");
             String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceToSeqSQL);
             HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
             
             // Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> sequence associations");
+            logger.info("Selecting all reference -> sequence associations");
             String referenceAuthorSQL = "select reference_key, author from reference_individual_authors where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceAuthorSQL);
             HashMap <String, HashSet <String>> refAuthors = makeHash(referenceAuthorSQL,"reference_key","author");
 
             // last Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> sequence associations");
+            logger.info("Selecting all reference -> sequence associations");
             String referenceAuthorLastSQL = "select reference_key, author from reference_individual_authors where is_last = 1 and reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceAuthorLastSQL);
             HashMap <String, HashSet <String>> refAuthorsLast = makeHash(referenceAuthorLastSQL,"reference_key","author");
             
             // first Author information, for the formatted authors.
-            logger.info("Seleceting all reference -> first author");
+            logger.info("Selecting all reference -> first author");
             String referenceAuthorFirstSQL = "select reference_key, author from reference_individual_authors where sequence_num = 1 and reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceAuthorFirstSQL);
             HashMap <String, HashSet <String>> refAuthorsFirst = makeHash(referenceAuthorFirstSQL,"reference_key","author");
             
+	    // MGI IDs (not J: numbers) for each reference
+	    logger.info("Selecting references -> MGI IDs");
+	    String referenceMgiIDs = "select reference_key, acc_id from reference_id where logical_db = 'MGI' and private = 0 and acc_id like 'MGI%' and reference_key > " + start + " and reference_key <= " + end;
+	    logger.info (referenceMgiIDs);
+	    HashMap<String, HashSet<String>> refMgiIDs = makeHash(referenceMgiIDs, "reference_key", "acc_id");
+
             // The main reference query.
             
             logger.info("Getting all references");
@@ -118,7 +124,6 @@ public class RefIndexerSQL extends Indexer {
             rs_overall.next();
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-            
             // Parse the base query, adding its contents into solr
             
             logger.info("Parsing them");
@@ -270,6 +275,14 @@ public class RefIndexerSQL extends Indexer {
                     }
                 }
                 
+		// add in the MGI ID(s) for each reference (not J: numbers)
+
+		if (refMgiIDs.containsKey(rs_overall.getString("reference_key"))) {
+			for (String mgiID: refMgiIDs.get(rs_overall.getString("reference_key"))) {
+				doc.addField(IndexConstants.MGI_ID, mgiID);
+			}
+		}
+
                 // Add in all of the indivudual authors, specifically formatted for 
                 // searching.
                 
