@@ -14,4 +14,14 @@ cd `dirname $0`
 
 . ./feindexer.config
 
+if [ ! -d ${FILE_DIR} ]
+then
+    mkdir -p ${FILE_DIR}
+fi
+
+if [ ! -d ${LOG_DIR} ]
+then
+    mkdir -p ${LOG_DIR}
+fi
+
 ${ANT}
