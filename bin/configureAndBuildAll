@@ -1,11 +1,11 @@
 #!/bin/sh
 
 # Name: configureAndBuildAll
-# Purpose: serves as a convenience wrapper over the 'configure' and
-#	'buildAllIndexes' scripts, with pre-configured selections for known
-#	Solr instances (see USAGE for known names)
+# Purpose: Serves as a convenience wrapper over the 'configure' and
+#	'buildAllIndexes' scripts. The argument is used to determine
+#	which set of Solr indexes to build.
 
-USAGE='Usage: $0 [ frontend | backend | weekly | proto | mgi-fewi1 ]
+USAGE='Usage: $0 [ pub1 | pub2 | bot1 | bot2 ]
 '
 
 # ensure that we are not running via a symbolic link
@@ -19,7 +19,6 @@ fi
 
 if [ $# -lt 1 ]; then
 	echo ${USAGE}
-	echo "Error: no Solr instance specified"
 	exit 1
 fi
 
@@ -27,42 +26,43 @@ fi
 
 cd `dirname $0`
 
-# set of standard parameters, to be updated based on 'INSTANCE'
-# (settings are for 'backend' by default)
+# source the config file
 
-SOLR_HOST=cardolan
-SOLR_PORT=8983
-DB_HOST=cardolan
-DB_NAME=fe_backend
-DB_USER=mgddbo
-DB_PASSWORDFILE=/home/jsb/schemaSpy/mgddbo.pwd
+. ../feindexer.config
 
-# now go through and fill in our parameters based on 'INSTANCE'
+# Use the script argument to determine which Solr and database hosts to use
+# to build the Solr indexes. We need to build the first or second instance
+# for public or the robot.
 
-if [ "${1}" = "frontend" ]; then
-	SOLR_PORT=8985
-        DB_HOST=mgi-fedb1.jax.org
-        DB_NAME=fe
-        DB_USER=mgd_public
-        DB_PASSWORDFILE=/usr/local/mgi/live/dbutils/mgidbutilities/.mgd_public_password
-elif [ "${1}" = "backend" ]; then
-	sleep 1
-elif [ "${1}" = "proto" ]; then
-	SOLR_PORT=8990
-	DB_HOST=mtdoom
-	DB_NAME=fe
-elif [ "${1}" = "weekly" ]; then
-	SOLR_PORT=8995
-	DB_NAME=fe_weekly
-elif [ "${1}" = "mgi-fewi1" ]; then
-        SOLR_HOST=mgi-fewi1.jax.org
-        SOLR_PORT=9995
-        DB_HOST=mgi-fedb1.jax.org
-        DB_NAME=fe
-        DB_USER=mgd_public
-        DB_PASSWORDFILE=/usr/local/mgi/live/dbutils/mgidbutilities/.mgd_public_password
+if [ "${1}" = "pub1" ]; then
+	SOLR_HOST=${PUB_FEWI1}
+	DB_HOST=${PUB_FEDB1}
+elif [ "${1}" = "pub2" ]; then
+	SOLR_HOST=${PUB_FEWI2}
+	DB_HOST=${PUB_FEDB2}
+elif [ "${1}" = "bot1" ]; then
+	SOLR_HOST=${BOT_FEWI1}
+	DB_HOST=${BOT_FEDB1}
+elif [ "${1}" = "bot2" ]; then
+	SOLR_HOST=${BOT_FEWI2}
+	DB_HOST=${BOT_FEDB2}
+else
+	echo ${USAGE}
+	exit 1
 fi
 
-./configure ${SOLR_HOST} ${SOLR_PORT} ${DB_HOST} ${DB_NAME} ${DB_USER} ${DB_PASSWORDFILE}
-./buildAllIndexes > $1.out
-echo "Done; output in $1.out"
+# Make sure the hosts are set properly.
+
+if [ "${SOLR_HOST}" = "" ]; then
+	echo "SOLR_HOST variable is not set"
+	exit 1
+fi
+if [ "${DB_HOST}" = "" ]; then
+	echo "DB_HOST variable is not set"
+	exit 1
+fi
+
+# Generate the Solr indexes.
+
+./configure ${SOLR_HOST} ${SOLR_PORT} ${DB_HOST} ${PG_FE_DBNAME} ${PG_FE_DBUSER} ${PG_FE_DBPASSWORDFILE}
+./buildAllIndexes > ${LOG_DIR}/${SOLR_HOST}.log
