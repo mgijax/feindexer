@@ -55,7 +55,7 @@ fi
 
 HTTP_HOST=`nslookup ${SOLR_HOST} | grep "^Name" | awk '{print $2}'`
 
-DB_PASSWORD=`cat $6`
+DB_PASSWORD=`cat $6 | grep ":${DB_USER}:" | cut -d':' -f5`
 
 BASE_URL="http://${HTTP_HOST}:${SOLR_PORT}/solr"
 
