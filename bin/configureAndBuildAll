@@ -30,22 +30,18 @@ cd `dirname $0`
 
 . ../feindexer.config
 
-# Use the script argument to determine which Solr and database hosts to use
-# to build the Solr indexes. We need to build the first or second instance
-# for public or the robot.
+# Use the script argument to determine which Solr host to use to build the
+# Solr indexes. We need to build the first or second instance for public
+# or the robot.
 
 if [ "${1}" = "pub1" ]; then
 	SOLR_HOST=${PUB_FEWI1}
-	DB_HOST=${PUB_FEDB1}
 elif [ "${1}" = "pub2" ]; then
 	SOLR_HOST=${PUB_FEWI2}
-	DB_HOST=${PUB_FEDB2}
 elif [ "${1}" = "bot1" ]; then
 	SOLR_HOST=${BOT_FEWI1}
-	DB_HOST=${BOT_FEDB1}
 elif [ "${1}" = "bot2" ]; then
 	SOLR_HOST=${BOT_FEWI2}
-	DB_HOST=${BOT_FEDB2}
 else
 	echo ${USAGE}
 	exit 1
@@ -57,12 +53,8 @@ if [ "${SOLR_HOST}" = "" ]; then
 	echo "SOLR_HOST variable is not set"
 	exit 1
 fi
-if [ "${DB_HOST}" = "" ]; then
-	echo "DB_HOST variable is not set"
-	exit 1
-fi
 
 # Generate the Solr indexes.
 
-./configure ${SOLR_HOST} ${SOLR_PORT} ${DB_HOST} ${PG_FE_DBNAME} ${PG_FE_DBUSER} ${PG_FE_DBPASSWORDFILE}
+./configure ${SOLR_HOST} ${SOLR_PORT} ${PG_FE_DBSERVER} ${PG_FE_DBNAME} ${PG_FE_DBUSER} ${PG_FE_DBPASSWORDFILE}
 ./buildAllIndexes > ${LOG_DIR}/${SOLR_HOST}.log
