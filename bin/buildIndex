@@ -100,5 +100,5 @@ fi
 
 # run the indexer
 
-/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.indexer.${INDEX_CLASS}
+${JAVA_HOME}/bin/java $MEMORY_ARGS org.jax.mgi.indexer.${INDEX_CLASS}
 exit $?
