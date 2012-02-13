@@ -155,14 +155,27 @@ public class GXDLitIndexerSQL extends Indexer {
     			doc.addField(IndexConstants.REF_KEY, rs_base.getString("reference_key"));
     			doc.addField(IndexConstants.MRK_KEY, rs_base.getString("marker_key"));    	
     			
-    			// Add in all the marker information for this tuple
+    			// Get all the marker information for this tuple
     			
     			MarkerSearchInfo msi = markerSearchInfo.get(rs_base.getString("marker_key"));
+			// add all nomen fields together for 'nomen' and
+			// 'nomenNGram' fields
+
     			for (String nomen: msi.getNomen()) {
         			doc.addField(IndexConstants.GXD_MRK_NOMEN,
 				    this.translateString(nomen));
     			}
     			
+			// add just the symbol and synonyms for the special
+			// 'symbolAndSynonyms' field
+
+			doc.addField (IndexConstants.GXD_MRK_SYMBOL,
+				this.translateString (msi.getSymbol()) );
+			for (String synonym: msi.getSynonyms()) {
+				doc.addField (IndexConstants.GXD_MRK_SYMBOL,
+					this.translateString (synonym) );
+			}
+
     			// Add in all the reference information for this tuple.
     			
     			ReferenceSearchInfo rsi = referenceSearchInfo.get(rs_base.getString("reference_key"));
@@ -323,13 +336,13 @@ public class GXDLitIndexerSQL extends Indexer {
 	    	
 	    	while (!rs_marker_base.isAfterLast()) {
 	    		MarkerSearchInfo msi = new MarkerSearchInfo();
-	    		msi.addNomen(rs_marker_base.getString("symbol"));
-	    		msi.addNomen(rs_marker_base.getString("name"));
+	    		msi.setSymbol(rs_marker_base.getString("symbol"));
+	    		msi.setName(rs_marker_base.getString("name"));
 	    		msi.setBySymbol(rs_marker_base.getString("by_symbol"));
 	    		
                 if (markerKeyToSynonyms.containsKey(rs_marker_base.getString("marker_key"))) {
                     for (String synonym: markerKeyToSynonyms.get(rs_marker_base.getString("marker_key"))) {
-                        msi.addNomen(synonym);
+                        msi.addSynonym(synonym);
                     }
                 }
                 
