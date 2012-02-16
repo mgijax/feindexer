@@ -1,3 +1,10 @@
+TAG: feindexer-5-0-0-7
+DATE: 02/16/2012
+STAFF: dbm
+CHANGES:
+1) configureAndBuildAll: use databases on currect host (PG_FE_DBSERVER)
+   instead of using DB_HOST from mgiconfig
+
 TAG: feindexer-tr10269-BP
 DATE: 1/26/2012
 STAFF: jmason
