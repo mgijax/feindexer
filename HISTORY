@@ -1,3 +1,11 @@
+TAG: feindexer-5-0-0-8
+DATE: 02/16/2012
+STAFF: jsb
+CHANGES:
+1) lowered memory requirements for markerTissue
+2) added optimize() call
+3) updated nomen searching requirements for gxdLitIndex
+
 TAG: feindexer-5-0-0-7
 DATE: 02/16/2012
 STAFF: dbm
