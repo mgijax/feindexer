@@ -57,6 +57,11 @@ HTTP_HOST=`nslookup ${SOLR_HOST} | grep "^Name" | awk '{print $2}'`
 
 DB_PASSWORD=`cat $6 | grep ":${DB_USER}:" | cut -d':' -f5`
 
+if [ "${DB_PASSWORD}" = "" ]; then
+	echo "Error: could not find database password"
+	exit 1
+fi
+
 BASE_URL="http://${HTTP_HOST}:${SOLR_PORT}/solr"
 
 cat config.props.template \
@@ -68,6 +73,12 @@ cat config.props.template \
 
 cd ..
 ./Install
+
+if [ $? -ne 0 ]; then
+	echo "Error: Install script failed"
+	cd ${currentDir}
+	exit 1
+fi
 
 # go back where we started
 cd ${currentDir}

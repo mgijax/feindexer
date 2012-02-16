@@ -57,4 +57,13 @@ fi
 # Generate the Solr indexes.
 
 ./configure ${SOLR_HOST} ${SOLR_PORT} ${PG_FE_DBSERVER} ${PG_FE_DBNAME} ${PG_FE_DBUSER} ${PG_FE_DBPASSWORDFILE}
+if [ $? -ne 0 ]; then
+	echo "Error: configure script failed"
+	exit 1
+fi
+
 ./buildAllIndexes > ${LOG_DIR}/${SOLR_HOST}.log
+if [ $? -ne 0 ]; then
+	echo "Error: buildAllIndexes script failed"
+	exit 1
+fi
