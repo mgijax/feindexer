@@ -31,7 +31,7 @@ STANDARD_INDEXES = [
 	('gxdLitIndex', 2, 4),
 	('markerPanesetImage', 2, 4),
 	('image', 2, 4),
-	('markerTissue', 4, 10),
+	('markerTissue', 4, 6),
 	]
 
 # same as STANDARD_INDEXES, but for indexers which can produce a large amount
