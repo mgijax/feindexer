@@ -63,6 +63,10 @@ public abstract class Indexer {
             logger.info("Deleting current index.");
             server.deleteByQuery("*:*");
             server.commit();
+
+	    // force actual deletion of records, not just flagging of them
+	    // (to save disk space and provide more efficient disk access)
+	    server.optimize();
         }
         catch (Exception e) {e.printStackTrace();}
         
