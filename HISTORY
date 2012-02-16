@@ -1,3 +1,9 @@
+TAG: feindexer-5-0-0-9
+DATE: 02/16/2012
+STAFF: jsb
+CHANGES:
+1) added error checking and setting of exit code for configureAndBuildAll
+
 TAG: feindexer-5-0-0-8
 DATE: 02/16/2012
 STAFF: jsb
