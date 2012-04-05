@@ -55,6 +55,10 @@ fi
 
 HTTP_HOST=`nslookup ${SOLR_HOST} | grep "^Name" | awk '{print $2}'`
 
+if [ "${HTTP_HOST}" = "" ]; then
+    HTTP_HOST=${SOLR_HOST}.jax.org
+fi
+
 DB_PASSWORD=`cat $6 | grep ":${DB_USER}:" | cut -d':' -f5`
 
 if [ "${DB_PASSWORD}" = "" ]; then
