@@ -59,7 +59,7 @@ public class MarkerIndexerSQL extends Indexer {
             
             // Get all marker id -> marker relationships
             logger.info("Seleceting all Marker ID's -> marker");
-            String markerToIDSQL = "select distinct marker_key, acc_id from marker_id where marker_key > " + start + " and marker_key <= "+ end;
+            String markerToIDSQL = "select distinct marker_key, acc_id from marker_id where marker_key > " + start + " and marker_key <= "+ end + " and private = 0";
             logger.info(markerToIDSQL);
             HashMap <String, HashSet <String>> idToMarkers = makeHash(markerToIDSQL, "marker_key", "acc_id");
 
@@ -85,7 +85,8 @@ public class MarkerIndexerSQL extends Indexer {
             
             logger.info("Getting all markers");
             String markerSQL = "select distinct marker_key, symbol," +
-            		" name, marker_type, status, organism from marker";
+            		" name, marker_type, status, organism from marker" +
+			" where organism = 'mouse, laboratory'";
             logger.info(markerSQL);
             ResultSet rs_overall = ex.executeProto(markerSQL);
             
