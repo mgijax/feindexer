@@ -54,7 +54,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
             
             logger.info("Getting all marker annotations.");
             ResultSet rs_overall = ex.executeProto("select a.annotation_key, a.vocab_name, a.term, " +
-            		                                "a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure " +
+            		                                "a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term " +
                                                     "from annotation as a " +
                                                     "join marker_to_annotation as mta on a.annotation_key = mta.annotation_key " +
                                                     "join annotation_sequence_num as asn on a.annotation_key = asn.annotation_key " +
@@ -76,6 +76,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.VOC_VOCAB, rs_overall.getString("vocab_name"));
                 doc.addField(IndexConstants.VOC_DAG_NAME, rs_overall.getString("dag_name"));
                 doc.addField(IndexConstants.VOC_BY_DAG_STRUCT, rs_overall.getString("by_dag_structure"));
+                doc.addField(IndexConstants.VOC_BY_DAG_TERM, rs_overall.getString("by_vocab_dag_term"));
 
                 String qualifier = rs_overall.getString("qualifier");
                 if (qualifier == null) {
