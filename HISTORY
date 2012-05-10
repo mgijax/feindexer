@@ -1,3 +1,10 @@
+TAG: feindexer-5-0-1-0
+DATE: 05/10/2012
+STAFF: jsb
+CHANGES:
+1) added extra ordering field for markerAnnotation index (byDagTerm)
+2) changed to only index public mouse marker IDs (no private IDs, no non-mouse marker IDs)
+
 TAG: feindexer-5-0-0-11
 DATE: 02/27/2012
 STAFF: dbm
