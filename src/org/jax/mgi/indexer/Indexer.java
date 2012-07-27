@@ -34,7 +34,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class Indexer {
 
-    public StreamingUpdateSolrServer server = null;
+    public CommonsHttpSolrServer server = null;
     public SQLExecutor ex = new SQLExecutor();
     public Properties props = new Properties();
     public Logger logger = LoggerFactory.getLogger(this.getClass());
@@ -69,11 +69,15 @@ public abstract class Indexer {
         // Setup the solr connection as configured 
         
         logger.info("Starting to setup the connection");
-//        MultiThreadedHttpConnectionManager mgr = new MultiThreadedHttpConnectionManager();
-//
-//        HttpClient client = new HttpClient(mgr);
+        
+        // We start up a CommonsHttpSolrServer using a MultiThreaded connection manager so that we can do bulk updates 
+        // by using threads.
+        // (kstone) NOTE: Supposedly the StreamingUpdateSolrServer does this kind of threading for you, but I could not get it to work
+        // 	without either crashing unexpectedly, or running much slower. So good luck to anyone who tries to figure out that approach.
+        MultiThreadedHttpConnectionManager mgr = new MultiThreadedHttpConnectionManager();
+        HttpClient client = new HttpClient(mgr);
 
-        try { server = new StreamingUpdateSolrServer( props.getProperty(httpPropName),100,40 );}
+        try { server = new CommonsHttpSolrServer( props.getProperty(httpPropName),client );}
         catch (Exception e) {e.printStackTrace();}
 
         logger.info("Working with index: " + props.getProperty(httpPropName) );
@@ -103,21 +107,9 @@ public abstract class Indexer {
      */
     abstract void index() throws IOException;
     
-    // Convert the counts from actual values to something like a bit.
-    //TODO: WTF is this for anyway?
-    protected Integer convertCount(Integer count) {
-        if (count > 0) {
-            return 1;
-        }
-        else {
-            return 0; 
-        }
-    }
-    
     // Create a hashmap, of a key -> hashSet mapping.
     // The hashSet is simply a collection for our 1->N cases.
     //TODO: This does not belong in this class. It's a straight up utility function
-    
     protected HashMap <String, HashSet <String>> makeHash(String sql, String keyString, String valueString) {
     
         HashMap <String, HashSet <String>> tempMap = new HashMap <String, HashSet <String>> ();
@@ -151,22 +143,10 @@ public abstract class Indexer {
     	this.maxThreads = maxThreads;
     }
     
-    public void writeDoc(SolrInputDocument doc)
-    {
-    	try {
-			server.add(doc,50000);
-		} catch (SolrServerException e) {
-			logger.error(e.getMessage());
-			e.printStackTrace();
-		} catch (IOException e) {
-			logger.error(e.getMessage());
-			e.printStackTrace();
-		}
-    }
     /*
      * writes documents to solr.
      * Best practice is to write small batches of documents to Solr
-     * and to commit less frequently.
+     * and to commit less frequently. (TIP: this method will commit documents automatically using commitWithin)
      * Here we also spawn a new process for each batch of documents.
      */
     public void writeDocs(Collection<SolrInputDocument> docs)
@@ -203,8 +183,9 @@ public abstract class Indexer {
     {
     	CommonsHttpSolrServer server;
     	Collection<SolrInputDocument> docs;
-    	int times_to_retry = 2;
-    	int times_retried = 0;
+    	private int commitWithin = 50000; // 50 seconds
+    	private int times_to_retry = 5;
+    	private int times_retried = 0;
     	public DocWriterThread(CommonsHttpSolrServer server,Collection<SolrInputDocument> docs)
     	{
     		this.server=server;
@@ -214,8 +195,8 @@ public abstract class Indexer {
     	public void run()
     	{
     		try {
-    			// set the commitWithin feature to 50 seconds
-    			server.add(docs,50000);
+    			// set the commitWithin feature
+    			server.add(docs,commitWithin);
     		} catch (SolrServerException e) {
     			logger.error(e.getMessage());
     			e.printStackTrace();
@@ -230,7 +211,23 @@ public abstract class Indexer {
     		if(times_retried < times_to_retry)
     		{
     			times_retried ++;
-    			run();
+    			logger.info("retrying submit of stack of documents that failed");
+    			boolean succeeded = true;
+    			try {
+        			// set the commitWithin feature
+        			server.add(docs,commitWithin);
+        		} catch (SolrServerException e) {
+        			succeeded = false;
+        			logger.error("failed");
+        			e.printStackTrace();
+        			retry();
+        		} catch (IOException e) {
+        			succeeded = false;
+        			logger.error(e.getMessage());
+        			e.printStackTrace();
+        			retry();
+        		}
+    			if(succeeded) logger.info("succeeded!");
     		}
     		else
     		{
