@@ -15,29 +15,18 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * Copy this code to create a new indexer, and then just change the appropriate sections.
  * 
  * If you need chunking go and take the code from the sequence indexer.
+ * 
+ * Note: refactored during 5.x development
  */
 
 public class MarkerAnnotationIndexerSQL extends Indexer {
 
    
-    public MarkerAnnotationIndexerSQL (String httpConnection) {
-        super(httpConnection);
-    }
-
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Insert Index Name Constant
-
-
-        MarkerAnnotationIndexerSQL ri = new MarkerAnnotationIndexerSQL("index.url.markerAnnotation");
-        ri.doChunks();
-        
-  
+    public MarkerAnnotationIndexerSQL () {
+        super("index.url.markerAnnotation");
     }
     
-    private void doChunks() {
+    public void index() {
                 
         try {
             
@@ -52,7 +41,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
                                                
             // TODO Setup the main query here
             
-            logger.info("Getting all marker annotations.");
+            logger.info("Getting all marker annotations. test");
             ResultSet rs_overall = ex.executeProto("select a.annotation_key, a.vocab_name, a.term, " +
             		                                "a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term " +
                                                     "from annotation as a " +
@@ -97,11 +86,13 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
                 if (docs.size() > 10000) {
                     logger.info("Adding a stack of the documents to Solr");
                     server.add(docs);
+                    server.commit();
                     docs = new ArrayList<SolrInputDocument>();
                     logger.info("Done adding to solr, Moving on");
                 }
             }
-                        
+            
+            logger.info("Done adding to solr, Completed marker annotaiton load.");        
             server.add(docs);
             server.commit();
             

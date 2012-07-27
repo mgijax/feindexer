@@ -16,30 +16,18 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * Copy this code to create a new indexer, and then just change the appropriate sections.
  * 
  * If you need chunking go and take the code from the sequence indexer.
+ * 
+ * Note: refactored during 5.x development
  */
 
 public class PhenotypeImageIndexerSQL extends Indexer {
 
    
-    public PhenotypeImageIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public PhenotypeImageIndexerSQL () {
+        super("index.url.phenotypeImage");
     }
     
-
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Insert Index Name Constant
-
-
-        PhenotypeImageIndexerSQL ri = new PhenotypeImageIndexerSQL("index.url.phenotypeImage");
-        ri.doChunks();
-        
-  
-    }
-    
-    private void doChunks() {
+    public void index() {
                 
         try {
         	

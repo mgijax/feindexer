@@ -1,0 +1,36 @@
+
+if [ "${MGICONFIG}" = "" ]
+then
+    MGICONFIG=/usr/local/mgi/live/mgiconfig
+    export MGICONFIG
+fi
+
+. ${MGICONFIG}/master.config.sh
+
+FILE_DIR=/data/loads/feindexer
+LOG_DIR=${FILE_DIR}/logs
+export FILE_DIR LOG_DIR
+
+CONFIG_MASTER=${MGICONFIG}/master.config.sh
+export CONFIG_MASTER
+
+#For now while we test out the CI stuff, it's in my home dir.
+# Takled with jak about it but was told to hold off moving until
+# we decide a more permanent solution
+INSTALL_DIR=/usr/local/mgi/jenkins/.jenkins/workspace/feindexer-tr10269
+export INSTALL_DIR
+
+LIB_DIR=$INSTALL_DIR/lib
+export LIB_DIR
+
+SOLR_PORT=8991
+export SOLR_PORT
+
+SOLR_HOST=cardolan.informatics.jax.org
+export SOLR_HOST
+
+DB_HOST=cardolan.informatics.jax.org
+export DB_HOST
+
+MGI_JAVALIB=/usr/local/mgi/jenkins/.jenkins/workspace/lib_java_fe-tr10269/dist
+export MGI_JAVALIB

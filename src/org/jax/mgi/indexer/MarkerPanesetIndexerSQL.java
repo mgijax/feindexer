@@ -16,30 +16,18 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * Copy this code to create a new indexer, and then just change the appropriate sections.
  * 
  * If you need chunking go and take the code from the sequence indexer.
+ * 
+ * Note: refactored during 5.x development
  */
 
 public class MarkerPanesetIndexerSQL extends Indexer {
 
    
-    public MarkerPanesetIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public MarkerPanesetIndexerSQL () {
+        super("index.url.markerPanesetImage");
     }
     
-
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Insert Index Name Constant
-
-
-        MarkerPanesetIndexerSQL ri = new MarkerPanesetIndexerSQL("index.url.markerPanesetImage");
-        ri.doChunks();
-        
-  
-    }
-    
-    private void doChunks() {
+    public void index() {
                 
         try {
         	

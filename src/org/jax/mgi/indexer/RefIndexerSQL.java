@@ -15,27 +15,18 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * This class has the primary responsibility for populating the reference index.
  * It has a fairly large number of sub object relationships, but since its a 
  * fairly small dataset there is no real need to do actual chunking.
+ * 
+ * Note: Refactored during 5.x development
  */
 
 public class RefIndexerSQL extends Indexer {
 
    
    
-    public RefIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public RefIndexerSQL () {
+        super("index.url.reference");
     }
     
-
-    /**
-     * The main method, called from the command line in order to start the indexing.
-     * @param args
-     */
-    public static void main(String[] args) {
-
-        RefIndexerSQL ri = new RefIndexerSQL("index.url.reference");
-        ri.doChunks();
-         
-    }
     
     /**
      * The main worker of this class, it starts by gathering up all the 1->N 
@@ -43,10 +34,8 @@ public class RefIndexerSQL extends Indexer {
      * main query.  We then enter a parsing phase where we place the data into
      * solr documents, and put them into the index.
      */
-    
-    private void doChunks() {
-                
-        try {
+    public void index() {
+    	try {
             
             // How many references are there total?
             
@@ -184,55 +173,72 @@ public class RefIndexerSQL extends Indexer {
                 
                 Boolean foundACount = Boolean.FALSE;
                 
-                doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
-                if (convertCount(rs_overall.getInt("marker_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
-                    foundACount = Boolean.TRUE;
-                }
-                doc.addField(IndexConstants.PRB_COUNT, convertCount(rs_overall.getInt("probe_count")));
-                if (convertCount(rs_overall.getInt("probe_count")) > 0) {
+                // good samaritan: The following 50ish lines of code here hurt me on such an emotional level that I could not let it go unchanged.
+                // I will leave this code as an example of the madness.
+//                doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
+//                if (convertCount(rs_overall.getInt("marker_count")) > 0) {
+//                    doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
+//                    foundACount = Boolean.TRUE;
+//                }
+                int marker_count = rs_overall.getInt("marker_count");
+                // It is pretty questionable why we would convert a count to 1 or 0, but it's not my code and I don't want to break anything.
+                // so I'm leaving this little gem here.
+	            doc.addField(IndexConstants.MRK_COUNT, marker_count>0 ? 1 : 0);
+	            if (marker_count > 0) {
+	                doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
+	                foundACount = Boolean.TRUE;
+	            }
+	            int probe_count = rs_overall.getInt("probe_count");
+                doc.addField(IndexConstants.PRB_COUNT, probe_count>0 ? 1 : 0);
+                if (probe_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Molecular probes and clones");
                     foundACount = Boolean.TRUE;
                 }
                 
-                doc.addField(IndexConstants.MAP_EXPT_COUNT, convertCount(rs_overall.getInt("mapping_expt_count")));
-                if (convertCount(rs_overall.getInt("mapping_expt_count")) > 0) {
+                int map_expt_count = rs_overall.getInt("mapping_expt_count");
+                doc.addField(IndexConstants.MAP_EXPT_COUNT, map_expt_count>0 ? 1 : 0);
+                if (map_expt_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Mapping data");
                     foundACount = Boolean.TRUE;
                 }
-                
-                doc.addField(IndexConstants.GXD_INDEX_COUNT, convertCount(rs_overall.getInt("gxd_index_count")));
-                if (convertCount(rs_overall.getInt("gxd_index_count")) > 0) {
+                int gxd_index_count = rs_overall.getInt("gxd_index_count");
+                doc.addField(IndexConstants.GXD_INDEX_COUNT, gxd_index_count>0 ? 1 : 0);
+                if (gxd_index_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Expression literature records");
                     foundACount = Boolean.TRUE;
                 }
                 
-                doc.addField(IndexConstants.GXD_RESULT_COUNT, convertCount(rs_overall.getInt("gxd_result_count")));
-                if (convertCount(rs_overall.getInt("gxd_result_count")) > 0) {
-                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
-                    foundACount = Boolean.TRUE;
-                }
-
-                doc.addField(IndexConstants.GXD_STRUCT_COUNT, convertCount(rs_overall.getInt("gxd_structure_count")));
-                if (convertCount(rs_overall.getInt("gxd_result_count")) > 0) {
+                int gxd_result_count = rs_overall.getInt("gxd_result_count");
+                doc.addField(IndexConstants.GXD_RESULT_COUNT, gxd_result_count>0 ? 1 : 0);
+                if (gxd_result_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
                     foundACount = Boolean.TRUE;
                 }
                 
-                doc.addField(IndexConstants.GXD_ASSAY_COUNT, convertCount(rs_overall.getInt("gxd_assay_count")));
-                if (convertCount(rs_overall.getInt("gxd_assay_count")) > 0) {
+                int gxd_structure_count = rs_overall.getInt("gxd_structure_count");
+                doc.addField(IndexConstants.GXD_STRUCT_COUNT, gxd_structure_count>0 ? 1 : 0);
+                if (gxd_structure_count > 0) {
+                    doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
+                    foundACount = Boolean.TRUE;
+                }
+                
+                int gxd_assay_count = rs_overall.getInt("gxd_assay_count");
+                doc.addField(IndexConstants.GXD_ASSAY_COUNT, gxd_assay_count>0 ? 1 : 0);
+                if (gxd_assay_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
                     foundACount = Boolean.TRUE;
                 }
 
-                doc.addField(IndexConstants.ALL_COUNT, convertCount(rs_overall.getInt("allele_count")));
-                if (convertCount(rs_overall.getInt("allele_count")) > 0) {
+                int allele_count = rs_overall.getInt("allele_count");
+                doc.addField(IndexConstants.ALL_COUNT, allele_count>0 ? 1 : 0);
+                if (allele_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Phenotypic alleles");
                     foundACount = Boolean.TRUE;
                 }
 
-                doc.addField(IndexConstants.SEQ_COUNT, convertCount(rs_overall.getInt("sequence_count")));
-                if (convertCount(rs_overall.getInt("sequence_count")) > 0) {
+                int sequence_count = rs_overall.getInt("sequence_count");
+                doc.addField(IndexConstants.SEQ_COUNT, sequence_count>0 ? 1 : 0);
+                if (sequence_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Sequences");
                     foundACount = Boolean.TRUE;
                 }
@@ -378,11 +384,11 @@ public class RefIndexerSQL extends Indexer {
                 
                 docs.add(doc);
                 
-                if (docs.size() > 10000) {
-                    logger.info("Adding a stack of the documents to Solr");
-                    server.add(docs);
+                if (docs.size() > 1000) {
+                    //logger.info("Adding a stack of the documents to Solr");
+                    writeDocs(docs);
                     docs = new ArrayList<SolrInputDocument>();
-                    logger.info("Done adding to solr, Moving on");
+                    //logger.info("Done adding to solr, Moving on");
                 }
             }
             server.add(docs);
@@ -392,4 +398,15 @@ public class RefIndexerSQL extends Indexer {
             logger.error("In the exception part.");
             e.printStackTrace();}
     }
+    
+    // Convert the counts from actual values to something like a bit.
+    // anonymous: WTF is this for anyway?
+//    protected Integer convertCount(Integer count) {
+//        if (count > 0) {
+//            return 1;
+//        }
+//        else {
+//            return 0; 
+//        }
+//    }
 }

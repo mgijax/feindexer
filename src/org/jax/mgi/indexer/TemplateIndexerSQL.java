@@ -15,30 +15,18 @@ import org.jax.mgi.reporting.Timer;
  * Copy this code to create a new indexer, and then just change the appropriate sections.
  * 
  * If you need chunking go and take the code from the sequence indexer.
+ * 
+ * Note: Refactored during 5.x development
  */
 
 public class TemplateIndexerSQL extends Indexer {
 
    
-    public TemplateIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public TemplateIndexerSQL () {
+        super("INSERT INDEX PROPERTY KEY HERE");
     }
-    
 
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Insert Index Name Constant
-
-
-        TemplateIndexerSQL ri = new TemplateIndexerSQL("INSERT INDEX PROPERTY KEY HERE");
-        ri.doChunks();
-        
-  
-    }
-    
-    private void doChunks() {
+    public void index() {
                 
         try {
             

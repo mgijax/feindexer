@@ -14,27 +14,17 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * @author mhall
  * This class has the primary responsibility to fill out the sequence index.
  * This is a very large index, and as such requires chunking.
+ * 
+ * Refactored during 5.x development
  */
 
 public class SequenceIndexerSQL extends Indexer {
     
-    public SequenceIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public SequenceIndexerSQL () {
+        super("index.url.sequence");
     }
     
-
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Insert Index Name Constant
-
-        SequenceIndexerSQL ri = new SequenceIndexerSQL("index.url.sequence");
-        ri.doChunks();        
-  
-    }
-    
-    private void doChunks() {
+    public void index() {
         
 	String provider;
         try {

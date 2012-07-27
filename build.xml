@@ -23,10 +23,10 @@
   <target name="init">
     <mkdir dir="${build}"/>
     <mkdir dir="${dist}"/>
+    <copy file="${env.MGI_JAVALIB}/fe.jar" todir="lib" overwrite="true" />
   </target>
 
-  <target name="clean"
-        description="clean up" >
+  <target name="clean" description="clean up" >
     <!-- Delete the ${build} directory tree -->
     <delete dir="${build}"/>
   </target>  
@@ -38,8 +38,7 @@
 		<fileset dir="lib">
 			<include name="**/*.jar"/>
 		</fileset>
-    		<fileset includes="fe.jar" dir="${env.MGI_JAVALIB}" />
-        </classpath>
+     </classpath>
     </javac>
   </target>
   
@@ -51,7 +50,10 @@
      <fileset dir="lib"/>
      <fileset file="${conf}/log4j.xml" />
      <fileset file="${conf}/config.props" />
-     <fileset includes="fe.jar" dir="${env.MGI_JAVALIB}" />
+     <manifest>
+        <attribute name="Class-Path" value="fe.jar slf4j-api-1.6.1.jar postgresql-8.4-701.jdbc3.jar commons-httpclient-3.1.jar commons-io-1.4.jar apache-solr-solrj-3.5.0.jar commons-logging-1.1.1.jar commons-codec-1.5.jar apache-solr-core-3.5.0.jar slf4j-log4j12-1.6.4.jar log4j-1.2.14.jar" />
+        <attribute name="Main-Class" value="org.jax.mgi.indexer.Main"/>
+     </manifest>
      </jar>          
   </target>
 

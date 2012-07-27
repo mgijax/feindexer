@@ -14,26 +14,18 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * indexer for the marker/tissue relationship (data from the 
  * marker_tissue_expression_counts) table
  * @author jsb
+ * 
+ * Note: refactored during 5.x development
  */
 
 public class MarkerTissueIndexerSQL extends Indexer {
 
    
-    public MarkerTissueIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public MarkerTissueIndexerSQL () {
+        super("index.url.markerTissue");
     }
     
-
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        MarkerTissueIndexerSQL ri = new MarkerTissueIndexerSQL(
-		"index.url.markerTissue");
-        ri.doChunks();
-    }
-    
-    private void doChunks() {
+    public void index() {
                 
         try {
             // TODO Setup the main query here

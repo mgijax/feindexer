@@ -17,33 +17,22 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * This class is responsible for populating the cre index.  This index is 
  * fairly straight forward, with only one sub object relationship.
  * 
+ * Note: Refactored during 5.x development
  */
 
 public class AlleleIndexerSQL extends Indexer {
 
    
-    public AlleleIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public AlleleIndexerSQL () {
+        super("index.url.allele");
     }
-    
 
-    /**
-     * The main function, which calls doChunks and creates the index.
-     * @param args
-     */
-    public static void main(String[] args) {
-
-        AlleleIndexerSQL ri = new AlleleIndexerSQL("index.url.allele");
-        ri.doChunks();
-    }
-    
     /**
      * This is the method that is responsible for populating the index for cre.  It has one sub 
      * object relationship, and an extremely large main query.
      */
     
-    private void doChunks() {
-                
+    public void index() {
         try {
                        
             // The system sub object relationship.  This has no 

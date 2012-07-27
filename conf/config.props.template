@@ -12,6 +12,9 @@ index.url.creAlleleSystem={BASE_URL}/creAlleleSystem/
 index.url.creAssayResult={BASE_URL}/creAssayResult/
 index.url.gxdLitIndex={BASE_URL}/gxdLitIndex/
 index.url.markerTissue={BASE_URL}/markerTissue/
+index.url.structureAC={BASE_URL}/structureAC/
+index.url.vocabTermAC={BASE_URL}/vocabTermAC/
+index.url.gxdResult={BASE_URL}/gxdResult/
 
 mgd.user={DB_USER}
 mgd.password={DB_PASSWORD}

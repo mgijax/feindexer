@@ -15,27 +15,17 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * This class has the primary responsibility for populating the reference index.
  * It has a fairly large number of sub object relationships, but since its a 
  * fairly small dataset there is no real need to do actual chunking.
+ * 
+ * Note: Refactored during 5.x development
  */
 
 public class MarkerIndexerSQL extends Indexer {
 
    
-   
-    public MarkerIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public MarkerIndexerSQL () {
+        super("index.url.marker");
     }
     
-
-    /**
-     * The main method, called from the command line in order to start the indexing.
-     * @param args
-     */
-    public static void main(String[] args) {
-
-        MarkerIndexerSQL ri = new MarkerIndexerSQL("index.url.marker");
-        ri.doChunks();
-         
-    }
     
     /**
      * The main worker of this class, it starts by gathering up all the 1->N 
@@ -44,7 +34,7 @@ public class MarkerIndexerSQL extends Indexer {
      * solr documents, and put them into the index.
      */
     
-    private void doChunks() {
+    public void index() {
                 
         try {
             
@@ -81,10 +71,21 @@ public class MarkerIndexerSQL extends Indexer {
             logger.info("Seleceting all vocab terms/ID's -> marker");
             String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
             logger.info(markerToTermIDSQL);
-            HashMap <String, HashSet <String>> termToMarkersID = makeHash(markerToTermSQL, "marker_key", "term_id");
+            HashMap <String, HashSet <String>> termToMarkersID = makeHash(markerToTermIDSQL, "marker_key", "term_id");
+            
+            logger.info("Selecting all vocab term/IDs -> marker (excluding NOTs) for GXD");
+            String markerToTermIDForGXDSQL = SharedQueries.GXD_VOCAB_QUERY +" and mta.marker_key > " + start + " and mta.marker_key <= "+ end + " and mta.annotation_key = a.annotation_key";
+            logger.info(markerToTermIDForGXDSQL);
+            HashMap <String, HashSet <String>> termToMarkersIDForGXD = makeHash(markerToTermIDForGXDSQL, "marker_key", "term_id");
+            
+            logger.info("Selecting all vocab ancestor term/IDs for GXD");
+            String markerToTermIDAncestorsForGXDSQL = SharedQueries.GXD_VOCAB_ANCESTOR_QUERY;
+            logger.info(markerToTermIDAncestorsForGXDSQL);
+            HashMap <String, HashSet <String>> termAncestorsToMarkersIDForGXD = makeHash(markerToTermIDAncestorsForGXDSQL, "primary_id", "ancestor_primary_id");
+            
             
             logger.info("Getting all markers");
-            String markerSQL = "select distinct marker_key, symbol," +
+            String markerSQL = "select distinct marker_key, primary_id marker_id,symbol," +
             		" name, marker_type, status, organism from marker" +
 			" where organism = 'mouse, laboratory'";
             logger.info(markerSQL);
@@ -106,6 +107,9 @@ public class MarkerIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.MRK_TYPE, rs_overall.getString("marker_type"));
                 doc.addField(IndexConstants.MRK_STATUS, rs_overall.getString("status"));
                 doc.addField(IndexConstants.MRK_ORGANISM, rs_overall.getString("organism"));
+                String markerID = rs_overall.getString("marker_id");
+                if (markerID==null) markerID = "";
+                doc.addField(IndexConstants.MRK_PRIMARY_ID,markerID);
                 
                 // Parse the 1->N marker relationship here, adding in the marker keys
                 
@@ -131,6 +135,19 @@ public class MarkerIndexerSQL extends Indexer {
                 if (termToMarkersID.containsKey(rs_overall.getString("marker_key"))) {
                     for (String markerKey: termToMarkersID.get(rs_overall.getString("marker_key"))) {
                         doc.addField(IndexConstants.MRK_TERM_ID, markerKey);
+                    }
+                }
+                
+                if (termToMarkersIDForGXD.containsKey(rs_overall.getString("marker_key"))) {
+                    for (String termID: termToMarkersIDForGXD.get(rs_overall.getString("marker_key"))) {
+                        doc.addField(IndexConstants.MRK_TERM_ID_FOR_GXD, termID);
+                        if(termAncestorsToMarkersIDForGXD.containsKey(termID))
+                        {
+                        	for(String ancestorID : termAncestorsToMarkersIDForGXD.get(termID))
+                        	{
+                        		doc.addField(IndexConstants.MRK_TERM_ID_FOR_GXD, ancestorID);
+                        	}
+                        }
                     }
                 }
                 

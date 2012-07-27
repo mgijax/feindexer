@@ -16,30 +16,18 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * Copy this code to create a new indexer, and then just change the appropriate sections.
  * 
  * If you need chunking go and take the code from the sequence indexer.
+ * 
+ * Note: Refactored during 5.x development
  */
 
 public class ImageIndexerSQL extends Indexer {
 
    
-    public ImageIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public ImageIndexerSQL () {
+        super("index.url.image");
     }
     
-
-    /**
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Insert Index Name Constant
-
-
-        ImageIndexerSQL ri = new ImageIndexerSQL("index.url.image");
-        ri.doChunks();
-        
-  
-    }
-    
-    private void doChunks() {
+    public void index() {
                 
         try {
         	

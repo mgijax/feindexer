@@ -21,29 +21,16 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * 
  * The authors are split on any possible type of whitespace before being placed into 
  * the index. 
+ * 
+ * Note: Refactored during 5.x development
  */
 public class AuthorsAutoCompleteIndexerSQL extends Indexer {
 
    
-    public AuthorsAutoCompleteIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public AuthorsAutoCompleteIndexerSQL () {
+        super("index.url.authorsAC");
     }
     
-
-    /**
-     * The main method of this indexer, when called it invokes its doChunks method which 
-     * creates the index.
-     * 
-     * @param args
-     */
-    public static void main(String[] args) {
-        // TODO Auto-generated method stub
-
-
-        AuthorsAutoCompleteIndexerSQL ri = new AuthorsAutoCompleteIndexerSQL("index.url.authorsAC");
-        ri.doChunks();
-
-    }
     
     /**
      * This is the main workhorse of the indexer.  It puts together all of the sub objects
@@ -75,7 +62,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
         //}
     }
     
-    private void doChunks() {
+    public void index() {
                 
         HashSet<String> authorSet = new HashSet<String>();
         Map<String, String> fabAuthorsForGXD = new HashMap<String, String>(); 

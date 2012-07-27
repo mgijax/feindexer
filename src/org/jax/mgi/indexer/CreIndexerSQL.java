@@ -17,24 +17,14 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * This class is responsible for populating the cre index.  This index is 
  * fairly straight forward, with only one sub object relationship.
  * 
+ * Note: Refactored during 5.x development
  */
 
 public class CreIndexerSQL extends Indexer {
 
    
-    public CreIndexerSQL (String httpConnection) {
-        super(httpConnection);
-    }
-    
-
-    /**
-     * The main function, which calls doChunks and creates the index.
-     * @param args
-     */
-    public static void main(String[] args) {
-
-        CreIndexerSQL ri = new CreIndexerSQL("index.url.cre");
-        ri.doChunks();
+    public CreIndexerSQL () {
+        super("index.url.cre");
     }
     
     /**
@@ -42,7 +32,7 @@ public class CreIndexerSQL extends Indexer {
      * object relationship, and an extremely large main query.
      */
     
-    private void doChunks() {
+    public void index() {
                 
         try {
                        

@@ -20,26 +20,16 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * the GXD Literature Index.  It has a fairly large number of sub object
  * relationships, but since its a fairly small dataset there is no real need
  * to do actual chunking.
+ * 
+ * Note: refactored during 5.x development
  */
 
 public class GXDLitIndexerSQL extends Indexer {
 
    
    
-    public GXDLitIndexerSQL (String httpConnection) {
-        super(httpConnection);
-    }
-    
-
-    /**
-     * The main method, called from the command line in order to start the indexing.
-     * @param args
-     */
-    public static void main(String[] args) {
-
-        GXDLitIndexerSQL ri = new GXDLitIndexerSQL("index.url.gxdLitIndex");
-        ri.doChunks();
-         
+    public GXDLitIndexerSQL () {
+        super("index.url.gxdLitIndex");
     }
     
     /**
@@ -48,7 +38,7 @@ public class GXDLitIndexerSQL extends Indexer {
      * main query.  We then enter a parsing phase where we place the data into
      * solr documents, and put them into the index.
      */
-    private void doChunks() {
+    public void index() {
     	
     	logger.info("Gathering up the marker information.");
     	Map <String, MarkerSearchInfo> markerSearchInfo = getMarkerInfo();
@@ -59,6 +49,16 @@ public class GXDLitIndexerSQL extends Indexer {
     	logger.info("Gathering the assay type/age pairings.");
     	Map <String, List <GxdLitAgeAssayTypePair>> records = getAgeAssayTypeInfo();
     	
+	  logger.info("Selecting all vocab term/IDs -> marker (excluding NOTs) for GXD");
+      String markerToTermIDForGXDSQL = SharedQueries.GXD_VOCAB_QUERY;
+      logger.info(markerToTermIDForGXDSQL);
+      HashMap <String, HashSet <String>> termToMarkersIDForGXD = makeHash(markerToTermIDForGXDSQL, "marker_key", "term_id");
+      
+      logger.info("Selecting all vocab ancestor term/IDs for GXD");
+      String markerToTermIDAncestorsForGXDSQL = SharedQueries.GXD_VOCAB_ANCESTOR_QUERY;
+      logger.info(markerToTermIDAncestorsForGXDSQL);
+      HashMap <String, HashSet <String>> termAncestorsToMarkersIDForGXD = makeHash(markerToTermIDAncestorsForGXDSQL, "primary_id", "ancestor_primary_id");
+          
     	logger.info("Gathering the expression index records");
     	
 	/* Each index record is a marker/reference pair that is identified
@@ -66,11 +66,12 @@ public class GXDLitIndexerSQL extends Indexer {
 	 * used for sorting these records by marker symbol or author,
 	 * respectively.
 	 */
-    	ResultSet rs_base = ex.executeProto("select distinct ei.marker_key, ei.reference_key, ei.index_key, " +
+    	ResultSet rs_base = ex.executeProto("select distinct ei.marker_key, m.primary_id marker_id, ei.reference_key, ei.index_key, " +
     		"msn.by_symbol, rsn.by_author " + 
 			"from expression_index as ei " + 
 			"join marker_sequence_num as msn on ei.marker_key = msn.marker_key " + 
 			"join reference_sequence_num as rsn on ei.reference_key = rsn.reference_key " + 
+			"join marker as m on ei.marker_key = m.marker_key " + 
 			"order by ei.marker_key, ei.reference_key, ei.index_key");
 
     	logger.info("Creating solr documents...");
@@ -98,6 +99,7 @@ public class GXDLitIndexerSQL extends Indexer {
 			/* to reduce redundancy, we'll walk through the various
 			 * age/assay type pairs and collate their values to get
 			 * unique sets for the index
+			 * 
 			 */
 			HashSet<String> ageStrings = new HashSet<String>();
 			HashSet<String> assayTypes = new HashSet<String>();
@@ -112,6 +114,8 @@ public class GXDLitIndexerSQL extends Indexer {
 			for (GxdLitAgeAssayTypePair pair: records.get(rs_base.getString("index_key"))) {
 				ageStrings.add(pair.getAge());
 				assayTypes.add(pair.getAssayType());
+				// add the combined age / assay type pair for more precise searching
+				doc.addField(IndexConstants.GXD_LIT_AGE_ASSAY_TYPE_PAIR,pair.getAge()+"-"+pair.getAssayType());
 
 				fcAssayType = pair.getFullCodedAssayType();
 				minTS = pair.getMinTheilerStage();
@@ -153,7 +157,23 @@ public class GXDLitIndexerSQL extends Indexer {
 			}
 
     			doc.addField(IndexConstants.REF_KEY, rs_base.getString("reference_key"));
-    			doc.addField(IndexConstants.MRK_KEY, rs_base.getString("marker_key"));    	
+    			doc.addField(IndexConstants.MRK_KEY, rs_base.getString("marker_key"));    
+    			doc.addField(IndexConstants.MRK_ID, rs_base.getString("marker_id"));    
+    			
+				// add vocab term IDs and their ancestors
+				if (termToMarkersIDForGXD.containsKey(rs_base.getString("marker_key"))) {
+	                 for (String termID: termToMarkersIDForGXD.get(rs_base.getString("marker_key"))) {
+	                     doc.addField(IndexConstants.MRK_TERM_ID, termID);
+	                     if(termAncestorsToMarkersIDForGXD.containsKey(termID))
+	                     {
+	                     	for(String ancestorID : termAncestorsToMarkersIDForGXD.get(termID))
+	                     	{
+	                     		doc.addField(IndexConstants.MRK_TERM_ID, ancestorID);
+	                     	}
+	                     }
+	                 }
+	             }
+
     			
     			// Get all the marker information for this tuple
     			
@@ -214,11 +234,11 @@ public class GXDLitIndexerSQL extends Indexer {
     			doc.addField(IndexConstants.REF_YEAR, rsi.getYear());
     			
     			docs.add(doc);
-                if (docs.size() > 10000) {
-                    logger.info("Adding a stack of the documents to Solr");
-                    server.add(docs);
+                if (docs.size() > 1000) {
+                    //logger.info("Adding a stack of the documents to Solr");
+                    writeDocs(docs);
                     docs = new ArrayList<SolrInputDocument>();
-                    logger.info("Done adding to solr, Moving on");
+                    //logger.info("Done adding to solr, Moving on");
                 }
     			
     			rs_base.next();

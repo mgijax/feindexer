@@ -3,11 +3,7 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-
 import org.apache.solr.common.SolrInputDocument;
-import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
@@ -17,32 +13,22 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * This class is responsible for populating the cre index.  This index is 
  * fairly straight forward, with only one sub object relationship.
  * 
+ * Note: refactored during 5.x development
  */
 
 public class CreAssayResultIndexerSQL extends Indexer {
 
    
-    public CreAssayResultIndexerSQL (String httpConnection) {
-        super(httpConnection);
+    public CreAssayResultIndexerSQL () {
+        super("index.url.creAssayResult");
     }
-    
 
-    /**
-     * The main function, which calls doChunks and creates the index.
-     * @param args
-     */
-    public static void main(String[] args) {
-
-        CreAssayResultIndexerSQL ri = new CreAssayResultIndexerSQL("index.url.creAssayResult");
-        ri.doChunks();
-    }
-    
     /**
      * This is the method that is responsible for populating the index for cre.  It has one sub 
      * object relationship, and an extremely large main query.
      */
     
-    private void doChunks() {
+    public void index() {
                 
         try {
                        

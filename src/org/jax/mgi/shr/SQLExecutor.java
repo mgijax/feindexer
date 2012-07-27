@@ -11,8 +11,8 @@ import java.util.Properties;
 
 import org.jax.mgi.indexer.Indexer;
 import org.jax.mgi.indexer.RefIndexerSQL;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+//import org.slf4j.Logger;
+//import org.slf4j.LoggerFactory;
 
 
 
@@ -32,7 +32,7 @@ import org.slf4j.LoggerFactory;
 
 public class SQLExecutor {
 
-    private Logger logger = LoggerFactory.getLogger(this.getClass());
+    //private Logger logger = LoggerFactory.getLogger(this.getClass());
     public Properties props = new Properties();
     protected Connection conMGD = null;
     private String user;
