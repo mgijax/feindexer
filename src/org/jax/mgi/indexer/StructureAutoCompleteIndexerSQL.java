@@ -94,6 +94,8 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
 	                doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, structure);
 	                doc.addField(IndexConstants.STRUCTUREAC_BY_SYNONYM, termSort.get(structure));
 	                doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
+	                doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, false);
+
 	                docs.add(doc);
                 }
             }
