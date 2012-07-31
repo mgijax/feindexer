@@ -69,7 +69,7 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
                 String structure = rs_overall.getString("structure");
                 String synonym = rs_overall.getString("synonym");
                 // strict synonym means that this term only exists as a synonym
-                boolean isStrictSynonym = rs_overall.getString("is_strict_synonym").equals("true");
+                Boolean isStrictSynonym = rs_overall.getString("is_strict_synonym").equals("true");
                 // structure_key is merely a unique id so that Solr is happy, because structures and synonyms can repeat.
                 String structure_key = structure+"-"+synonym;
                 if (synonym != null && !synonym.equals("") && !uniqueIds.contains(structure_key))
