@@ -68,12 +68,13 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
             	// add the synonym structure combo
                 String structure = rs_overall.getString("structure");
                 String synonym = rs_overall.getString("synonym");
-                // strict synonym means that this term only exists as a synonym
-                Boolean isStrictSynonym = rs_overall.getString("is_strict_synonym").equals("true");
                 // structure_key is merely a unique id so that Solr is happy, because structures and synonyms can repeat.
                 String structure_key = structure+"-"+synonym;
                 if (synonym != null && !synonym.equals("") && !uniqueIds.contains(structure_key))
                 {
+                    // strict synonym means that this term only exists as a synonym
+                    Boolean isStrictSynonym = rs_overall.getString("is_strict_synonym").equals("true");
+                    
                 	uniqueIds.add(structure_key);
 	                SolrInputDocument doc = new SolrInputDocument();
 	                doc.addField(IndexConstants.STRUCTUREAC_STRUCTURE, structure);
@@ -93,7 +94,6 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
 	                doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, structure);
 	                doc.addField(IndexConstants.STRUCTUREAC_BY_SYNONYM, termSort.get(structure));
 	                doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
-	                doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
 	                docs.add(doc);
                 }
             }
