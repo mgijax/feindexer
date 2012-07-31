@@ -37,7 +37,10 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
         try 
         {    
             logger.info("Getting all distinct structures & synonyms");
-            String query = "select distinct structure, synonym from anatomy_structures_synonyms";
+            String query = "select a1.structure,a1.synonym, "+
+            	"case when (exists (select 1 from anatomy_structures_synonyms a2 where a2.structure=a1.synonym)) "+
+            		"then 'true' else 'false' end as is_strict_synonym "+
+            	"from anatomy_structures_synonyms a1 ";
             ResultSet rs_overall = ex.executeProto(query);
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
@@ -65,6 +68,8 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
             	// add the synonym structure combo
                 String structure = rs_overall.getString("structure");
                 String synonym = rs_overall.getString("synonym");
+                // strict synonym means that this term only exists as a synonym
+                String isStrictSynonym = rs_overall.getString("is_strict_synonym");
                 // structure_key is merely a unique id so that Solr is happy, because structures and synonyms can repeat.
                 String structure_key = structure+"-"+synonym;
                 if (synonym != null && !synonym.equals("") && !uniqueIds.contains(structure_key))
@@ -75,6 +80,7 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
 	                doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, synonym);
 	                doc.addField(IndexConstants.STRUCTUREAC_BY_SYNONYM, termSort.get(synonym));
 	                doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
+	                doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
 	                docs.add(doc);
                 }
                 // Also, make sure that the base structure gets included as a "synonym"
@@ -87,6 +93,7 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
 	                doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, structure);
 	                doc.addField(IndexConstants.STRUCTUREAC_BY_SYNONYM, termSort.get(structure));
 	                doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
+	                doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
 	                docs.add(doc);
                 }
             }
