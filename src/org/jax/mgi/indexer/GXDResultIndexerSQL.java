@@ -502,6 +502,7 @@ public class GXDResultIndexerSQL extends Indexer
 		                }
 		                
 		                doc.addField(GxdResultFields.STRUCTURE_KEY, mgd_structure_key);
+		                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
 		                if(structureAncestorKeyMap.containsKey(structure_term_key))
 		                {
 		                	// get ancestors by key as well (for links from AD browser)
