@@ -37,10 +37,19 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
         try 
         {    
             logger.info("Getting all distinct structures & synonyms");
-            String query = "select a1.structure,a1.synonym, "+
-            	"case when (exists (select 1 from anatomy_structures_synonyms a2 where a2.structure=a1.synonym)) "+
-            		"then 'true' else 'false' end as is_strict_synonym "+
-            	"from anatomy_structures_synonyms a1 ";
+//            String query = "select a1.structure,a1.synonym, "+
+//            	"case when (exists (select 1 from anatomy_structures_synonyms a2 where a2.structure=a1.synonym)) "+
+//            		"then 'false' else 'true' end as is_strict_synonym "+
+//            	"from anatomy_structures_synonyms a1 ";
+            String query = "WITH anatomy_synonyms as "+
+            		"(select distinct t.term structure, ts.synonym from "+
+            				"term t left outer join term_synonym ts "+
+            					"on t.term_key=ts.term_key "+
+            				"where t.vocab_name='Anatomical Dictionary') "+
+            		"select a1.structure,a1.synonym, "+
+            			"case when (exists (select 1 from anatomy_synonyms a2 where a2.structure=a1.synonym)) "+
+            				"then 'false' else 'true' end as is_strict_synonym "+
+            		"from anatomy_synonyms a1 order by a1.structure ";
             ResultSet rs_overall = ex.executeProto(query);
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
