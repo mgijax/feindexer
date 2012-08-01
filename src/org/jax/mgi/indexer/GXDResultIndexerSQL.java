@@ -257,6 +257,7 @@ public class GXDResultIndexerSQL extends Indexer
 	            		"ersn.by_mutant_alleles r_by_mutant_alleles, "+
 	            		"ersn.by_reference r_by_reference, "+
 	            		"easn.by_symbol a_by_symbol, "+
+	            		"easn.by_assay_type a_by_assay_type, "+
 	            		"exa.has_image a_has_image "+
 	            		"from expression_result_summary ers, "+
 	            		"marker_sequence_num msqn, "+
@@ -352,6 +353,7 @@ public class GXDResultIndexerSQL extends Indexer
 	                
 	                // assay sorts
 	                String a_by_symbol = rs.getString("a_by_symbol");
+	                String a_by_assay_type = rs.getString("a_by_assay_type");
 
 	                String unique_key = assay_type+"-"+result_key;
 	                if(unique_key==null || unique_key.equals("-"))
@@ -406,6 +408,7 @@ public class GXDResultIndexerSQL extends Indexer
 		                
 		                // assay sorts
 		                doc.addField(GxdResultFields.A_BY_SYMBOL,a_by_symbol);
+		                doc.addField(GxdResultFields.A_BY_ASSAY_TYPE,a_by_assay_type);
 		                
 		                // result summary
 		                doc.addField(GxdResultFields.DETECTION_LEVEL,mapDetectionLevel(detection_level));
