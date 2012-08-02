@@ -100,7 +100,7 @@ public class GXDResultIndexerSQL extends Indexer
         	logger.info("building map of specimen mutated in allele IDs");
         	String mutatedInAlleleQuery = "select a.primary_id allele_id, ag.genotype_key from allele a, allele_to_genotype ag "+
  	        		"where ag.allele_key=a.allele_key";
-            rs = ex.executeProto(mutatedInQuery);
+            rs = ex.executeProto(mutatedInAlleleQuery);
 
 	        while (rs.next())
 	        {
