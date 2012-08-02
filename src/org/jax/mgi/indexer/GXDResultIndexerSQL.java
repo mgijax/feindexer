@@ -96,6 +96,25 @@ public class GXDResultIndexerSQL extends Indexer
 	        }
 	        logger.info("done gathering specimen mutated in genes");
 	        
+	        Map<String,List<String>> mutatedInAlleleMap = new HashMap<String,List<String>>();
+        	logger.info("building map of specimen mutated in allele IDs");
+        	String mutatedInAlleleQuery = "select a.primary_id allele_id, ag.genotype_key from allele a, allele_to_genotype ag "+
+ 	        		"where ag.allele_key=a.allele_key";
+            rs = ex.executeProto(mutatedInQuery);
+
+	        while (rs.next())
+	        {
+	        	String gkey = rs.getString("genotype_key");
+	        	String alleleId = rs.getString("allele_id");
+	        	
+	        	if(!mutatedInAlleleMap.containsKey(gkey))
+	        	{
+	        		mutatedInAlleleMap.put(gkey, new ArrayList<String>());
+	        	}
+	        	mutatedInAlleleMap.get(gkey).add(alleleId);
+	        }
+	        logger.info("done gathering specimen mutated in genes");
+	        
 	        Map<String,List<String>> markerVocabMap = new HashMap<String,List<String>>();
 	        logger.info("building map of vocabulary annotations");
 	        String vocabQuery = SharedQueries.GXD_VOCAB_EXPRESSION_QUERY;
@@ -447,6 +466,15 @@ public class GXDResultIndexerSQL extends Indexer
 			                			doc.addField(GxdResultFields.MUTATED_IN, synonym);
 			                		}
 			                	}
+		                	}
+		                	
+		                }
+		                if(mutatedInAlleleMap.containsKey(genotype_key))
+		                {
+		                	List<String> alleleIds = mutatedInAlleleMap.get(genotype_key);
+		                	for(String alleleId : alleleIds)
+		                	{
+			                	doc.addField(GxdResultFields.ALLELE_ID, alleleId);
 		                	}
 		                	
 		                }
