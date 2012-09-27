@@ -7,7 +7,7 @@ fi
 
 . ${MGICONFIG}/master.config.sh
 
-FILE_DIR=/data/loads/feindexer
+FILE_DIR=${DATALOADSOUTPUT}/feindexer
 LOG_DIR=${FILE_DIR}/logs
 export FILE_DIR LOG_DIR
 
