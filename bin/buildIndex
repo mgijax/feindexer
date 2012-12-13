@@ -48,7 +48,6 @@ MEMORY_ARGS="-d64 -Xms${MIN_MEM}g -Xmx${MAX_MEM}g"
 
 # set up the classpath for the JVM
 
-CLASSPATH=
 for i in `ls -1 $LIB_DIR`
 do
 CLASSPATH=$LIB_DIR/$i:$CLASSPATH
@@ -59,9 +58,47 @@ export CLASSPATH
 
 # map the index name to its Java class
 
-INDEX_CLASS="$1"
+INDEX_CLASS="unknown"
+
+if [ "$1" = "journalsAC" ]; then
+    INDEX_CLASS="JournalsAutoCompleteIndexerSQL"
+elif [ "$1" = "reference" ]; then
+    INDEX_CLASS="RefIndexerSQL"
+elif [ "$1" = "authorsAC" ]; then
+    INDEX_CLASS="AuthorsAutoCompleteIndexerSQL"
+elif [ "$1" = "sequence" ]; then
+    INDEX_CLASS="SequenceIndexerSQL"
+elif [ "$1" = "cre" ]; then
+    INDEX_CLASS="CreIndexerSQL"
+elif [ "$1" = "marker" ]; then
+    INDEX_CLASS="MarkerIndexerSQL"
+elif [ "$1" = "markerPanesetImage" ]; then
+    INDEX_CLASS="MarkerPanesetIndexerSQL"
+elif [ "$1" = "image" ]; then
+    INDEX_CLASS="ImageIndexerSQL"
+elif [ "$1" = "allele" ]; then
+    INDEX_CLASS="AlleleIndexerSQL"
+elif [ "$1" = "markerAnnotation" ]; then
+    INDEX_CLASS="MarkerAnnotationIndexerSQL"
+elif [ "$1" = "creAlleleSystem" ]; then
+    INDEX_CLASS="CreAlleleSystemIndexerSQL"
+elif [ "$1" = "creAssayResult" ]; then
+    INDEX_CLASS="CreAssayResultIndexerSQL"
+elif [ "$1" = "gxdLitIndex" ]; then
+    INDEX_CLASS="GXDLitIndexerSQL"
+elif [ "$1" = "markerTissue" ]; then
+    INDEX_CLASS="MarkerTissueIndexerSQL"
+fi
+
+# if we found no mapping, given an error message
+
+if [ "${INDEX_CLASS}" = "unknown" ]; then
+    echo $USAGE
+    echo "Error: Unknown index name ($1)"
+    exit 1
+fi
 
 # run the indexer
 
-${JAVA_HOME}/bin/java -classpath $CLASSPATH $MEMORY_ARGS org.jax.mgi.indexer.Main $INDEX_CLASS 
+/usr/mgijava6/bin/java $MEMORY_ARGS org.jax.mgi.indexer.${INDEX_CLASS}
 exit $?

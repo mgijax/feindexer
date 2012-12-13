@@ -25,22 +25,19 @@ STANDARD_INDEXES = [
 	('markerAnnotation', 2, 4),
 	('authorsAC', 2, 4),
 	('journalsAC', 2, 4),
-	('structureAC', 2, 4),
-	('vocabTermAC', 2, 4),
 	('cre', 2, 4),
 	('creAlleleSystem', 2, 4),
 	('creAssayResult', 2, 4),
 	('gxdLitIndex', 2, 4),
 	('markerPanesetImage', 2, 4),
 	('image', 2, 4),
-	('markerTissue', 2, 4),
-	('gxdResult', 2, 4),
+	('markerTissue', 4, 10),
 	]
 
 # same as STANDARD_INDEXES, but for indexers which can produce a large amount
 # of output to stdout or stderr
 LARGE_IO_INDEXES = [
-	('sequence', 4, 8),
+	('sequence', 4, 10),
 	]
 
 # number of indexing subprocesses to allow simultaneously
