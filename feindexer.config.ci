@@ -17,7 +17,7 @@ export CONFIG_MASTER
 #For now while we test out the CI stuff, it's in my home dir.
 # Takled with jak about it but was told to hold off moving until
 # we decide a more permanent solution
-INSTALL_DIR=/usr/local/mgi/jenkins/.jenkins/workspace/feindexer-trunk
+INSTALL_DIR=/usr/local/mgi/jenkins/.jenkins/workspace/feindexer-dev
 export INSTALL_DIR
 
 LIB_DIR=$INSTALL_DIR/lib
@@ -32,5 +32,5 @@ export SOLR_HOST
 DB_HOST=cardolan.informatics.jax.org
 export DB_HOST
 
-MGI_JAVALIB=/usr/local/mgi/jenkins/.jenkins/workspace/lib_java_fe-trunk/dist
+MGI_JAVALIB=/usr/local/mgi/jenkins/.jenkins/workspace/lib_java_fe-dev/dist
 export MGI_JAVALIB
