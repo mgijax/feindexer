@@ -1,0 +1,55 @@
+#!/bin/sh
+
+# Name: configureAndBuildHostPort
+# Purpose: Serves as a convenience wrapper over the 'configure' and
+#	'buildAllIndexes' scripts. The arguments provide the host/port
+#	where the Solr indexes should be built.
+
+USAGE='Usage: $0 solr_host solr_port
+'
+
+# ensure that we are not running via a symbolic link
+
+if [ -h $0 ]; then
+	echo "Error: cannot invoke $0 as a symbolic link"
+	exit 1
+fi
+
+# check that we have a script arguments
+
+if [ $# -ne 2 ]; then
+	echo ${USAGE}
+	exit 1
+fi
+
+# get into the bin/ directory
+
+cd `dirname $0`
+
+# source the config file
+
+. ../feindexer.config
+
+# set the Solr host/port from the script arguments
+
+SOLR_HOST=$1
+SOLR_PORT=$2  # override the value in the config file with the argument
+
+# Generate the Solr indexes.
+
+BUILD_LOG=${LOG_DIR}/${SOLR_HOST}.${SOLR_PORT}.build.log
+DIAG_LOG=${LOG_DIR}/${SOLR_HOST}.${SOLR_PORT}.diagnostic.log
+
+rm -f ${BUILD_LOG} ${DIAG_LOG}
+
+./configure ${SOLR_HOST} ${SOLR_PORT} ${PG_FE_DBSERVER} ${PG_FE_DBNAME} ${PG_FE_DBUSER} ${PG_FE_DBPASSWORDFILE} >> ${BUILD_LOG}
+if [ $? -ne 0 ]; then
+	echo "Error: configure script failed"
+	exit 1
+fi
+
+./buildAllIndexes >> ${DIAG_LOG} 2>>${BUILD_LOG}
+if [ $? -ne 0 ]; then
+	echo "Error: buildAllIndexes script failed"
+	exit 1
+fi

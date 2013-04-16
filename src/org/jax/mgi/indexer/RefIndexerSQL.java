@@ -104,7 +104,7 @@ public class RefIndexerSQL extends Indexer {
             String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title," +
                 " r.journal, r.vol, r.issue, ra.abstract," +
                 " rc.marker_count, rc.probe_count, rc.mapping_expt_count, rc.gxd_index_count, rc.gxd_result_count," +
-                " rc.gxd_structure_count, rc.gxd_assay_count, rc.allele_count, rc.sequence_count " +
+                " rc.gxd_structure_count, rc.gxd_assay_count, rc.allele_count, rc.sequence_count, rc.go_annotation_count " +
                 "from reference as r " +
                 "inner join reference_abstract ra on r.reference_key = ra.reference_key inner join reference_counts as rc on r.reference_key = rc.reference_key";
             logger.info(referenceSQL);
@@ -240,6 +240,13 @@ public class RefIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.SEQ_COUNT, sequence_count>0 ? 1 : 0);
                 if (sequence_count > 0) {
                     doc.addField(IndexConstants.REF_HAS_DATA, "Sequences");
+                    foundACount = Boolean.TRUE;
+                }
+                
+                int go_annot_count = rs_overall.getInt("go_annotation_count");
+                doc.addField(IndexConstants.GO_ANNOT_COUNT, go_annot_count>0 ? 1 : 0);
+                if (go_annot_count > 0) {
+                    doc.addField(IndexConstants.REF_HAS_DATA, "Functional annotations (GO)");
                     foundACount = Boolean.TRUE;
                 }
                 

@@ -87,7 +87,7 @@ public class MarkerIndexerSQL extends Indexer {
             logger.info("Getting all markers");
             String markerSQL = "select distinct marker_key, primary_id marker_id,symbol," +
             		" name, marker_type, status, organism from marker" +
-			" where organism = 'mouse, laboratory'";
+			" where organism = 'mouse'";
             logger.info(markerSQL);
             ResultSet rs_overall = ex.executeProto(markerSQL);
             

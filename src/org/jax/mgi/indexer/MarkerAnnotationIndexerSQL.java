@@ -30,7 +30,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
                 
         try {
             
-            // TODO Insert Appropriate max Count logic here, or Delete if you will not need it.
+            // count of annotations
             
             ResultSet rs_tmp = ex.executeProto("select max(annotation_key) as maxAnnotKey from annotation");
             rs_tmp.next();
@@ -39,11 +39,25 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
             String start = "0";
             String end = rs_tmp.getString("maxAnnotKey");
                                                
-            // TODO Setup the main query here
+	    // get the references for each annotation
+
+	    logger.info("Finding references for annotations");
+	    String annotToRefSQL =
+		"select distinct annotation_key, reference_key"
+		+ " from annotation_reference";
+
+	    logger.info(annotToRefSQL);
+	    HashMap<String, HashSet<String>> annotToRefs = makeHash(
+		annotToRefSQL, "annotation_key", "reference_key");
+
+	    logger.info("Found refs for " + annotToRefs.size()
+		+ " annotations");
+
+            // Setup the main query here
             
-            logger.info("Getting all marker annotations. test");
+            logger.info("Getting all marker annotations.");
             ResultSet rs_overall = ex.executeProto("select a.annotation_key, a.vocab_name, a.term, " +
-            		                                "a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term " +
+            		                                "a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term, asn.by_marker_dag_term " +
                                                     "from annotation as a " +
                                                     "join marker_to_annotation as mta on a.annotation_key = mta.annotation_key " +
                                                     "join annotation_sequence_num as asn on a.annotation_key = asn.annotation_key " +
@@ -53,19 +67,24 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
             
-            // TODO Parse the main query results here.
+            // Parse the main query results here.
             
-            logger.info("Parsing them");
+	    String annotKey;			// current annotation key
+
+            logger.info("Parsing marker annotations");
             while (!rs_overall.isAfterLast()) {
+		annotKey = rs_overall.getString("annotation_key");
+
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.MRK_KEY, rs_overall.getString("marker_key"));
-                doc.addField(IndexConstants.ANNOTATION_KEY, rs_overall.getString("annotation_key"));
+                doc.addField(IndexConstants.ANNOTATION_KEY, annotKey);
                 doc.addField(IndexConstants.VOC_TERM, rs_overall.getString("term"));
                 doc.addField(IndexConstants.VOC_ID, rs_overall.getString("term_id"));
                 doc.addField(IndexConstants.VOC_VOCAB, rs_overall.getString("vocab_name"));
                 doc.addField(IndexConstants.VOC_DAG_NAME, rs_overall.getString("dag_name"));
                 doc.addField(IndexConstants.VOC_BY_DAG_STRUCT, rs_overall.getString("by_dag_structure"));
                 doc.addField(IndexConstants.VOC_BY_DAG_TERM, rs_overall.getString("by_vocab_dag_term"));
+                doc.addField(IndexConstants.BY_MRK_DAG_TERM, rs_overall.getString("by_marker_dag_term"));
 
                 String qualifier = rs_overall.getString("qualifier");
                 if (qualifier == null) {
@@ -75,7 +94,18 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
                 
                 doc.addField(IndexConstants.VOC_QUALIFIER, qualifier);
 
-                if (rs_overall.getString("annotation_key") == null) {
+		// include references for each annotation
+
+		if (annotToRefs.containsKey(annotKey)) {
+		    for (String refsKey: annotToRefs.get(annotKey)) {
+			doc.addField(IndexConstants.REF_KEY, refsKey);
+		    }
+		}
+
+		// not sure why this is here or what it's doing; suspect it's
+		// old debugging code
+
+                if (annotKey == null) {
                     logger.info("String case" + doc.toString());
                 }
                 
@@ -92,7 +122,8 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
                 }
             }
             
-            logger.info("Done adding to solr, Completed marker annotaiton load.");        
+            logger.info("Done adding to solr;"
+		+ " completed marker annotation index.");
             server.add(docs);
             server.commit();
             
