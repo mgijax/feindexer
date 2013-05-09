@@ -28,10 +28,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
      * object relationship, and an extremely large main query.
      */
     
-    public void index() {
-                
-        try {
-                       
+    public void index() throws Exception
+    {       
             // The main sql for cre, this is a very large, but simple sql statement.
             
             logger.info("Getting all cre assay results");
@@ -90,7 +88,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
             server.add(docs);
             server.commit();
             
-        } catch (Exception e) {e.printStackTrace();}
     }
     
     String doBit(String bit) {

@@ -24,10 +24,11 @@ public class SequenceIndexerSQL extends Indexer {
         super("index.url.sequence");
     }
     
-    public void index() {
+    public void index() throws Exception
+    {
+    	stopThreadLogging();
         
 	String provider;
-        try {
             
             // Find out how big the result set can be, and then setup the chunking.
             
@@ -135,9 +136,9 @@ public class SequenceIndexerSQL extends Indexer {
                 
                 docs.add(doc);
                 
-                if (docs.size() > 10000) {
+                if (docs.size() > 20000) {
                     //logger.info("Adding a stack of the documents to Solr");
-                    server.add(docs);
+                    writeDocs(docs);
                     docs = new ArrayList<SolrInputDocument>();
                     //logger.info("Done adding to solr, Moving on");
                 }
@@ -149,6 +150,5 @@ public class SequenceIndexerSQL extends Indexer {
             }
             }
             server.commit();
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

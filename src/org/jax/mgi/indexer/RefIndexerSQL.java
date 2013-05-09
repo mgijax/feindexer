@@ -34,9 +34,8 @@ public class RefIndexerSQL extends Indexer {
      * main query.  We then enter a parsing phase where we place the data into
      * solr documents, and put them into the index.
      */
-    public void index() {
-    	try {
-            
+    public void index() throws Exception
+    {
             // How many references are there total?
             
             ResultSet rs_tmp = ex.executeProto("select max(reference_Key) as maxRefKey from reference");
@@ -400,10 +399,6 @@ public class RefIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {
-            logger.error("In the exception part.");
-            e.printStackTrace();}
     }
     
     // Convert the counts from actual values to something like a bit.

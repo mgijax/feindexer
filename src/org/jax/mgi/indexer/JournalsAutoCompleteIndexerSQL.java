@@ -26,23 +26,28 @@ public class JournalsAutoCompleteIndexerSQL extends Indexer {
         super("index.url.journalAC");
     }
     
-    public void index() throws IOException
+    public void index() throws Exception
     {
-    	 try {
-             
              logger.info("Getting all distinct journals");
-             ResultSet rs_overall = ex.executeProto("select distinct(r.journal), r.indexed_for_gxd from reference as r " + 
+
+	     /* 
+		TR11358/TR11248 (gxd/cre/snp)
+		final result is a list of journal/indexed_for_gxd
+		where exists either indexed_for_gxd = 1 or 0
+		but not both, and 1 trumps 0
+	     */
+
+             ResultSet rs_overall = ex.executeProto("select distinct r.journal, r.indexed_for_gxd " +
+				"from reference as r " + 
  				"where r.indexed_for_gxd = 1 " + 
  				"and r.journal is not null " + 
  				"union " + 
- 				"select distinct(r.journal), r.indexed_for_gxd from reference as r " + 
+ 				"select distinct r.journal, r.indexed_for_gxd " +
+				"from reference as r " + 
  				"where r.indexed_for_gxd = 0 " + 
- 				"and not exists (select 1 " + 
- 				"from reference r2 " + 
- 				"where r2.reference_key != r.reference_key " +
- 				"and r2.journal = r.journal " + 
- 				"and r.indexed_for_gxd = 0 ) " +
- 				"and journal is not null");
+ 				"and r.journal is not null " + 
+ 				"and not exists " +
+				"(select 1 from reference r1 where r1.journal = r.journal and r1.indexed_for_gxd = 1)");
              
              Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
              
@@ -78,9 +83,5 @@ public class JournalsAutoCompleteIndexerSQL extends Indexer {
              
              server.add(docs);
              server.commit();
-             
-         } catch (Exception e) {
-             logger.error("In the exception part.");
-             e.printStackTrace();}
     }
 }

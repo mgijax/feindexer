@@ -32,9 +32,8 @@ public class AlleleIndexerSQL extends Indexer {
      * object relationship, and an extremely large main query.
      */
     
-    public void index() {
-        try {
-                       
+    public void index() throws Exception
+    {
             // The system sub object relationship.  This has no 
             // chunking as it shouldn't be needed.
             
@@ -88,7 +87,6 @@ public class AlleleIndexerSQL extends Indexer {
             server.add(docs);
             server.commit();
             
-        } catch (Exception e) {e.printStackTrace();}
     }
     
 }

@@ -5,10 +5,14 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 
 /**
  * CreIndexerSQL
@@ -32,37 +36,98 @@ public class CreIndexerSQL extends Indexer {
      * object relationship, and an extremely large main query.
      */
     
-    public void index() {
-                
-        try {
+    public void index() throws Exception
+    {
                        
             // The system sub object relationship.  This has no 
             // chunking as it shouldn't be needed.
             
-            logger.info("Seleceting all allele systems relationships");
+            logger.info("Selecting all allele systems relationships");
             String allToSystemSQL = "select allele_key, system from recombinase_allele_system where system != '' order by allele_key ";
             System.out.println(allToSystemSQL);
             HashMap <String, HashSet <String>> allToSystems = makeHash(allToSystemSQL, "allele_key", "system");
 
+            // build maps to handle structure queries
+            Map<String,List<CreStructure>> structureAlleleMap = new HashMap<String,List<CreStructure>>();
+	        logger.info("building map of structures to allele key");
+	        String structureAlleleQuery = "select distinct ras.allele_key, " +
+	        		"rar.structure, " +
+	        		"struct.term_key, "+
+	        		"struct.primary_id, "+
+	        		"tae.mgd_structure_key "+
+	        		"from recombinase_assay_result rar,  "+
+	        		"recombinase_allele_system ras, "+
+	        		"term struct, "+
+	        		"term_anatomy_extras tae "+
+	        		"where rar.allele_system_key=ras.allele_system_key  "+
+	        		"and struct.vocab_name='Anatomical Dictionary' "+
+	        		"and struct.term=rar.structure "+
+	        		"and tae.term_key=struct.term_key";
+	        ResultSet rs = ex.executeProto(structureAlleleQuery);
+	        while (rs.next())
+	        {
+	        	String alleleKey = rs.getString("allele_key");
+	        	String sId = rs.getString("primary_id");
+	        	String structureMGDKey = rs.getString("mgd_structure_key");
+	        	String structure = rs.getString("structure");
+	        	String sKey = rs.getString("term_key");
 
+	        	CreStructure struct = new CreStructure(sKey,structure,sId,structureMGDKey);
+	        	
+	        	if(!structureAlleleMap.containsKey(alleleKey))
+	        	{
+	        		structureAlleleMap.put(alleleKey, new ArrayList<CreStructure>());
+	        	}
+	        	structureAlleleMap.get(alleleKey).add(struct);
+	        }
+	        logger.info("done gathering structure synonyms");
+            
+	        Map<String,List<String>> structureAncestorIdMap = new HashMap<String,List<String>>();
+	        Map<String,List<String>> structureAncestorKeyMap = new HashMap<String,List<String>>();
+            logger.info("building map of structure ancestors to allele key");
+	        String structureAncestorQuery = SharedQueries.GXD_ANATOMY_ANCESTOR_QUERY;
+	        rs = ex.executeProto(structureAncestorQuery);
+
+	        while (rs.next())
+	        {
+	        	String skey = rs.getString("structure_term_key");
+	        	String ancestorId = rs.getString("ancestor_id");
+	        	String structureId = rs.getString("structure_id");
+	        	String mgdKey = rs.getString("ancestor_mgd_structure_key");
+	        	if(!structureAncestorIdMap.containsKey(skey))
+	        	{
+	        		structureAncestorIdMap.put(skey, new ArrayList<String>());
+	        		// Include original term
+	        		structureAncestorIdMap.get(skey).add(structureId);
+	        		structureAncestorKeyMap.put(skey,new ArrayList<String>());
+	        	}
+	        	structureAncestorIdMap.get(skey).add(ancestorId);
+        		structureAncestorKeyMap.get(skey).add(mgdKey);
+	        }
+	        logger.info("done gathering structure ancestors");
+	        
+	        Map<String,List<String>> structureSynonymMap = new HashMap<String,List<String>>();
+	        logger.info("building map of structure synonyms");
+	        String structureSynonymQuery = SharedQueries.GXD_ANATOMY_SYNONYMS_QUERY;
+	        rs = ex.executeProto(structureSynonymQuery);
+	        while (rs.next())
+	        {
+	        	String sId = rs.getString("structure_id");
+	        	String synonym = rs.getString("synonym");
+	        	String structure = rs.getString("structure");
+	        	if(!structureSynonymMap.containsKey(sId))
+	        	{
+	        		structureSynonymMap.put(sId, new ArrayList<String>());
+	        		// Include original term
+	        		structureSynonymMap.get(sId).add(structure);
+	        	}
+	        	structureSynonymMap.get(sId).add(synonym);
+	        }
+	        logger.info("done gathering structure synonyms");
             // The main sql for cre, this is a very large, but simple sql statement.
             
             logger.info("Getting all cre alleles");
             ResultSet rs_overall = ex.executeProto("select ars.allele_key, " +
-            	"ars.in_adipose_tissue, " +
-            	"ars.in_alimentary_system, ars.in_branchial_arches, " +
-                "ars.in_cardiovascular_system, " +
-                "ars.in_cavities_and_linings, " +
-                "ars.in_endocrine_system, ars.in_head, " + 
-                "ars.in_hemolymphoid_system, ars.in_integumental_system, " +
-                "ars.in_limbs, ars.in_liver_and_biliary_system, " +
-                "ars.in_mesenchyme, ars.in_muscle, ars.in_nervous_system, " +
-                "ars.in_renal_and_urinary_system, " + 
-                "ars.in_reproductive_system, ars.in_respiratory_system, " +
-                "ars.in_sensory_organs, ars.in_skeletal_system, " + 
-                "ars.in_tail, ars.in_early_embryo, " +
-                "ars.in_extraembryonic_component, " +
-                "ars.in_embryo_other, ars.in_postnatal_other, " + 
                 "ars.detected_count, ars.not_detected_count, " + 
                 "asn.by_symbol, asn.by_allele_type, asn.by_driver, " +
                 "ac.reference_count, a.driver, a.inducible_note, " +
@@ -86,8 +151,9 @@ public class CreIndexerSQL extends Indexer {
             
             logger.info("Parsing them");
             while (!rs_overall.isAfterLast()) {
+            	String alleleKey = rs_overall.getString("allele_key");
                 SolrInputDocument doc = new SolrInputDocument();
-                doc.addField(IndexConstants.ALL_KEY, rs_overall.getString("allele_key"));
+                doc.addField(IndexConstants.ALL_KEY, alleleKey);
                 doc.addField(IndexConstants.ALL_DRIVER_SORT, rs_overall.getString("by_driver"));
                 doc.addField(IndexConstants.ALL_DRIVER, rs_overall.getString("driver"));
                 doc.addField(IndexConstants.ALL_INDUCIBLE, rs_overall.getString("inducible_note"));
@@ -95,41 +161,71 @@ public class CreIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.ALL_REFERENCE_COUNT_SORT, rs_overall.getString("reference_count"));
                 doc.addField(IndexConstants.ALL_TYPE_SORT, rs_overall.getString("by_allele_type"));
                 doc.addField(IndexConstants.ALL_SYMBOL_SORT, rs_overall.getString("by_symbol"));
-                doc.addField(IndexConstants.ALL_INDUCIBLE, rs_overall.getString("inducible_note"));
-                doc.addField(IndexConstants.CRE_IN_ADIPOSE_TISSUE, doBit(rs_overall.getString("in_adipose_tissue")));
-                doc.addField(IndexConstants.CRE_IN_ALIMENTARY_SYSTEM, doBit(rs_overall.getString("in_alimentary_system")));
-                doc.addField(IndexConstants.CRE_IN_BRANCHIAL_ARCHES, doBit(rs_overall.getString("in_branchial_arches")));
-                doc.addField(IndexConstants.CRE_IN_CARDIOVASCULAR_SYSTEM, doBit(rs_overall.getString("in_cardiovascular_system")));
-                doc.addField(IndexConstants.CRE_IN_CAVITIES_AND_LININGS, doBit(rs_overall.getString("in_cavities_and_linings")));
-                doc.addField(IndexConstants.CRE_IN_EARLY_EMBRYO, doBit(rs_overall.getString("in_early_embryo")));
-                doc.addField(IndexConstants.CRE_IN_EMBRYO_OTHER, doBit(rs_overall.getString("in_embryo_other")));
-                doc.addField(IndexConstants.CRE_IN_ENDOCRINE_SYSTEM, doBit(rs_overall.getString("in_endocrine_system")));
-                doc.addField(IndexConstants.CRE_IN_EXTRAEMBRYONIC_COMPONENT, doBit(rs_overall.getString("in_extraembryonic_component")));
-                doc.addField(IndexConstants.CRE_IN_HEAD, doBit(rs_overall.getString("in_head")));
-                doc.addField(IndexConstants.CRE_IN_HEMOLYMPHOID_SYSTEM, doBit(rs_overall.getString("in_hemolymphoid_system")));
-                doc.addField(IndexConstants.CRE_IN_INTEGUMENTAL_SYSTEM, doBit(rs_overall.getString("in_integumental_system")));
-                doc.addField(IndexConstants.CRE_IN_LIMBS, doBit(rs_overall.getString("in_limbs")));
-                doc.addField(IndexConstants.CRE_IN_LIVER_AND_BILIARY_SYSTEM, doBit(rs_overall.getString("in_liver_and_biliary_system")));
-                doc.addField(IndexConstants.CRE_IN_MESENCHYME, doBit(rs_overall.getString("in_mesenchyme")));
-                doc.addField(IndexConstants.CRE_IN_MUSCLE, doBit(rs_overall.getString("in_muscle")));
-                doc.addField(IndexConstants.CRE_IN_NERVOUS_SYSTEM, doBit(rs_overall.getString("in_nervous_system")));
-                doc.addField(IndexConstants.CRE_IN_POSTNATAL_OTHER, doBit(rs_overall.getString("in_postnatal_other")));
-                doc.addField(IndexConstants.CRE_IN_RENAL_AND_URINARY_SYSTEM, doBit(rs_overall.getString("in_renal_and_urinary_system")));
-                doc.addField(IndexConstants.CRE_IN_REPRODUCTIVE_SYSTEM, doBit(rs_overall.getString("in_reproductive_system")));
-                doc.addField(IndexConstants.CRE_IN_RESPIRATORY_SYSTEM, doBit(rs_overall.getString("in_respiratory_system")));
-                doc.addField(IndexConstants.CRE_IN_SENSORY_ORGANS, doBit(rs_overall.getString("in_sensory_organs")));
-                doc.addField(IndexConstants.CRE_IN_SKELETAL_SYSTEM, doBit(rs_overall.getString("in_skeletal_system")));
-                doc.addField(IndexConstants.CRE_IN_TAIL, doBit(rs_overall.getString("in_tail")));
                 doc.addField(IndexConstants.CRE_NOT_DETECTED_COUNT, rs_overall.getString("not_detected_count"));
                 doc.addField(IndexConstants.CRE_DETECTED_COUNT, rs_overall.getString("detected_count"));
                 doc.addField(IndexConstants.CRE_DETECTED_TOTAL_COUNT, rs_overall.getInt("not_detected_count") + rs_overall.getInt("detected_count"));
                 
                 // Bring in the multi-valued field allele system. 
                 
-                if (allToSystems.containsKey(rs_overall.getString("allele_key"))) {
+                if (allToSystems.containsKey(alleleKey)) {
                     for (String system: allToSystems.get(rs_overall.getString("allele_key"))) {
                         doc.addField(IndexConstants.CRE_ALL_SYSTEM, system);
                     }
+                }
+                
+                // Bring in the allele structures
+                // We only technically need STRUCTURE_ANCESTORS at the moment, but the others will be handy for links in the future
+                
+                if (structureAlleleMap.containsKey(alleleKey))
+                {
+                	// there can be a great deal of duplicate terms for each allele, so we'll filter out unique ones.
+            		Set<String> distinctAncestors = new HashSet<String>();
+            		Set<String> distinctStructures = new HashSet<String>();
+                	for(CreStructure struct : structureAlleleMap.get(alleleKey))
+                	{
+                		if(!distinctStructures.contains(struct.structureKey))
+                		{
+                			distinctStructures.add(struct.structureKey);
+	                		// Add various fields for structures
+	                		distinctAncestors.add(struct.structureName);
+	                		doc.addField(GxdResultFields.STRUCTURE_ID, struct.structureID);
+	                		if(structureAncestorIdMap.containsKey(struct.structureKey))
+			                {
+			                	// get ancestors
+			                	List<String> structure_ancestor_ids = structureAncestorIdMap.get(struct.structureKey);
+			                	for (String structure_ancestor_id : structure_ancestor_ids)
+			                	{
+			                		// get synonyms for each ancestor/term
+			                		if(structureSynonymMap.containsKey(structure_ancestor_id))
+			                		{
+			                			//also add structure MGI ID
+			                			doc.addField(GxdResultFields.STRUCTURE_ID, structure_ancestor_id);
+				                		List<String> structure_synonyms = structureSynonymMap.get(structure_ancestor_id);
+				                		for (String structure_synonym : structure_synonyms)
+				                		{
+				                			distinctAncestors.add(structure_synonym);
+				                		}
+			                		}
+			                	}
+			                }
+			                
+			                doc.addField(GxdResultFields.STRUCTURE_KEY, struct.structureMGDKey);
+			                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, struct.structureMGDKey);
+			                if(structureAncestorKeyMap.containsKey(struct.structureKey))
+			                {
+			                	// get ancestors by key as well (for links from AD browser)
+			                	List<String> structure_ancestor_keys = structureAncestorKeyMap.get(struct.structureKey);
+			                	for (String structure_ancestor_key : structure_ancestor_keys)
+			                	{
+			                		doc.addField(GxdResultFields.STRUCTURE_KEY, structure_ancestor_key);
+			                	}
+			                }
+                		}
+                	}
+                	for(String ancestor : distinctAncestors)
+                	{
+                		doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, ancestor);
+                	}
                 }
                 
                 rs_overall.next();
@@ -147,7 +243,6 @@ public class CreIndexerSQL extends Indexer {
             server.add(docs);
             server.commit();
             
-        } catch (Exception e) {e.printStackTrace();}
     }
     
     String doBit(String bit) {
@@ -158,5 +253,19 @@ public class CreIndexerSQL extends Indexer {
             return "1";
         }
         return "0";
+    }
+    private class CreStructure
+    {
+    	public String structureKey;
+    	public String structureName;
+    	public String structureID;
+    	public String structureMGDKey;
+    	public CreStructure(String structureKey,String structureName,String structureID,String structureMGDKey)
+    	{
+    		this.structureKey=structureKey;
+    		this.structureName=structureName;
+    		this.structureID=structureID;
+    		this.structureMGDKey=structureMGDKey;
+    	}
     }
 }

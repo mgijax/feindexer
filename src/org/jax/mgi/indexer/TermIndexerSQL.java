@@ -26,10 +26,8 @@ public class TermIndexerSQL extends Indexer {
         super("index.url.term");
     }
     
-    public void index() {
-                
-        try {
-            
+    public void index() throws Exception
+    {
             // TODO Insert Appropriate max Count logic here, or Delete if you will not need it.
             
             ResultSet rs_tmp = ex.executeProto("select max(term_key) as maxTermKey from term");
@@ -89,7 +87,5 @@ public class TermIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

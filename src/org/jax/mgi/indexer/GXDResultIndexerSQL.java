@@ -30,10 +30,8 @@ public class GXDResultIndexerSQL extends Indexer
     public GXDResultIndexerSQL () 
     { super("index.url.gxdResult"); }
     
-    public void index() 
+    public void index() throws Exception
     {    
-        try 
-        {    
         	Map<String,List<String>> markerNomenMap = new HashMap<String,List<String>>();
         	logger.info("building map of marker searchable nomenclature");
         	String nomenQuery = "select distinct marker_key,term from marker_searchable_nomenclature msn "+
@@ -182,14 +180,7 @@ public class GXDResultIndexerSQL extends Indexer
 	        Map<String,List<String>> structureAncestorIdMap = new HashMap<String,List<String>>();
 	        Map<String,List<String>> structureAncestorKeyMap = new HashMap<String,List<String>>();
 	        logger.info("building map of structure ancestors");
-	        String structureAncestorQuery ="select ta.ancestor_primary_id ancestor_id, "+
-				"t.primary_id structure_id, "+
-				"t.term_key structure_term_key, "+
-				"tae.mgd_structure_key ancestor_mgd_structure_key "+
-				"from term t, term_ancestor_simple ta, term_anatomy_extras tae, term ancestor_join "+
-				"where t.term_key=ta.term_key and t.vocab_name='Anatomical Dictionary' "+
-				"and ta.ancestor_primary_id=ancestor_join.primary_id "+
-				"and tae.term_key=ancestor_join.term_key ";
+	        String structureAncestorQuery =SharedQueries.GXD_ANATOMY_ANCESTOR_QUERY;
 	        rs = ex.executeProto(structureAncestorQuery);
 
 	        while (rs.next())
@@ -212,9 +203,7 @@ public class GXDResultIndexerSQL extends Indexer
 	        
 	        Map<String,List<String>> structureSynonymMap = new HashMap<String,List<String>>();
 	        logger.info("building map of structure synonyms");
-	        String structureSynonymQuery ="select ts.synonym, t.definition structure,t.primary_id structure_id "+
-	        		"from term t left outer join term_synonym ts on t.term_key=ts.term_key "+
-	        		"where t.vocab_name='Anatomical Dictionary' ";
+	        String structureSynonymQuery =SharedQueries.GXD_ANATOMY_SYNONYMS_QUERY;
 	        rs = ex.executeProto(structureSynonymQuery);
 
 	        while (rs.next())
@@ -228,7 +217,10 @@ public class GXDResultIndexerSQL extends Indexer
 	        		// Include original term
 	        		structureSynonymMap.get(sId).add(structure);
 	        	}
-	        	structureSynonymMap.get(sId).add(synonym);
+	        	if(synonym!=null && !synonym.equals("null"))
+	        	{
+	        		structureSynonymMap.get(sId).add(synonym);
+	        	}
 	        }
 	        logger.info("done gathering structure synonyms");
 	        
@@ -277,7 +269,9 @@ public class GXDResultIndexerSQL extends Indexer
 	            		"ersn.by_reference r_by_reference, "+
 	            		"easn.by_symbol a_by_symbol, "+
 	            		"easn.by_assay_type a_by_assay_type, "+
-	            		"exa.has_image a_has_image "+
+	            		"exa.has_image a_has_image, "+
+	            		"exa.probe_key a_probe_key, "+
+	            		"exa.antibody_key a_antibody_key "+
 	            		"from expression_result_summary ers, "+
 	            		"marker_sequence_num msqn, "+
 	                    "marker_counts mc, "+
@@ -369,6 +363,8 @@ public class GXDResultIndexerSQL extends Indexer
 	                
 	                //assay summary
 	                String a_has_image = rs.getString("a_has_image");
+	                String a_probe_key = rs.getString("a_probe_key");
+	                String a_antibody_key = rs.getString("a_antibody_key");
 	                
 	                // assay sorts
 	                String a_by_symbol = rs.getString("a_by_symbol");
@@ -424,6 +420,8 @@ public class GXDResultIndexerSQL extends Indexer
 		                
 		                //assay summary
 		                doc.addField(GxdResultFields.ASSAY_HAS_IMAGE, a_has_image.equals("1"));
+		                doc.addField(GxdResultFields.PROBE_KEY, a_probe_key);
+		                doc.addField(GxdResultFields.ANTIBODY_KEY, a_antibody_key);
 		                
 		                // assay sorts
 		                doc.addField(GxdResultFields.A_BY_SYMBOL,a_by_symbol);
@@ -514,6 +512,8 @@ public class GXDResultIndexerSQL extends Indexer
 		                doc.addField(GxdResultFields.STRUCTURE_ID, rs.getString("structure_id"));
 		                if(structureAncestorIdMap.containsKey(structure_term_key))
 		                {
+			                Set<String> ancestorIds = new HashSet<String>();
+			                Set<String> ancestorStructures = new HashSet<String>();
 		                	// get ancestors
 		                	List<String> structure_ancestor_ids = structureAncestorIdMap.get(structure_term_key);
 		                	for (String structure_ancestor_id : structure_ancestor_ids)
@@ -522,13 +522,22 @@ public class GXDResultIndexerSQL extends Indexer
 		                		if(structureSynonymMap.containsKey(structure_ancestor_id))
 		                		{
 		                			//also add structure MGI ID
-		                			doc.addField(GxdResultFields.STRUCTURE_ID, structure_ancestor_id);
+		                			ancestorIds.add(structure_ancestor_id);
 			                		List<String> structure_synonyms = structureSynonymMap.get(structure_ancestor_id);
 			                		for (String structure_synonym : structure_synonyms)
 			                		{
-				                		doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, structure_synonym);
+			                			ancestorStructures.add(structure_synonym);
 			                		}
 		                		}
+		                	}
+		                	// only add unique structures (for best solr indexing performance)
+		                	for(String ancestorId : ancestorIds)
+		                	{
+		                		doc.addField(GxdResultFields.STRUCTURE_ID, ancestorId);
+		                	}
+		                	for(String ancestorStructure : ancestorStructures)
+		                	{
+		                		doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, ancestorStructure);
 		                	}
 		                }
 		                
@@ -536,11 +545,18 @@ public class GXDResultIndexerSQL extends Indexer
 		                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
 		                if(structureAncestorKeyMap.containsKey(structure_term_key))
 		                {
+		                	Set<String> ancestorKeys = new HashSet<String>();
 		                	// get ancestors by key as well (for links from AD browser)
 		                	List<String> structure_ancestor_keys = structureAncestorKeyMap.get(structure_term_key);
 		                	for (String structure_ancestor_key : structure_ancestor_keys)
 		                	{
+		                		ancestorKeys.add(structure_ancestor_key);
 		                		doc.addField(GxdResultFields.STRUCTURE_KEY, structure_ancestor_key);
+		                	}
+		                	// only add unique structure keys
+		                	for(String ancestorKey : ancestorKeys)
+		                	{
+		                		doc.addField(GxdResultFields.STRUCTURE_KEY, ancestorKey);
 		                	}
 		                }
 		                
@@ -582,13 +598,6 @@ public class GXDResultIndexerSQL extends Indexer
 	            
 	            server.commit();
             }
-            
-        } 
-        catch (Exception e) 
-        {
-            logger.error("In the exception part.");
-            e.printStackTrace();
-        }
     }
     
     // maps detection level to currently approved display text.

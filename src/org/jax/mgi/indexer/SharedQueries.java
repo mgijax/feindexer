@@ -31,4 +31,19 @@ public class SharedQueries {
     		"from term t,term_ancestor_simple ta "+
     		"where t.vocab_name in "+GXD_VOCABULARIES+" "+
     		"and t.term_key = ta.term_key ";
+	
+	// Gets All anatomy term ancestors
+	static String GXD_ANATOMY_ANCESTOR_QUERY = "select ta.ancestor_primary_id ancestor_id, "+
+			"t.primary_id structure_id, "+
+			"t.term_key structure_term_key, "+
+			"tae.mgd_structure_key ancestor_mgd_structure_key "+
+			"from term t, term_ancestor_simple ta, term_anatomy_extras tae, term ancestor_join "+
+			"where t.term_key=ta.term_key and t.vocab_name='Anatomical Dictionary' "+
+			"and ta.ancestor_primary_id=ancestor_join.primary_id "+
+			"and tae.term_key=ancestor_join.term_key ";
+	
+	// Gets all the anatomy synonyms by term_id
+	static String GXD_ANATOMY_SYNONYMS_QUERY ="select ts.synonym, t.definition structure,t.primary_id structure_id "+
+    		"from term t left outer join term_synonym ts on t.term_key=ts.term_key "+
+    		"where t.vocab_name='Anatomical Dictionary' ";
 }

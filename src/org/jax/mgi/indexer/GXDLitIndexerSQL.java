@@ -38,7 +38,8 @@ public class GXDLitIndexerSQL extends Indexer {
      * main query.  We then enter a parsing phase where we place the data into
      * solr documents, and put them into the index.
      */
-    public void index() {
+    public void index() throws Exception
+    {
     	
     	logger.info("Gathering up the marker information.");
     	Map <String, MarkerSearchInfo> markerSearchInfo = getMarkerInfo();
@@ -86,7 +87,6 @@ public class GXDLitIndexerSQL extends Indexer {
 		myInts.add(new Integer(i));
 	}
 
-    	try {
     		rs_base.next();
     		
     		while (!rs_base.isAfterLast()) {
@@ -246,9 +246,7 @@ public class GXDLitIndexerSQL extends Indexer {
     		
             server.add(docs);
             server.commit();
-            
-    	}
-    	catch (Exception e) {e.printStackTrace();}
+           
     	
     	logger.info("Complete");
     	

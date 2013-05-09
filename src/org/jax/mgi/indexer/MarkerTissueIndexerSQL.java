@@ -25,9 +25,8 @@ public class MarkerTissueIndexerSQL extends Indexer {
         super("index.url.markerTissue");
     }
     
-    public void index() {
-                
-        try {
+    public void index() throws Exception
+    {
             // TODO Setup the main query here
             
             logger.info("Getting all marker/tissue records");
@@ -65,7 +64,5 @@ public class MarkerTissueIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

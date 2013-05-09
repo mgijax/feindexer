@@ -27,10 +27,8 @@ public class MarkerPanesetIndexerSQL extends Indexer {
         super("index.url.markerPanesetImage");
     }
     
-    public void index() {
-                
-        try {
-        	
+    public void index() throws Exception
+    {
             logger.info("Seleceting all imagepanet set for markers");
             String imagesToMrkSQL = "select distinct marker_key, paneset_key " + 
             	" from expression_imagepane_set order by paneset_key";
@@ -78,7 +76,5 @@ public class MarkerPanesetIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

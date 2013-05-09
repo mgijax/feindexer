@@ -26,10 +26,8 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
         super("index.url.markerAnnotation");
     }
     
-    public void index() {
-                
-        try {
-            
+    public void index() throws Exception
+    {
             // count of annotations
             
             ResultSet rs_tmp = ex.executeProto("select max(annotation_key) as maxAnnotKey from annotation");
@@ -126,7 +124,5 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 		+ " completed marker annotation index.");
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

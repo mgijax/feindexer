@@ -62,14 +62,12 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
         //}
     }
     
-    public void index() {
-                
+    public void index() throws Exception 
+    {            
         HashSet<String> authorSet = new HashSet<String>();
         Map<String, String> fabAuthorsForGXD = new HashMap<String, String>(); 
         HashMap<String, String> uniqueAuthors = new HashMap<String, String>();
-        
-        try {
-            
+       
             // Get the distinct author list from the database.
             
             logger.info("Getting all distinct author");
@@ -201,8 +199,5 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
             server.add(docs);
             server.commit();
             
-        } catch (Exception e) {
-            logger.error("In the exception part.");
-            e.printStackTrace();}
     }
 }

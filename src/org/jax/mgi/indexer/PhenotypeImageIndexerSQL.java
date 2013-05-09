@@ -27,10 +27,8 @@ public class PhenotypeImageIndexerSQL extends Indexer {
         super("index.url.phenotypeImage");
     }
     
-    public void index() {
-                
-        try {
-        	
+    public void index() throws Exception
+    {
             logger.info("Seleceting all image -> markers");
             String imagesToMrkSQL = "select distinct marker_key, image_key from marker_to_phenotype_image";
             System.out.println(imagesToMrkSQL);
@@ -88,7 +86,5 @@ public class PhenotypeImageIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

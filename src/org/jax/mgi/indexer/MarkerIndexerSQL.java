@@ -34,10 +34,9 @@ public class MarkerIndexerSQL extends Indexer {
      * solr documents, and put them into the index.
      */
     
-    public void index() {
+    public void index() throws Exception
+    {
                 
-        try {
-            
             // How many markers are there total?
             
             ResultSet rs_tmp = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
@@ -164,17 +163,13 @@ public class MarkerIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {
-            logger.error("In the exception part.");
-            e.printStackTrace();}
     }
     
-    protected HashMap <String, HashSet <String>> makeVocabHash(String sql, String keyString, String valueString) {
+    protected HashMap <String, HashSet <String>> makeVocabHash(String sql, String keyString, String valueString) throws Exception
+    {
         
         HashMap <String, HashSet <String>> tempMap = new HashMap <String, HashSet <String>> ();
         
-        try {
             ResultSet rs = ex.executeProto(sql);         
 
             String key = null;
@@ -206,7 +201,6 @@ public class MarkerIndexerSQL extends Indexer {
                     System.out.println(vocabID);*/
                 }
             }
-        } catch (Exception e) {e.printStackTrace();}
         return tempMap;
         
     }

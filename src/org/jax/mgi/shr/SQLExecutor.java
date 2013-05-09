@@ -122,5 +122,10 @@ public class SQLExecutor {
     public long getTiming() {
         return end.getTime() - start.getTime();
     }
+
+	@Override
+	public String toString() {
+		return "SQLExecutor[user="+user+",password="+password+",url="+mgdJDBCUrl+"]";
+	}
     
 }

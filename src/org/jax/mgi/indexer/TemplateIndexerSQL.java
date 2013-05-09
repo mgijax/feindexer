@@ -26,10 +26,8 @@ public class TemplateIndexerSQL extends Indexer {
         super("INSERT INDEX PROPERTY KEY HERE");
     }
 
-    public void index() {
-                
-        try {
-            
+    public void index() throws Exception
+    {
             // TODO Insert Appropriate max Count logic here, or Delete if you will not need it.
             
             ResultSet rs_tmp = ex.executeProto("select max(referenceKey) as maxRefKey from reference");
@@ -89,7 +87,5 @@ public class TemplateIndexerSQL extends Indexer {
             }
             server.add(docs);
             server.commit();
-            
-        } catch (Exception e) {e.printStackTrace();}
     }
 }

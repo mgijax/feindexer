@@ -28,14 +28,12 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
     public VocabTermAutoCompleteIndexerSQL () 
     { super("index.url.vocabTermAC"); }
     
-    public void index() 
+    public void index() throws Exception
     {    
     	Set<String> uniqueIds = new HashSet<String>();
     	Map<String,Integer> termSort = new HashMap<String,Integer>();
     	ArrayList<String> termsToSort = new ArrayList<String>();
     	
-        try 
-        {    
             logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,InterPro Domains,PIR Superfamily,OMIM,MouseCyc)");
 //            String query = "select distinct t.term_key, t.term,t.vocab_name,t.display_vocab_name,t.primary_id, "+
 //            		"ts.synonym,ts.synonym_type "+
@@ -139,12 +137,5 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
             
             server.add(docs);
             server.commit();
-            
-        } 
-        catch (Exception e) 
-        {
-            logger.error("In the exception part.");
-            e.printStackTrace();
-        }
     }
 }
