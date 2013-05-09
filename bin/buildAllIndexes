@@ -37,6 +37,8 @@ STANDARD_INDEXES = [
 	('image', 2, 4),
 	('markerTissue', 2, 4),
 	('gxdResult', 2, 4),
+	('gxdImagePane', 2, 4),
+	('gxdDifferentialMarker', 2, 4),
 	]
 
 # same as STANDARD_INDEXES, but for indexers which can produce a large amount
