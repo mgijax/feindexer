@@ -52,8 +52,8 @@ public class Main
 		indexerMap.put("structureAC", new StructureAutoCompleteIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
 		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
-		indexerMap.put("homology", new HomologyIndexerSQL());
-		indexerMap.put("disease", new DiseaseIndexerSQL());
+		//indexerMap.put("homology", new HomologyIndexerSQL());
+		//indexerMap.put("disease", new DiseaseIndexerSQL());
 		indexerMap.put("gxdImagePane", new GXDImagePaneIndexerSQL());
 		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
 	
