@@ -19,8 +19,8 @@ START_TIME = time.time()
 # list of (index name, min memory in Gb, max memory in Gb), ordered by which
 # we want to build first
 STANDARD_INDEXES = [
-	('homology', 2, 4),
-	('disease', 2, 4),
+	#('homology', 2, 4),
+	#('disease', 2, 4),
 	('reference', 2, 4),
 	('marker', 2, 4),
 	('allele', 2, 4),
