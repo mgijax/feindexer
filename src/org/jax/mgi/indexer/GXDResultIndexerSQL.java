@@ -393,6 +393,7 @@ public class GXDResultIndexerSQL extends Indexer
 		                doc.addField(GxdResultFields.THEILER_STAGE, theiler_stage);
 		                doc.addField(GxdResultFields.IS_EXPRESSED, is_expressed);
 		                doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, printname);
+		                doc.addField(GxdResultFields.STRUCTURE_EXACT, printname);
 		                doc.addField(GxdResultFields.AGE_MIN, roundAge(rs.getString("age_min")));
 		                doc.addField(GxdResultFields.AGE_MAX, roundAge(rs.getString("age_max")));
 		                
@@ -509,7 +510,8 @@ public class GXDResultIndexerSQL extends Indexer
 		                	}
 		                }
 		                
-		                doc.addField(GxdResultFields.STRUCTURE_ID, rs.getString("structure_id"));
+		                String structureID = rs.getString("structure_id");
+		                doc.addField(GxdResultFields.STRUCTURE_ID, structureID);
 		                if(structureAncestorIdMap.containsKey(structure_term_key))
 		                {
 			                Set<String> ancestorIds = new HashSet<String>();
@@ -523,10 +525,9 @@ public class GXDResultIndexerSQL extends Indexer
 		                		{
 		                			//also add structure MGI ID
 		                			ancestorIds.add(structure_ancestor_id);
-			                		List<String> structure_synonyms = structureSynonymMap.get(structure_ancestor_id);
-			                		for (String structure_synonym : structure_synonyms)
+			                		for (String structureSynonym : structureSynonymMap.get(structure_ancestor_id))
 			                		{
-			                			ancestorStructures.add(structure_synonym);
+			                			ancestorStructures.add(structureSynonym);
 			                		}
 		                		}
 		                	}
@@ -540,6 +541,15 @@ public class GXDResultIndexerSQL extends Indexer
 		                		doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, ancestorStructure);
 		                	}
 		                }
+		                
+		                // add the synonyms for this exact annotated structure
+		                if(structureSynonymMap.containsKey(structureID))
+		                {
+		                	for (String structureSynonym : structureSynonymMap.get(structureID))
+	                		{
+		                		doc.addField(GxdResultFields.STRUCTURE_EXACT, structureSynonym);
+	                		}
+		               	}
 		                
 		                doc.addField(GxdResultFields.STRUCTURE_KEY, mgd_structure_key);
 		                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
