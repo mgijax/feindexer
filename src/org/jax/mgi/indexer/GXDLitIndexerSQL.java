@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.searchInfo.GxdLitAgeAssayTypePair;
@@ -161,17 +162,23 @@ public class GXDLitIndexerSQL extends Indexer {
     			doc.addField(IndexConstants.MRK_ID, rs_base.getString("marker_id"));    
     			
 				// add vocab term IDs and their ancestors
-				if (termToMarkersIDForGXD.containsKey(rs_base.getString("marker_key"))) {
-	                 for (String termID: termToMarkersIDForGXD.get(rs_base.getString("marker_key"))) {
-	                     doc.addField(IndexConstants.MRK_TERM_ID, termID);
+				if (termToMarkersIDForGXD.containsKey(rs_base.getString("marker_key"))) 
+				{
+	    			Set<String> uniqueTermIDs = new HashSet<String>();
+	                for (String termID: termToMarkersIDForGXD.get(rs_base.getString("marker_key"))) {
+	                     uniqueTermIDs.add(termID);
 	                     if(termAncestorsToMarkersIDForGXD.containsKey(termID))
 	                     {
 	                     	for(String ancestorID : termAncestorsToMarkersIDForGXD.get(termID))
 	                     	{
-	                     		doc.addField(IndexConstants.MRK_TERM_ID, ancestorID);
+	                     		uniqueTermIDs.add(ancestorID);
 	                     	}
 	                     }
 	                 }
+	                for(String uniqueTermID : uniqueTermIDs)
+	                {
+	                	doc.addField(IndexConstants.MRK_TERM_ID, uniqueTermID);
+	                }
 	             }
 
     			
