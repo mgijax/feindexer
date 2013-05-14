@@ -71,7 +71,7 @@ public class RefIndexerSQL extends Indexer {
             logger.info("Selecting all reference -> sequence associations");
             String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceToSeqSQL);
-            HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
+            //HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
             
             // Author information, for the formatted authors.
             logger.info("Selecting all reference -> sequence associations");
@@ -281,11 +281,11 @@ public class RefIndexerSQL extends Indexer {
                 
                 // Add in the 1->n sequence relationships
                 
-                if (refToSequences.containsKey(rs_overall.getString("reference_key"))) {
-                    for (String sequenceKey: refToSequences.get(rs_overall.getString("reference_key"))) {
-                        doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
-                    }
-                }
+//                if (refToSequences.containsKey(rs_overall.getString("reference_key"))) {
+//                    for (String sequenceKey: refToSequences.get(rs_overall.getString("reference_key"))) {
+//                        doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
+//                    }
+//                }
                 
 		// add in the MGI ID(s) for each reference (not J: numbers)
 
