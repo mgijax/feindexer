@@ -53,7 +53,7 @@ public abstract class Indexer {
       this.httpPropName = httpPropName;
     }
     
-    protected void setupConnection()
+    protected void setupConnection() throws Exception
     {
         logger.info("Setting up the properties");
         
@@ -81,8 +81,7 @@ public abstract class Indexer {
         ThreadSafeClientConnManager mgr = new ThreadSafeClientConnManager();
         DefaultHttpClient client = new DefaultHttpClient(mgr);
         
-        try { server = new HttpSolrServer( props.getProperty(httpPropName),client );}
-        catch (Exception e) {e.printStackTrace();}
+        server = new HttpSolrServer( props.getProperty(httpPropName),client );
 
         logger.info("Working with index: " + props.getProperty(httpPropName)+"/update" );
         logger.info("Past the initial connection.");

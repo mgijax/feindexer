@@ -126,8 +126,8 @@ public class Main
 		for(Indexer idx : SPECIFIED_INDEXERS)
 		{
 			logger.info("Preparing to run: "+idx.getClass());
-			idx.setupConnection();
 			try{
+				idx.setupConnection();
 				idx.index();
 				logger.info("completed run of "+idx.getClass());
 			}
