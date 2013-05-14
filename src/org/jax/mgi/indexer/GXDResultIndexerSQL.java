@@ -14,6 +14,7 @@ import java.util.Set;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
+import org.jax.org.mgi.shr.fe.util.TextFormat;
 
 /**
  * GXDResultIndexerSQL
@@ -500,7 +501,7 @@ public class GXDResultIndexerSQL extends Indexer
 		                		String label = tks[0];
 		                		if(has_image.equals("1"))
 		                		{
-					                doc.addField(GxdResultFields.FIGURE,"<a href='###FEWIURL###image/"+tks[1]+"'>"+label+"</a>");
+					                doc.addField(GxdResultFields.FIGURE,"<a href='###FEWIURL###image/"+tks[1]+"'>"+TextFormat.superscript(label)+"</a>");
 		                		}
 		                		else
 		                		{
@@ -636,6 +637,7 @@ public class GXDResultIndexerSQL extends Indexer
     	// not sure what to do here... age should never be null.
     	return -1.0;
     }
+    
     /*
      * For debugging purposes only
      */
