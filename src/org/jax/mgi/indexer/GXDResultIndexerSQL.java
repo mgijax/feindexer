@@ -323,7 +323,7 @@ public class GXDResultIndexerSQL extends Indexer
 	                String is_expressed = rs.getString("is_expressed");
 	                String detection_level = rs.getString("detection_level");
 	                String printname = rs.getString("structure_printname");
-	                String structure_term_key = rs.getString("structure_key");
+	                String structureTermKey = rs.getString("structure_key");
 	                String mgd_structure_key = rs.getString("mgd_structure_key");
 	                String age = rs.getString("age_abbreviation");
 	                String assay_id = rs.getString("assay_id");
@@ -393,8 +393,6 @@ public class GXDResultIndexerSQL extends Indexer
 		                doc.addField(GxdResultFields.ASSAY_TYPE, assay_type);
 		                doc.addField(GxdResultFields.THEILER_STAGE, theiler_stage);
 		                doc.addField(GxdResultFields.IS_EXPRESSED, is_expressed);
-		                doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, printname);
-		                doc.addField(GxdResultFields.STRUCTURE_EXACT, printname);
 		                doc.addField(GxdResultFields.AGE_MIN, roundAge(rs.getString("age_min")));
 		                doc.addField(GxdResultFields.AGE_MAX, roundAge(rs.getString("age_max")));
 		                
@@ -480,16 +478,21 @@ public class GXDResultIndexerSQL extends Indexer
 		                }
 		                if(markerVocabMap.containsKey(marker_key))
 		                {
+		                	Set<String> uniqueAnnotationIDs = new HashSet<String>();
 		                	for(String termId : markerVocabMap.get(marker_key))
 		                	{
-				                doc.addField(GxdResultFields.ANNOTATION, termId);
+				                uniqueAnnotationIDs.add(termId);
 				                if(vocabAncestorMap.containsKey(termId))
 				                {
 				                	for(String ancestorId : vocabAncestorMap.get(termId))
 				                	{
-						                doc.addField(GxdResultFields.ANNOTATION, ancestorId);
+				                		uniqueAnnotationIDs.add(ancestorId);
 				                	}
 				                }
+		                	}
+		                	for(String annotationID : uniqueAnnotationIDs)
+		                	{
+		                		doc.addField(GxdResultFields.ANNOTATION, annotationID);
 		                	}
 		                }
 		                if(imageMap.containsKey(result_key))
@@ -512,20 +515,23 @@ public class GXDResultIndexerSQL extends Indexer
 		                }
 		                
 		                String structureID = rs.getString("structure_id");
-		                doc.addField(GxdResultFields.STRUCTURE_ID, structureID);
-		                if(structureAncestorIdMap.containsKey(structure_term_key))
+
+		                Set<String> ancestorIDs = new HashSet<String>();
+		                ancestorIDs.add(structureID);
+		                Set<String> ancestorStructures = new HashSet<String>();
+		                ancestorStructures.add(printname);
+		                
+		                if(structureAncestorIdMap.containsKey(structureTermKey))
 		                {
-			                Set<String> ancestorIds = new HashSet<String>();
-			                Set<String> ancestorStructures = new HashSet<String>();
 		                	// get ancestors
-		                	List<String> structure_ancestor_ids = structureAncestorIdMap.get(structure_term_key);
+		                	List<String> structure_ancestor_ids = structureAncestorIdMap.get(structureTermKey);
 		                	for (String structure_ancestor_id : structure_ancestor_ids)
 		                	{
 		                		// get synonyms for each ancestor/term
 		                		if(structureSynonymMap.containsKey(structure_ancestor_id))
 		                		{
 		                			//also add structure MGI ID
-		                			ancestorIds.add(structure_ancestor_id);
+		                			ancestorIDs.add(structure_ancestor_id);
 			                		for (String structureSynonym : structureSynonymMap.get(structure_ancestor_id))
 			                		{
 			                			ancestorStructures.add(structureSynonym);
@@ -533,7 +539,7 @@ public class GXDResultIndexerSQL extends Indexer
 		                		}
 		                	}
 		                	// only add unique structures (for best solr indexing performance)
-		                	for(String ancestorId : ancestorIds)
+		                	for(String ancestorId : ancestorIDs)
 		                	{
 		                		doc.addField(GxdResultFields.STRUCTURE_ID, ancestorId);
 		                	}
@@ -544,31 +550,34 @@ public class GXDResultIndexerSQL extends Indexer
 		                }
 		                
 		                // add the synonyms for this exact annotated structure
+		                Set<String> exactStructures = new HashSet<String>();
+		                exactStructures.add(printname);
 		                if(structureSynonymMap.containsKey(structureID))
 		                {
 		                	for (String structureSynonym : structureSynonymMap.get(structureID))
 	                		{
-		                		doc.addField(GxdResultFields.STRUCTURE_EXACT, structureSynonym);
+		                		exactStructures.add(structureSynonym);
 	                		}
 		               	}
-		                
-		                doc.addField(GxdResultFields.STRUCTURE_KEY, mgd_structure_key);
-		                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
-		                if(structureAncestorKeyMap.containsKey(structure_term_key))
+		                for(String exactStructure : exactStructures)
 		                {
-		                	Set<String> ancestorKeys = new HashSet<String>();
+		                	doc.addField(GxdResultFields.STRUCTURE_EXACT, exactStructure);
+		                }
+		                
+		                Set<String> structureKeys = new HashSet<String>();
+		                structureKeys.add(mgd_structure_key);
+		                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
+		                if(structureAncestorKeyMap.containsKey(structureTermKey))
+		                {
 		                	// get ancestors by key as well (for links from AD browser)
-		                	List<String> structure_ancestor_keys = structureAncestorKeyMap.get(structure_term_key);
-		                	for (String structure_ancestor_key : structure_ancestor_keys)
+		                	for (String structureAncestorKey : structureAncestorKeyMap.get(structureTermKey))
 		                	{
-		                		ancestorKeys.add(structure_ancestor_key);
-		                		doc.addField(GxdResultFields.STRUCTURE_KEY, structure_ancestor_key);
+		                		structureKeys.add(structureAncestorKey);
 		                	}
-		                	// only add unique structure keys
-		                	for(String ancestorKey : ancestorKeys)
-		                	{
-		                		doc.addField(GxdResultFields.STRUCTURE_KEY, ancestorKey);
-		                	}
+		                }
+		                for(String structKey : structureKeys)
+		                {
+		                	doc.addField(GxdResultFields.STRUCTURE_KEY, structKey);
 		                }
 		                
 		                //result sorts
