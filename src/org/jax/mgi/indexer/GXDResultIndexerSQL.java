@@ -151,30 +151,35 @@ public class GXDResultIndexerSQL extends Indexer
 	        
 	        Map<String,List<String>> imageMap = new HashMap<String,List<String>>();
 	        logger.info("building map of expression images");
-	        String imageQuery ="select eri.result_key, ei.pane_label,i.mgi_id,i.figure_label "+
-	        		"from expression_result_to_imagepane eri, "+
+	        // label could be either specimen label or if null use the figure label
+	        String imageQuery = "select eri.result_key,  " +
+	        		"case when ei.pane_label is null then i.figure_label else (i.figure_label || ei.pane_label) end as label "+
+	        		"from expression_result_summary ers, " +
+	        		"expression_result_to_imagepane eri, "+
 	        		"expression_imagepane ei, "+
 	        		"image i "+
 	        		"where eri.imagepane_key=ei.imagepane_key "+
-	        		"and ei.image_key=i.image_key ";
+						"and ei.image_key=i.image_key "+
+						"and eri.result_key=ers.result_key "+
+						"and ers.specimen_key is null "+
+					"UNION "+
+					"select ers.result_key, sp.specimen_label as label "+
+						"from expression_result_summary ers,assay_specimen sp "+
+						"where ers.specimen_key=sp.specimen_key ";
 	        rs = ex.executeProto(imageQuery);
 
 	        while (rs.next())
 	        {
 	        	String rkey = rs.getString("result_key");
-	        	String image_id = rs.getString("mgi_id");
-	        	String pane_label = rs.getString("pane_label");
-	        	if(!imageMap.containsKey(rkey))
+	        	String label = rs.getString("label");
+	        	if(label != null && !label.equals(""))
 	        	{
-	        		imageMap.put(rkey, new ArrayList<String>());
+	        		if(!imageMap.containsKey(rkey))
+	        		{
+	        			imageMap.put(rkey, new ArrayList<String>());
+	        		}
+	        		imageMap.get(rkey).add(label);
 	        	}
-	        	String label = rs.getString("figure_label");
-	        	if(pane_label != null)
-	        	{
-	        		label += pane_label;
-	        	}
-	        	String figure = label+"###"+image_id;
-	        	imageMap.get(rkey).add(figure);
 	        }
 	        logger.info("done gathering expression images");
 	        
@@ -500,17 +505,11 @@ public class GXDResultIndexerSQL extends Indexer
 		                	List<String> figures = imageMap.get(result_key);
 		                	for(String figure : figures)
 		                	{
-		                		String[] tks = figure.split("###");
-		                		String label = tks[0];
 		                		if(has_image.equals("1"))
 		                		{
-					                doc.addField(GxdResultFields.FIGURE,"<a href='###FEWIURL###image/"+tks[1]+"'>"+TextFormat.superscript(label)+"</a>");
+		                			doc.addField(GxdResultFields.FIGURE,figure);
 		                		}
-		                		else
-		                		{
-		                			doc.addField(GxdResultFields.FIGURE,label);
-		                		}
-		                		doc.addField(GxdResultFields.FIGURE_PLAIN,label);
+		                		doc.addField(GxdResultFields.FIGURE_PLAIN,figure);
 		                	}
 		                }
 		                
