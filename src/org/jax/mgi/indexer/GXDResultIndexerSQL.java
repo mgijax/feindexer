@@ -508,8 +508,8 @@ public class GXDResultIndexerSQL extends Indexer
 		                		if(has_image.equals("1"))
 		                		{
 		                			doc.addField(GxdResultFields.FIGURE,figure);
+			                		doc.addField(GxdResultFields.FIGURE_PLAIN,figure);
 		                		}
-		                		doc.addField(GxdResultFields.FIGURE_PLAIN,figure);
 		                	}
 		                }
 		                
