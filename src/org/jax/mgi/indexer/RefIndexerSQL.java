@@ -68,19 +68,19 @@ public class RefIndexerSQL extends Indexer {
             
             // Get all reference -> sequence relationships, by sequence key
             
-            logger.info("Selecting all reference -> sequence associations");
-            String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
-            logger.info(referenceToSeqSQL);
-            //HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
+//            logger.info("Selecting all reference -> sequence associations");
+//            String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
+//            logger.info(referenceToSeqSQL);
+//            //HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
             
             // Author information, for the formatted authors.
-            logger.info("Selecting all reference -> sequence associations");
+            logger.info("Selecting all reference -> authors");
             String referenceAuthorSQL = "select reference_key, author from reference_individual_authors where reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceAuthorSQL);
             HashMap <String, HashSet <String>> refAuthors = makeHash(referenceAuthorSQL,"reference_key","author");
 
             // last Author information, for the formatted authors.
-            logger.info("Selecting all reference -> sequence associations");
+            logger.info("Selecting all reference -> author last names");
             String referenceAuthorLastSQL = "select reference_key, author from reference_individual_authors where is_last = 1 and reference_key > " + start + " and reference_key <= "+ end;
             logger.info(referenceAuthorLastSQL);
             HashMap <String, HashSet <String>> refAuthorsLast = makeHash(referenceAuthorLastSQL,"reference_key","author");
@@ -92,10 +92,10 @@ public class RefIndexerSQL extends Indexer {
             HashMap <String, HashSet <String>> refAuthorsFirst = makeHash(referenceAuthorFirstSQL,"reference_key","author");
             
 	    // MGI IDs (not J: numbers) for each reference
-	    logger.info("Selecting references -> MGI IDs");
-	    String referenceMgiIDs = "select reference_key, acc_id from reference_id where logical_db = 'MGI' and private = 0 and acc_id like 'MGI%' and reference_key > " + start + " and reference_key <= " + end;
-	    logger.info (referenceMgiIDs);
-	    HashMap<String, HashSet<String>> refMgiIDs = makeHash(referenceMgiIDs, "reference_key", "acc_id");
+	    logger.info("Selecting references -> IDs");
+	    String referenceIDsSQL = "select reference_key, acc_id from reference_id where reference_key > " + start + " and reference_key <= " + end;
+	    logger.info (referenceIDsSQL);
+	    HashMap<String, HashSet<String>> refIDs = makeHash(referenceIDsSQL, "reference_key", "acc_id");
 
             // The main reference query.
             
@@ -120,10 +120,9 @@ public class RefIndexerSQL extends Indexer {
             	count++;
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
-                doc.addField(IndexConstants.REF_ID, rs_overall.getString("jnum_id"));
-                String jnumID [] = rs_overall.getString("jnum_id").split(":");
-                doc.addField(IndexConstants.REF_ID, jnumID[1]);
-                doc.addField(IndexConstants.REF_ID, rs_overall.getString("pubMed_id"));
+                //String jnumID [] = rs_overall.getString("jnum_id").split(":");
+                //doc.addField(IndexConstants.REF_ID, jnumID[1]);
+                //doc.addField(IndexConstants.REF_ID, rs_overall.getString("pubMed_id"));
                 
                 doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
@@ -291,9 +290,9 @@ public class RefIndexerSQL extends Indexer {
                 
 		// add in the MGI ID(s) for each reference (not J: numbers)
 
-		if (refMgiIDs.containsKey(rs_overall.getString("reference_key"))) {
-			for (String mgiID: refMgiIDs.get(rs_overall.getString("reference_key"))) {
-				doc.addField(IndexConstants.REF_ID, mgiID);
+		if (refIDs.containsKey(rs_overall.getString("reference_key"))) {
+			for (String refID: refIDs.get(rs_overall.getString("reference_key"))) {
+				doc.addField(IndexConstants.REF_ID, refID);
 			}
 		}
 
@@ -398,10 +397,10 @@ public class RefIndexerSQL extends Indexer {
                     docs = new ArrayList<SolrInputDocument>();
                     //logger.info("Done adding to solr, Moving on");
                 }
-                if(count % 10000 == 0)
+                if(count % 20000 == 0)
                 {
-                	// commit every 10,000 to keep Solr from blowing out of memory
-                	logger.info("committing docs "+(count-10000)+" through "+count);
+                	// commit regularly to keep Solr from blowing out of memory
+                	logger.info("committing docs "+(count-20000)+" through "+count);
                 	server.commit();
                 }
             }
