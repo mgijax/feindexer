@@ -48,7 +48,6 @@ public class Main
 		indexerMap.put("creAlleleSystem", new CreAlleleSystemIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
 		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
-		indexerMap.put("markerTissue", new MarkerTissueIndexerSQL());
 		indexerMap.put("structureAC", new StructureAutoCompleteIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
 		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
