@@ -115,7 +115,9 @@ public class RefIndexerSQL extends Indexer {
             // Parse the base query, adding its contents into solr
             
             logger.info("Parsing them");
+            int count=0;
             while (!rs_overall.isAfterLast()) {
+            	count++;
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
                 doc.addField(IndexConstants.REF_ID, rs_overall.getString("jnum_id"));
@@ -395,6 +397,12 @@ public class RefIndexerSQL extends Indexer {
                     writeDocs(docs);
                     docs = new ArrayList<SolrInputDocument>();
                     //logger.info("Done adding to solr, Moving on");
+                }
+                if(count % 10000 == 0)
+                {
+                	// commit every 10,000 to keep Solr from blowing out of memory
+                	logger.info("committing docs "+(count-10000)+" through "+count);
+                	server.commit();
                 }
             }
             server.add(docs);
