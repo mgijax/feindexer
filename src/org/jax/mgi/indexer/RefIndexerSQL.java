@@ -120,9 +120,8 @@ public class RefIndexerSQL extends Indexer {
             	count++;
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
-                //String jnumID [] = rs_overall.getString("jnum_id").split(":");
-                //doc.addField(IndexConstants.REF_ID, jnumID[1]);
-                //doc.addField(IndexConstants.REF_ID, rs_overall.getString("pubMed_id"));
+                String jnumID [] = rs_overall.getString("jnum_id").split(":");
+                doc.addField(IndexConstants.REF_ID, jnumID[1]);
                 
                 doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
