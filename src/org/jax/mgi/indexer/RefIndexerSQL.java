@@ -118,10 +118,10 @@ public class RefIndexerSQL extends Indexer {
             while (!rs_overall.isAfterLast()) {
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
-                doc.addField(IndexConstants.JNUM_ID, rs_overall.getString("jnum_id"));
+                doc.addField(IndexConstants.REF_ID, rs_overall.getString("jnum_id"));
                 String jnumID [] = rs_overall.getString("jnum_id").split(":");
-                doc.addField(IndexConstants.JNUM_ID, jnumID[1]);
-                doc.addField(IndexConstants.PUBMED_ID, rs_overall.getString("pubMed_id"));
+                doc.addField(IndexConstants.REF_ID, jnumID[1]);
+                doc.addField(IndexConstants.REF_ID, rs_overall.getString("pubMed_id"));
                 
                 doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
@@ -291,7 +291,7 @@ public class RefIndexerSQL extends Indexer {
 
 		if (refMgiIDs.containsKey(rs_overall.getString("reference_key"))) {
 			for (String mgiID: refMgiIDs.get(rs_overall.getString("reference_key"))) {
-				doc.addField(IndexConstants.MGI_ID, mgiID);
+				doc.addField(IndexConstants.REF_ID, mgiID);
 			}
 		}
 
