@@ -336,7 +336,6 @@ public class GXDResultIndexerSQL extends Indexer
 	                String jnum = rs.getString("jnum_id");
 	                String mini_citation = rs.getString("mini_citation");
 	                String genotype = rs.getString("genotype");
-	                if(genotype != null) genotype = genotype.replace("<sup>","<").replace("</sup>",">");
 	                String has_image = rs.getString("has_image");
 	                
 	                String markerSymbol = rs.getString("marker_symbol");
