@@ -187,7 +187,15 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            	//get results
 	            	// if this lookup fails, then there is probably a data inconsistency
 	            	// we need all the expression_gatherers run at the same time to get the db keys in line
-	            	for(Integer result_key : imagePaneResultMap.get(imagepane_key))
+	            	List<Integer> expressionResultKeys = imagePaneResultMap.get(imagepane_key);
+	            	if(expressionResultKeys == null)
+	            	{
+	            		// these keys are the whole point of this index. Without them, we can't join to it to get images.
+	            		// This may happen in a case with inconsistent image data.
+	            		continue;
+	            	}
+	            	
+	            	for(Integer result_key : expressionResultKeys)
 	            	{
 	            		doc.addField(GxdResultFields.RESULT_KEY,result_key);
 	            	}
