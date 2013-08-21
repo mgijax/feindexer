@@ -88,6 +88,30 @@ public class SQLExecutor {
     }
     
     /**
+     * Execute a statement against MGD (where that statement has no rows
+     * returned), setting up the connection if needed.
+     * @param query
+     */
+    public void executeUpdate (String cmd) {
+        
+        try {
+            if (conMGD == null) {
+                getMGDConnection();
+            }
+            
+            java.sql.Statement stmt = conMGD.createStatement();
+            start = new Date();
+            stmt.executeUpdate(cmd);
+            end = new Date();
+            return;
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.exit(1);
+            return;
+        }
+    }
+        
+    /**
      * Execute a query against MGD, setting up the connection if needed.
      * @param query
      * @return

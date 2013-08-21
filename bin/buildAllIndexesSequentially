@@ -1,0 +1,42 @@
+#!/bin/sh
+
+# builds all Solr indexes sequentially, rather than in parallel
+# (helps for machines with low available RAM)
+
+# need to manually keep this in sync with the list of indexes in the parallel
+# version of buildAllIndexes
+
+# indexes with standard (2-4Gb) memory requirements
+
+for index in reference marker allele markerAnnotation mpAnnotation authorsAC journalsAC structureAC vocabTermAC cre creAlleleSystem creAssayResult gxdLitIndex markerPanesetImage image gxdResult gxdImagePane gxdDifferentialMarker
+do
+
+uptime
+echo "Beginning ${index}..."
+
+./buildIndex ${index}
+if [ $? -ne 0 ]; then
+    echo "Failed on ${index}"
+    exit 1
+fi
+echo "Finished ${index}..."
+
+done
+
+# indexes with larger memory requirements
+
+for index in sequence
+do
+
+uptime
+echo "Beginning ${index}..."
+
+./buildIndex ${index} 4 8
+if [ $? -ne 0 ]; then
+    echo "Failed on ${index}"
+    exit 1
+fi
+echo "Finished ${index}..."
+
+done
+echo "Successfully completed"

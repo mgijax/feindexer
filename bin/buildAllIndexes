@@ -25,6 +25,7 @@ STANDARD_INDEXES = [
 	('marker', 2, 4),
 	('allele', 2, 4),
 	('markerAnnotation', 2, 4),
+	('mpAnnotation', 2, 4),
 	('authorsAC', 2, 4),
 	('journalsAC', 2, 4),
 	('structureAC', 2, 4),
