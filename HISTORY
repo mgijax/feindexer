@@ -1,3 +1,12 @@
+TAG: feindexer-5-1-5-2
+DATE: 09/09/2013
+STAFF: jsb
+CHANGES: 
+1) altered buildAllIndexes to move gxdResult down with sequence, so they would
+   not run at the same time
+2) altered buildIndex to increase permgen space and change garbage collection
+   algorithm, to avoid SIGSEGV error and core dump
+
 TAG: feindexer-5-1-5-1
 DATE: 08/21/2013
 STAFF: jsb
