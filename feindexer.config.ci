@@ -34,3 +34,7 @@ export DB_HOST
 
 MGI_JAVALIB=/usr/local/mgi/jenkins/.jenkins/workspace/lib_java_fe-dev/dist
 export MGI_JAVALIB
+
+BUILD_SCRIPT=buildAllIndexesSequentially
+export BUILD_SCRIPT
+

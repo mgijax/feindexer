@@ -24,4 +24,11 @@ then
     mkdir -p ${LOG_DIR}
 fi
 
+cd bin
+if [ -h buildAllIndexes ]; then
+    rm buildAllIndexes
+fi
+ln -s ${BUILD_SCRIPT} buildAllIndexes
+cd ..
+
 ${ANT}

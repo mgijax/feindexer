@@ -22,3 +22,7 @@ export LIB_DIR
 
 SOLR_PORT=9995
 export SOLR_PORT
+
+BUILD_SCRIPT=buildAllIndexesSequentially
+export BUILD_SCRIPT
+
