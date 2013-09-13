@@ -1,3 +1,15 @@
+TAG: feindexer-5-1-5-3
+DATE: 09/13/2013
+STAFF: jsb
+CHANGES: 
+1) MPAnnotationIndexer still won't play well with buildAllIndexes in parallel,
+   as it inexplicably hangs partway through parsing query results.  Can't find
+   the bug in the time we have, so...
+2) Moved buildAllIndexes to be buildAllIndexesParallel, and
+3) Added BUILD_SCRIPT configuration option and updated Install script to make
+   a symbolic link from buildAllIndexes to ${BUILD_SCRIPT}, then
+4) Set BUILD_SCRIPT to be the sequential version, which works okay
+
 TAG: feindexer-5-1-5-2
 DATE: 09/09/2013
 STAFF: jsb
