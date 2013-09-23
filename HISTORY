@@ -1,3 +1,11 @@
+TAG: feindexer-5-1-5-4
+DATE: 09/23/2013
+STAFF: jsb
+CHANGES: 
+1) updated MPAnnotationIndexer to do less logging, as it was hanging at the
+   point that it reached 16kb of logs
+2) updated buildAllIndexesParallel to include note about #1 above
+
 TAG: feindexer-5-1-5-3
 DATE: 09/13/2013
 STAFF: jsb
