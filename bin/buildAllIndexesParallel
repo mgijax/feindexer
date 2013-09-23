@@ -13,6 +13,11 @@ import Dispatcher
 
 ###--- Globals ---###
 
+# Note: For some reason, mpAnnotation cannot handle more than 16kb of logs
+# or it will hang indefinitely.  Even moving it into LARGE_IO_INDEXES doesn't
+# help.  So, I have altered it to do less logging.  Remember in the future
+# to consider log size when indexers hang interminably. -- jsb, 9/23/2013
+
 # float; time (in sec) at which the script started
 START_TIME = time.time()
 
