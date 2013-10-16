@@ -26,19 +26,19 @@ public class MPAnnotationIndexerSQL extends Indexer {
     {
 	    String annotationType = "Mammalian Phenotype/Genotype";
 
-            // get highest annotation key for genotype annotations
+        // get highest annotation key for genotype annotations
             
-            ResultSet rs_tmp = ex.executeProto("select max(annotation_key) as maxAnnotKey from annotation where annotation_type = '" + annotationType + "'");
-            rs_tmp.next();
-            
-            System.out.println("Max Genotype annotation_key: " + rs_tmp.getString("maxAnnotKey") + " Timing: "+ ex.getTiming());
+        ResultSet rs_tmp = ex.executeProto("select max(annotation_key) as maxAnnotKey from annotation where annotation_type = '" + annotationType + "'");
+        rs_tmp.next();
+        Integer maxAnnotKey = rs_tmp.getInt("maxAnnotKey");
+        System.out.println("Max Genotype annotation_key: " +  maxAnnotKey + " Timing: "+ ex.getTiming());
 
-	    String withAnnotations = "with mp_annotations as ("
-		+ "select a.annotation_key, "
+	    String tmpAnnotations = "select a.annotation_key, "
 		+ "  ga.genotype_key, "
 		+ "  a.term_id as search_term_id, "
 		+ "  a.term_id, "
 		+ "  a.qualifier "
+		+ "into temp tmp_mp_annotations "
 		+ "from annotation a, "
 		+ "  genotype_to_annotation ga, "
 		+ "  genotype g "
@@ -60,6 +60,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		+ "  and g.combination_1 is not null "
 		+ "  and a.term_id = t.primary_id "
 		+ "  and t.term_key = ta.term_key) ";
+	    ex.executeVoid(tmpAnnotations);
 
 	    // Now for each annotation, we need to find the markers associated
 	    // with the alleles in the genotype (so we can match based on MP
@@ -161,112 +162,122 @@ public class MPAnnotationIndexerSQL extends Indexer {
 	    // building Solr documents.  And, we will include references for
 	    // each annotation from annotationToRefs.
 	    
-	    String mainQuery = withAnnotations
-	        + "select t.annotation_key, t.search_term_id, t.genotype_key "
-		+ "from mp_annotations t";
+	    Integer start = 0;
+        Integer end = maxAnnotKey;
+    	int chunkSize = 100000;
+        
+        int modValue = end.intValue() / chunkSize;
 
-	    ResultSet rs_overall = ex.executeProto(mainQuery);
-	    logger.info("Found annotation/genotype pairs");
-
-            boolean hasRecord = rs_overall.next();
-
-	    // Finally we need to bundle the data into Solr documents and push
-	    // them over to the Solr server for indexing.
-
-            Collection<SolrInputDocument> docs =
-		new ArrayList<SolrInputDocument>();
-            
-	    String annotKey;			// current annotation key
-	    String genotype;			// current genotype key
-	    String searchTermID;
+        Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 	    int uniqueKey = 0;
+	    
+        for (int i = 0; i <= modValue; i++) 
+        {    
+            start = i * chunkSize;
+            end = start + chunkSize;
 
-	    logger.info("Parsing annotation/genotype pairs");
+            logger.info ("Processing annotation key > " + start + " and <= " + end);
+		    String mainQuery = "select t.annotation_key, t.search_term_id, t.genotype_key "
+			+ "from tmp_mp_annotations t "
+			+ "where t.annotation_key > "+start+" and t.annotation_key <= "+end;
 
-            while (hasRecord) {
-		uniqueKey++;
+		    ResultSet rs_overall = ex.executeProto(mainQuery);
+		    logger.info("Found annotation/genotype pairs");
+	
+	        boolean hasRecord = rs_overall.next();
+	
+		    // Finally we need to bundle the data into Solr documents and push
+		    // them over to the Solr server for indexing.
 
-		annotKey = rs_overall.getString("annotation_key");
-		genotype = rs_overall.getString("genotype_key");
-		searchTermID = rs_overall.getString("search_term_id");
-
-                SolrInputDocument doc = new SolrInputDocument();
-
-		doc.addField(IndexConstants.UNIQUE_KEY,
-		    Integer.toString(uniqueKey));
-                doc.addField(IndexConstants.ANNOTATION_KEY, annotKey);
-		doc.addField(IndexConstants.GENOTYPE_KEY, genotype);
-                doc.addField(IndexConstants.TERM_ID, searchTermID);
-
-		// add in pieces pulled out of mainQuery
-
-		if (annotationToTerm.containsKey(annotKey)) {
-		    for (String term: annotationToTerm.get(annotKey)) {
-			doc.addField(IndexConstants.TERM, term);
-		    }
-		}
-
-		if (annotationToTermID.containsKey(annotKey)) {
-		    for (String termID: annotationToTermID.get(annotKey)) {
-			doc.addField(IndexConstants.ANNOTATED_TERM_ID, termID);
-		    }
-		}
-
-		if (annotationToStrain.containsKey(annotKey)) {
-		    for (String strain: annotationToStrain.get(annotKey)) {
-			doc.addField(IndexConstants.BACKGROUND_STRAIN, strain);
-		    }
-		}
-
-		if (annotationToAlleles.containsKey(annotKey)) {
-		    for (String alleles: annotationToAlleles.get(annotKey)) {
-			doc.addField(IndexConstants.ALLELE_PAIRS, alleles);
-		    }
-		}
-
-		if (annotationToSeqNum.containsKey(annotKey)) {
-		    for (String seqNum: annotationToSeqNum.get(annotKey)) {
-			doc.addField(IndexConstants.BY_GENOTYPE_TERM, seqNum);
-		    }
-		}
-
-		// include markers for each annotation's genotype
-
-		if (genotypeToMarkers.containsKey(genotype)) {
-		    for (String markerKey: genotypeToMarkers.get(genotype)) {
-			doc.addField(IndexConstants.MRK_KEY, markerKey);
-		    }
-		}
-
-		// include references for each annotation
-
-		if (annotationToRefs.containsKey(annotKey)) {
-		    for (String jnumID: annotationToRefs.get(annotKey)) {
-			doc.addField(IndexConstants.JNUM_ID, jnumID);
-		    }
-		}
-
-                hasRecord = rs_overall.next();
-                                
-                docs.add(doc);
-                
-                if (docs.size() > 10000) {
-                    server.add(docs);
-                    server.commit();
-// skip logging info, as once we hit 16kb of log, process hangs when run via
-// a Python wrapper:
-//                    logger.info("Committed " + docs.size() + " docs to solr");
-                    docs = new ArrayList<SolrInputDocument>();
-                }
-            }
+	
+		    logger.info("Parsing annotation/genotype pairs");
+	
+	        while (hasRecord) 
+	        {
+				uniqueKey++;
+		
+				String annotKey = rs_overall.getString("annotation_key");
+				String genotype = rs_overall.getString("genotype_key");
+				String searchTermID = rs_overall.getString("search_term_id");
+		
+		        SolrInputDocument doc = new SolrInputDocument();
+		
+				doc.addField(IndexConstants.UNIQUE_KEY,
+				    Integer.toString(uniqueKey));
+		                doc.addField(IndexConstants.ANNOTATION_KEY, annotKey);
+				doc.addField(IndexConstants.GENOTYPE_KEY, genotype);
+		                doc.addField(IndexConstants.TERM_ID, searchTermID);
+		
+				// add in pieces pulled out of mainQuery
+		
+				if (annotationToTerm.containsKey(annotKey)) {
+				    for (String term: annotationToTerm.get(annotKey)) {
+					doc.addField(IndexConstants.TERM, term);
+				    }
+				}
+		
+				if (annotationToTermID.containsKey(annotKey)) {
+				    for (String termID: annotationToTermID.get(annotKey)) {
+					doc.addField(IndexConstants.ANNOTATED_TERM_ID, termID);
+				    }
+				}
+		
+				if (annotationToStrain.containsKey(annotKey)) {
+				    for (String strain: annotationToStrain.get(annotKey)) {
+					doc.addField(IndexConstants.BACKGROUND_STRAIN, strain);
+				    }
+				}
+		
+				if (annotationToAlleles.containsKey(annotKey)) {
+				    for (String alleles: annotationToAlleles.get(annotKey)) {
+					doc.addField(IndexConstants.ALLELE_PAIRS, alleles);
+				    }
+				}
+		
+				if (annotationToSeqNum.containsKey(annotKey)) {
+				    for (String seqNum: annotationToSeqNum.get(annotKey)) {
+					doc.addField(IndexConstants.BY_GENOTYPE_TERM, seqNum);
+				    }
+				}
+		
+				// include markers for each annotation's genotype
+		
+				if (genotypeToMarkers.containsKey(genotype)) {
+				    for (String markerKey: genotypeToMarkers.get(genotype)) {
+					doc.addField(IndexConstants.MRK_KEY, markerKey);
+				    }
+				}
+		
+				// include references for each annotation
+		
+				if (annotationToRefs.containsKey(annotKey)) {
+				    for (String jnumID: annotationToRefs.get(annotKey)) {
+					doc.addField(IndexConstants.JNUM_ID, jnumID);
+				    }
+				}
+	
+				hasRecord = rs_overall.next();
+	                                
+				docs.add(doc);
+	                
+	            if (docs.size() > 10000) {
+	                    server.add(docs);
+	                    server.commit();
+						// skip logging info, as once we hit 16kb of log, process hangs when run via
+						// a Python wrapper:
+						//                    logger.info("Committed " + docs.size() + " docs to solr");
+	                    docs = new ArrayList<SolrInputDocument>();
+	            }
+	        }
+	    }
             
 	    if (docs.size() > 0) {
                 server.add(docs);
                 server.commit();
-// skip logging info, as once we hit 16kb of log, process hangs when run via
-// a Python wrapper:
-//                logger.info("Committed " + docs.size() + " docs to solr");
+				// skip logging info, as once we hit 16kb of log, process hangs when run via
+				// a Python wrapper:
+				//                logger.info("Committed " + docs.size() + " docs to solr");
 	    }
-            logger.info("Done adding " + uniqueKey + " docs to solr; completed MP/Annotation index.");
+        logger.info("Done adding " + uniqueKey + " docs to solr; completed MP/Annotation index.");
     }
 }
