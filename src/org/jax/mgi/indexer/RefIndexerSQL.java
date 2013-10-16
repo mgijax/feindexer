@@ -5,6 +5,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -36,8 +38,20 @@ public class RefIndexerSQL extends Indexer {
      */
     public void index() throws Exception
     {
+    	String diseaseRelevantMarkerQuery = "select mtr.reference_key, m.primary_id marker_id " +
+    			"from hdp_marker_to_reference mtr,marker m " +
+    			"where m.marker_key=mtr.marker_key ";
+    	Map<String,Set<String>> diseaseRelevantMarkerMap = populateLookup(diseaseRelevantMarkerQuery,"reference_key","marker_id",
+    				"disease relevant marker IDs (for linking from disease portal)");
+    	
+    	String diseaseRelevantRefQuery = "select trt.reference_key, ha.term_id disease_id " +
+    			"from hdp_term_to_reference trt,hdp_annotation ha " +
+    			"where ha.term_key=trt.term_key " +
+    			"and ha.vocab_name='OMIM' ";
+    	Map<String,Set<String>> diseaseRelevantRefMap = populateLookup(diseaseRelevantRefQuery,"reference_key","disease_id",
+    				"disease IDs to references (for linking from disease portal)");
+    	
             // How many references are there total?
-            
             ResultSet rs_tmp = ex.executeProto("select max(reference_Key) as maxRefKey from reference");
             rs_tmp.next();
             
@@ -126,7 +140,14 @@ public class RefIndexerSQL extends Indexer {
                 doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
                 
-                doc.addField(IndexConstants.REF_KEY, rs_overall.getString("reference_key"));
+                String refKey = rs_overall.getString("reference_key");
+                doc.addField(IndexConstants.REF_KEY, refKey);
+                
+                // add all the marker IDs for disease relevant markers
+                addAllFromLookup(doc,IndexConstants.REF_DISEASE_RELEVANT_MARKER_ID,refKey,diseaseRelevantMarkerMap);
+                addAllFromLookup(doc,IndexConstants.REF_DISEASE_ID,refKey,diseaseRelevantRefMap);
+
+                
                 doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
                 
                 // Temporary new way to put in the title

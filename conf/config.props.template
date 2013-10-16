@@ -19,6 +19,8 @@ index.url.gxdResult={BASE_URL}/gxdResult/
 index.url.homology={BASE_URL}/homology/
 index.url.gxdImagePane={BASE_URL}/gxdImagePane/
 index.url.gxdDifferentialMarker={BASE_URL}/gxdDifferentialMarker/
+index.url.diseasePortal={BASE_URL}/diseasePortal/
+index.url.diseasePortalAnnotation={BASE_URL}/diseasePortalAnnotation/
 
 mgd.user={DB_USER}
 mgd.password={DB_PASSWORD}

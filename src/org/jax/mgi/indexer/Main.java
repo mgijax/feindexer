@@ -56,10 +56,8 @@ public class Main
 		indexerMap.put("gxdImagePane", new GXDImagePaneIndexerSQL());
 		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
 		indexerMap.put("mpAnnotation", new MPAnnotationIndexerSQL());
-	
-		//TODO: Are these obselete? If so can we get rid of these classes?
-		//indexerMap.put("phenotypeImage",new PhenotypeImageIndexerSQL());
-		//indexerMap.put("term",new TermIndexerSQL());
+		indexerMap.put("diseasePortal", new DiseasePortalIndexerSQL());
+		indexerMap.put("diseasePortalAnnotation", new DiseasePortalAnnotationIndexerSQL());
 	}
 	
 	// other command args

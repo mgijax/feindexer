@@ -8,12 +8,16 @@ import org.apache.solr.common.SolrException;
 import org.apache.solr.common.SolrInputDocument;
 import java.io.InputStream;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
@@ -214,7 +218,7 @@ public abstract class Indexer {
     			// set the commitWithin feature
     			server.add(docs,commitWithin);
     		} catch (SolrServerException e) {
-    			logger.error(e.getMessage());
+    			logger.warn(e.getMessage());
     			e.printStackTrace();
     			retry();
     		} catch (IOException e) {
@@ -234,12 +238,12 @@ public abstract class Indexer {
         			server.add(docs,commitWithin);
         		} catch (SolrServerException e) {
         			succeeded = false;
-        			logger.error("failed");
+        			logger.warn("failed");
         			e.printStackTrace();
         			retry();
         		} catch (IOException e) {
         			succeeded = false;
-        			logger.error(e.getMessage());
+        			logger.warn(e.getMessage());
         			e.printStackTrace();
         			retry();
         		}
@@ -273,5 +277,92 @@ public abstract class Indexer {
     public boolean hasFailedThreads()
     {
     	return this.failedThreads>0;
+    }
+    
+    
+    /*
+     * The following are convenience methods for populating lookups to be used in generating multiValued fields
+     *  A String -> Set<String> map is always returned. This is to keep all terms unique, which leads to faster indexing in Solr.
+     *  
+     * Example Usage:
+     * 	 String termSynonymQuery="select t.primary_id term_id,ts.synonym "+
+     *		"from term t,term_synonym ts "+
+     *			"where t.term_key=ts.term_key " +
+     *				"and t.vocab_name in ('OMIM','Mammalian Phenotype') ";
+     *
+     *	 Map<String,Set<String>> synonymLookup = populateLookup(termSynonymQuery,"term_id","synonym","synonyms to term IDs");
+     *
+     * You may also pass in an existing map to add to it
+     *   Map<String,Set<String>> synonymLookup = populateLookup(extraTermSynonymQuery,"term_id","synonym","extra synonyms to term IDs",synonymLookup);
+     *   
+     *   When no map is passed in, by default you will get back HashMap<String,HashSet<String>> as a return type.
+     *   You may pass in a different type of Map<String,Set<String>> if you want to use either a different Map implementation, or a different Set implementation
+     *   	However, if the Set class is not passed in, a HashSet will be used (this is a limitation on java reflection)
+     *   Example:
+     *   	 Map<String,Set<String>> orderedSynonymLookup = 
+     *   		populateLookup(termSynonymQuery,"term_id","synonym","synonyms to term IDs",
+     *   			new HashMap<String,LinkedHashSet<String>>(),LinkedHashSet.class);
+     *   
+     *   Alternatively, use the shortcut methods populateLookupOrdered() if you want the default to be LinkedHashSet
+     */
+    protected Map<String,Set<String>> populateLookup(String query,String uniqueFieldName,String secondFieldName,String logText) throws Exception
+    {
+    	return populateLookup(query,uniqueFieldName,secondFieldName,logText,new HashMap<String,Set<String>>());
+    }
+    protected Map<String,Set<String>> populateLookup(String query,String uniqueFieldName,String secondFieldName,String logText,
+    		Map<String,? extends Set<String>> lookupRef) throws Exception
+	{
+    	return populateLookup(query,uniqueFieldName,secondFieldName,logText,lookupRef,HashSet.class);
+    }
+    
+    protected Map<String,Set<String>> populateLookupOrdered(String query,String uniqueFieldName,String secondFieldName,String logText) throws Exception
+    {
+    	return populateLookupOrdered(query,uniqueFieldName,secondFieldName,logText,new HashMap<String,Set<String>>());
+    }
+    
+    protected Map<String,Set<String>> populateLookupOrdered(String query,String uniqueFieldName,String secondFieldName,String logText,
+    		Map<String,? extends Set<String>> lookupRef) throws Exception
+	{
+    	return populateLookup(query,uniqueFieldName,secondFieldName,logText,lookupRef,LinkedHashSet.class);
+    }
+
+    protected Map<String,Set<String>> populateLookup(String query,String uniqueFieldName,String secondFieldName,String logText,
+    		Map<String,? extends Set<String>> lookupRef,Class<? extends Set> setClass) throws Exception
+    {
+    	// do some type-casting magic in order to create a new instance of "? extends Set"
+    	Map<String,Set<String>> returnLookup = (Map<String,Set<String>>) lookupRef;
+    	
+    	logger.info("populating map of "+logText);
+    	
+    	ResultSet rs = ex.executeProto(query);
+    	
+    	while (rs.next())
+    	{
+    		String uniqueField = rs.getString(uniqueFieldName);
+    		String secondField = rs.getString(secondFieldName);
+    		if(!returnLookup.containsKey(uniqueField))
+    		{
+					returnLookup.put(uniqueField, setClass.newInstance());
+    		}
+    		returnLookup.get(uniqueField).add(secondField);
+    	}
+ 
+    	logger.info("finished populating map of "+logText);
+    	return returnLookup;
+    }
+    
+    /*
+     * Convenience method to add all items from a lookup map
+     * to a particular solr field. Ignores input if lookupId doesn't exist.
+     */
+    protected void addAllFromLookup(SolrInputDocument solrDoc,String solrField,String lookupId,Map<String,Set<String>> lookupRef)
+    {
+    	if(lookupRef.containsKey(lookupId))
+    	{
+    		for(Object obj : lookupRef.get(lookupId))
+    		{
+    			solrDoc.addField(solrField,obj);
+    		}
+    	}
     }
 }

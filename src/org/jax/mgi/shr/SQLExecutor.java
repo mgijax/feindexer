@@ -137,6 +137,23 @@ public class SQLExecutor {
             return null;
         }
     }
+    
+    /*
+     * execute any SQL that does not return a result
+     */
+    public void executeVoid(String sql)
+    {
+    	 try 
+    	 {
+             if (conMGD == null)  getMGDConnection();
+             
+             java.sql.Statement stmt = conMGD.createStatement();
+             stmt.execute(sql);
+         } catch (Exception e) {
+             e.printStackTrace();
+             System.exit(1);
+         }
+    }
         
     /**
      * Return the timing of the last query.
