@@ -59,7 +59,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		+ "  and ga.genotype_key = g.genotype_key "
 		+ "  and g.combination_1 is not null "
 		+ "  and a.term_id = t.primary_id "
-		+ "  and t.term_key = ta.term_key) ";
+		+ "  and t.term_key = ta.term_key ";
 	    ex.executeVoid(tmpAnnotations);
 
 	    // Now for each annotation, we need to find the markers associated
