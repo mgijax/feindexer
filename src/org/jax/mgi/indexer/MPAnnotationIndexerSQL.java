@@ -60,7 +60,9 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		+ "  and g.combination_1 is not null "
 		+ "  and a.term_id = t.primary_id "
 		+ "  and t.term_key = ta.term_key ";
+	    logger.debug("creating temp table tmp_mp_annotations");
 	    ex.executeVoid(tmpAnnotations);
+	    logger.debug("done creating temp table tmp_mp_annotations");
 
 	    // Now for each annotation, we need to find the markers associated
 	    // with the alleles in the genotype (so we can match based on MP
