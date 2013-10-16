@@ -184,7 +184,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 			+ "where t.annotation_key > "+start+" and t.annotation_key <= "+end;
 
 		    ResultSet rs_overall = ex.executeProto(mainQuery);
-		    logger.info("Found annotation/genotype pairs");
+		    //logger.info("Found annotation/genotype pairs");
 	
 	        boolean hasRecord = rs_overall.next();
 	
@@ -263,8 +263,8 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				docs.add(doc);
 	                
 	            if (docs.size() > 10000) {
+	            		writeDocs(docs);
 	                    server.add(docs);
-	                    server.commit();
 						// skip logging info, as once we hit 16kb of log, process hangs when run via
 						// a Python wrapper:
 						//                    logger.info("Committed " + docs.size() + " docs to solr");
@@ -274,7 +274,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 	    }
             
 	    if (docs.size() > 0) {
-                server.add(docs);
+	    		writeDocs(docs);
                 server.commit();
 				// skip logging info, as once we hit 16kb of log, process hangs when run via
 				// a Python wrapper:
