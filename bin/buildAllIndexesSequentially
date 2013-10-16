@@ -8,7 +8,7 @@
 
 # indexes with standard (2-4Gb) memory requirements
 
-for index in reference marker allele markerAnnotation mpAnnotation authorsAC journalsAC structureAC vocabTermAC cre creAlleleSystem creAssayResult gxdLitIndex markerPanesetImage image gxdResult gxdImagePane gxdDifferentialMarker
+for index in reference marker allele markerAnnotation mpAnnotation authorsAC journalsAC structureAC vocabTermAC cre creAlleleSystem creAssayResult gxdLitIndex markerPanesetImage image gxdResult gxdImagePane gxdDifferentialMarker diseasePortal diseasePortalAnnotation
 do
 
 uptime
