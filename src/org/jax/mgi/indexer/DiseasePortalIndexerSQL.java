@@ -571,8 +571,6 @@ public class DiseasePortalIndexerSQL extends Indexer
             Map<String,Set<String>> mpTermForSSDiseaseMap = this.populateMpForSSDiseaseLookup(start,end,mpLookups);
             // make a lookup to map MP queries to diseases for related genotypes
             Map<String,Set<String>> mpTermForDiseaseMap = this.populateMpForDiseaseLookup(start,end,mpLookups);
-            // make a lookup to map MP queries to human diseases of markers in same homology
-           // Map<String,Set<String>> mpTermForHumanSSDiseaseMap = this.populateMpForHuamnDiseaseGridLookup(start,end,mpLookups);
             // make a lookup to map MP queries to other MP terms in related genotype clusters
             Map<String,Set<String>> mpTermForMPMap = this.populateMpForMpGridLookup(start,end,mpLookups);
             // make a lookup to map OMIM queries to other MP terms in related genotype clusters
@@ -793,12 +791,6 @@ public class DiseasePortalIndexerSQL extends Indexer
             		addAllFromLookup(doc,DiseasePortalFields.MP_TERM_FOR_DISEASE,hdpAnnotationKey,mpTermForDiseaseMap);
             		addAllFromLookup(doc,"mpTermForSSDisease",hdpAnnotationKey,mpTermForSSDiseaseMap);
             		addAllFromLookup(doc,DiseasePortalFields.OMIM_TERM_FOR_DISEASE,hdpAnnotationKey,omimTermForDiseaseMap);
-            		//if(isOnGrid && organism.equals("human")) 
-            		//{
-            			// Need a special lookup to allow human diseases to appear on the grid when your query 
-            			// 	matches a mouse super-simple genotype in the same cluster
-            			//addAllFromLookup(doc,DiseasePortalFields.MP_TERM_FOR_HUMAN_DISEASE,hdpAnnotationKey,mpTermForHumanSSDiseaseMap);
-            		//}
             	}
             	else if(vocabName.equals("Mammalian Phenotype"))
             	{
@@ -902,43 +894,6 @@ public class DiseasePortalIndexerSQL extends Indexer
         
         logger.info("finished building map of MP query terms/altIDs/synonyms/ancestors to SS OMIM hdp_annotation_keys");
         return mpTermForDiseaseMap;
-    }
-    
-    private Map<String,Set<String>> populateMpForHuamnDiseaseGridLookup(int start,int end,List<Map<String,Set<String>>> mpLookups) throws Exception
-    {
-        // load a map of MP term IDs to OMIM disease IDs via hdp_annotation
-        logger.info("building map of MP query SUPER SIMPLE terms/altIDs/synonyms/ancestors to HUMAN hdp_annotation_keys");
-        // first we map mp ids = omim ids, we can use existing lookups to get the rest
-        String mpToHumanSSDiseaseQuery = "select mouse_mp_id,mouse_mp_term,human_hdp_annotation_key " +
-        		"from tmp_mp_to_human_disease "+
-				"where human_hdp_annotation_key > "+start+" and human_hdp_annotation_key <= "+end+" ";
-        ResultSet rs = ex.executeProto(mpToHumanSSDiseaseQuery);
-        Map<String,Set<String>> mpTermForHumanSSDiseaseMap = new HashMap<String,Set<String>>();
-        while(rs.next())
-        {
-        	String hdpAnnotationKey = rs.getString("human_hdp_annotation_key");
-        	String mpId = rs.getString("mouse_mp_id");
-        	String mpTerm = rs.getString("mouse_mp_term");
-        	if(!mpTermForHumanSSDiseaseMap.containsKey(hdpAnnotationKey))
-        	{
-        		mpTermForHumanSSDiseaseMap.put(hdpAnnotationKey,new HashSet<String>());
-        	}
-        	mpTermForHumanSSDiseaseMap.get(hdpAnnotationKey).add(mpId);
-        	mpTermForHumanSSDiseaseMap.get(hdpAnnotationKey).add(mpTerm);
-        	Set<String> mpSearch = new HashSet<String>();
-    		for(Map<String,Set<String>> lookup : mpLookups)
-    		{
-    			if(lookup.containsKey(mpId))
-    			{
-    				mpSearch.addAll(lookup.get(mpId));
-    			}
-    		}
-    		mpTermForHumanSSDiseaseMap.get(hdpAnnotationKey).addAll(mpSearch);
-        }
-        
-        logger.info("finished building map of MP query SUPER SIMPLE terms/altIDs/synonyms/ancestors to HUMAN hdp_annotation_keys");
-        
-        return mpTermForHumanSSDiseaseMap;
     }
     
     private Map<String,Set<String>> populateMpForMpGridLookup(int start,int end,List<Map<String,Set<String>>> mpLookups) throws Exception
@@ -1086,9 +1041,9 @@ public class DiseasePortalIndexerSQL extends Indexer
     			"ha2.term term2,\n" + 
     			"ha2.vocab_name vocab2\n" + 
     			"into temp tmp_ha_cross\n" + 
-    			"from tmp_hdp_annotation_nn ha1,\n" + 
+    			"from hdp_annotation ha1,\n" + 
     			"tmp_ha_genocluster gc1,\n" + 
-    			"tmp_hdp_annotation_nn ha2,\n" + 
+    			"hdp_annotation ha2,\n" + 
     			"tmp_ha_genocluster gc2\n" + 
     			"where ha1.hdp_annotation_key=gc1.hdp_annotation_key\n" + 
     			"and ha2.hdp_annotation_key=gc2.hdp_annotation_key\n" +  
@@ -1098,29 +1053,6 @@ public class DiseasePortalIndexerSQL extends Indexer
     	//createTempIndex("tmp_ha_genocluster","vocab1");
     	//createTempIndex("tmp_ha_genocluster","vocab2");
     	logger.info("done creating temp table of hdp_annotation cross hdp_annotation via genocluster");
-    	
-    	// mp to human Diseases
-    	logger.info("creating temp table mapping mp terms to human disease via grid cluster");
-		String mpToHumanSSDiseaseQuery="select distinct ha_human_omim.hdp_annotation_key human_hdp_annotation_key, " +
-	        	"ha_mouse_mp.term mouse_mp_term, "+
-	      		"ha_mouse_mp.term_id mouse_mp_id "+
-				"INTO TEMP tmp_mp_to_human_disease "+
-			"from hdp_annotation ha_human_omim, "+
-				"hdp_gridcluster_marker human_gcm, "+
-				"hdp_gridcluster gc, "+
-				"hdp_gridcluster_marker mouse_gcm, "+
-				"tmp_hdp_annotation_nn ha_mouse_mp "+
-			"where ha_human_omim.vocab_name='OMIM' "+
-				"and ha_human_omim.organism_key=2 "+
-				"and ha_human_omim.marker_key=human_gcm.marker_key "+
-				"and human_gcm.hdp_gridcluster_key=gc.hdp_gridcluster_key "+
-				"and mouse_gcm.hdp_gridcluster_key=gc.hdp_gridcluster_key "+
-				"and ha_mouse_mp.marker_key=mouse_gcm.marker_key "+
-				"and ha_mouse_mp.organism_key=1 "+
-				"and ha_mouse_mp.vocab_name='Mammalian Phenotype' "+
-				"and (ha_mouse_mp.genotype_type!='complex') ";
-		this.ex.executeVoid(mpToHumanSSDiseaseQuery);
-    	createTempIndex("tmp_mp_to_human_disease","human_hdp_annotation_key");
     	
     	// disease to disease ID mappings via genotype clusters
     	logger.info("creating temp table mapping disease terms to diseases via genocluster");
@@ -1163,7 +1095,7 @@ public class DiseasePortalIndexerSQL extends Indexer
     			"        	ha_mp.term mp_term, \n" + 
     			"		ha_omim.hdp_annotation_key \n" + 
     			"		INTO TEMP tmp_mp_to_disease\n" + 
-    			"			from tmp_hdp_annotation_nn ha_mp, \n" + 
+    			"			from hdp_annotation ha_mp, \n" + 
     			"				hdp_annotation ha_omim\n" + 
     			"			where ha_mp.genotype_key=ha_omim.genotype_key \n" + 
     			"				and ha_mp.vocab_name='Mammalian Phenotype' \n" + 
