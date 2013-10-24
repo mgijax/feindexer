@@ -69,12 +69,12 @@ public class DiseasePortalIndexerSQL extends Indexer
     	// create map to sort MP Headers
     	logger.info("calculating sorts for MP Header Systems");
     	Map<String,Integer> mpHeaderSortMap = new HashMap<String,Integer>();
-    	String query = "select distinct mp_header from hdp_annotation  order by mp_header ";
+    	String query = "select distinct header from hdp_annotation  order by header ";
 	    rs = ex.executeProto(query);
 	    int headerCount = 0;
 		while(rs.next())
 		{
-			mpHeaderSortMap.put(rs.getString("mp_header"),++headerCount);
+			mpHeaderSortMap.put(rs.getString("header"),++headerCount);
 		}
 		// put normal phenotype header last
 		if(mpHeaderSortMap.containsKey(NORMAL_PHENOTYPE)) mpHeaderSortMap.put(NORMAL_PHENOTYPE,++headerCount); 
@@ -585,7 +585,7 @@ public class DiseasePortalIndexerSQL extends Indexer
         		"ha.term_id, " +
         		"ha.vocab_name, " +
         		"ha.genotype_type, " +
-        		"ha.mp_header term_header, " +
+        		"ha.header term_header, " +
         		"ha.qualifier_type, " +
         		"ha.term_seq, " +
         		"ha.term_depth, " +
