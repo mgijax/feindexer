@@ -134,8 +134,8 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             		"(select distinct ha.marker_key, " +
             		"'header' term_type, " +
             		"ha.vocab_name, " +
-            		"ha.mp_header, " +
-            		"ha.mp_header, " +
+            		"ha.header, " +
+            		"ha.header, " +
             		"ha.qualifier_type, " +
             		"gcm.hdp_gridcluster_key "+
             		"from hdp_annotation ha, " +
