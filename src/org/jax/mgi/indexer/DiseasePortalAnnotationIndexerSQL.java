@@ -15,6 +15,7 @@ import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
  * GXDImagePaneIndexerSQL
  * @author kstone
  * This index is to be joined with the diseasePortal index to facilitate building the grid
+ * 	It loads annotations that have been rolled up and grouped by genotype cluster (AKA genocluster)
  * 
  */
 
@@ -67,22 +68,22 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	String vocabName = getVocabName(rs.getString("annotation_type"));
             	String qualifier = rs.getString("qualifier_type");
             	if(qualifier==null) qualifier = "";
-            	if("OMIM".equals(vocabName))
-            	{
-            		// for now... artificially add header-like documents for every OMIM disease to simulate disease clump infrastructure
-            		SolrInputDocument doc = new SolrInputDocument();
-                	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
-                	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
-                	doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY,genoClusterKey);
-                	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); // either term or header
-                	doc.addField(DiseasePortalFields.VOCAB_NAME,vocabName);
-                	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
-                	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
-                	doc.addField(DiseasePortalFields.TERM_QUALIFIER,""); // forget rolling up conflicts for now... no one will notice anyway
-                	
-                    docs.add(doc);
-                    uniqueKey += 1;
-            	}
+//            	if("OMIM".equals(vocabName))
+//            	{
+//            		// for now... artificially add header-like documents for every OMIM disease to simulate disease clump infrastructure
+//            		SolrInputDocument doc = new SolrInputDocument();
+//                	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
+//                	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
+//                	doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY,genoClusterKey);
+//                	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); // either term or header
+//                	doc.addField(DiseasePortalFields.VOCAB_NAME,vocabName);
+//                	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
+//                	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
+//                	doc.addField(DiseasePortalFields.TERM_QUALIFIER,""); // forget rolling up conflicts for now... no one will notice anyway
+//                	
+//                    docs.add(doc);
+//                    uniqueKey += 1;
+//            	}
             	
             	SolrInputDocument doc = new SolrInputDocument();
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
@@ -129,19 +130,19 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             		"hdp_gridcluster_marker gcm " +
             		"where ha.organism_key=2 " +
             		"and ha.marker_key=gcm.marker_key " +
-            		"and vocab_name='OMIM') " +
-            		"UNION"+
-            		"(select distinct ha.marker_key, " +
-            		"'header' term_type, " +
-            		"ha.vocab_name, " +
-            		"ha.header, " +
-            		"ha.header, " +
-            		"ha.qualifier_type, " +
-            		"gcm.hdp_gridcluster_key "+
-            		"from hdp_annotation ha, " +
-            		"hdp_gridcluster_marker gcm " +
-            		"where ha.organism_key=2 " +
-            		"and ha.marker_key=gcm.marker_key " +
+//            		"and vocab_name='OMIM') " +
+//            		"UNION"+
+//            		"(select distinct ha.marker_key, " +
+//            		"'header' term_type, " +
+//            		"ha.vocab_name, " +
+//            		"ha.header, " +
+//            		"ha.header, " +
+//            		"ha.qualifier_type, " +
+//            		"gcm.hdp_gridcluster_key "+
+//            		"from hdp_annotation ha, " +
+//            		"hdp_gridcluster_marker gcm " +
+//            		"where ha.organism_key=2 " +
+//            		"and ha.marker_key=gcm.marker_key " +
             		"and vocab_name='OMIM') ";
             
             rs = ex.executeProto(query);
