@@ -172,6 +172,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
             	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
             	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
+            	doc.addField("annotationTermId",rs.getString("term_id"));
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
 
                 docs.add(doc);
@@ -195,6 +196,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
 	                	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
 	                	doc.addField(DiseasePortalFields.TERM,header);
 	                	doc.addField(DiseasePortalFields.TERM_ID,header);
+	                	doc.addField("annotationTermId",rs.getString("term_id"));
 	                	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
 	
 	                    docs.add(doc);
