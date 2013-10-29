@@ -155,7 +155,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	int markerKey = rs.getInt("marker_key");
             	int gridClusterKey = rs.getInt("hdp_gridcluster_key");
             	
-            	String humanJoinKey = markerKey + delim + rs.getString("term_id");
+            	String humanJoinKey = markerKey + "000000" + rs.getString("term_id");
             	
             	SolrInputDocument doc = new SolrInputDocument();
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);

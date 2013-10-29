@@ -738,7 +738,7 @@ public class DiseasePortalIndexerSQL extends Indexer
 	            	// add the join key for human markers
 	            	if("OMIM".equalsIgnoreCase(vocabName)) 
 	            	{
-	            		doc.addField("humanJoinKey",markerKey + "||" + termId);
+	            		doc.addField("humanJoinKey",markerKey + "000000" + termId);
 	            	}
             	}
             	// ----------- genotype centric fields ----------------
