@@ -32,6 +32,8 @@ public class DiseasePortalIndexerSQL extends Indexer
     public DiseasePortalIndexerSQL () 
     { super("index.url.diseasePortal"); }    
     
+    public static String JOIN_DELIM = "000000";
+    
     /*
      * Constants
      */
@@ -649,7 +651,8 @@ public class DiseasePortalIndexerSQL extends Indexer
             	
             	// --------- Grid cluster fields ---------------
             	// For grid clusters, we only include human annotations and super-simple mouse annotations (no allele->OMIM)
-            	boolean isOnGrid = "human".equalsIgnoreCase(organism) || !"complex".equalsIgnoreCase(genotypeType);
+            	boolean isOnGrid = "human".equalsIgnoreCase(organism) 
+            			|| (!"complex".equalsIgnoreCase(genotypeType) && genoClusterKey!=null && genoClusterKey>0);
             	if(isOnGrid)
             	{
             		if(gridClusterKey!=null && gridClusterKey>0)
@@ -738,7 +741,7 @@ public class DiseasePortalIndexerSQL extends Indexer
 	            	// add the join key for human markers
 	            	if("OMIM".equalsIgnoreCase(vocabName)) 
 	            	{
-	            		doc.addField("humanJoinKey",markerKey + "000000" + termId);
+	            		doc.addField("humanJoinKey",markerKey + DiseasePortalIndexerSQL.JOIN_DELIM + termId);
 	            	}
             	}
             	// ----------- genotype centric fields ----------------
