@@ -155,6 +155,8 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	int markerKey = rs.getInt("marker_key");
             	int gridClusterKey = rs.getInt("hdp_gridcluster_key");
             	
+            	String humanJoinKey = markerKey + delim + rs.getString("term_id");
+            	
             	SolrInputDocument doc = new SolrInputDocument();
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
             	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
@@ -177,7 +179,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             		{
             			markerHeaderAnnotationIdMap.put(markerHeaderKey,new HashSet<String>());
             		}
-            		markerHeaderAnnotationIdMap.get(markerHeaderKey).add(rs.getString("term_id"));
+            		markerHeaderAnnotationIdMap.get(markerHeaderKey).add(humanJoinKey);
             	}
             	
                 if (docs.size() > 1000) {
@@ -217,7 +219,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
 
             	// add all the annotation termIds that we can join on
-            	this.addAllFromLookup(doc,"annotationTermId",markerHeaderKey,markerHeaderAnnotationIdMap);
+            	this.addAllFromLookup(doc,"humanJoinKey",markerHeaderKey,markerHeaderAnnotationIdMap);
             	
                 docs.add(doc);
     		
