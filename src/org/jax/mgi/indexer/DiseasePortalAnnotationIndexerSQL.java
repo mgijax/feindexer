@@ -120,7 +120,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
 
             logger.info("loading OMIM data for human markers");
             query = "(select ha.marker_key, " +
-            		"'term' term_type, " +
+            		"ha.header, " +
             		"ha.vocab_name, " +
             		"ha.term, " +
             		"ha.term_id, " +
@@ -162,13 +162,32 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
             	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,rs.getInt("hdp_gridcluster_key"));
             	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
-            	doc.addField(DiseasePortalFields.TERM_TYPE,rs.getString("term_type")); // either term or header
+            	doc.addField(DiseasePortalFields.TERM_TYPE,"term");
             	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
             	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
             	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
-            	
+
                 docs.add(doc);
+                
+                // Now add a header if one is set
+            	String header = rs.getString("header");
+            	if(header != null && !header.equals(""))
+            	{
+            		uniqueKey += 1;
+            		doc = new SolrInputDocument();
+                	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
+                	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,rs.getInt("hdp_gridcluster_key"));
+                	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
+                	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); 
+                	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
+                	doc.addField(DiseasePortalFields.TERM,header);
+                	doc.addField(DiseasePortalFields.TERM_ID,header);
+                	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
+
+                    docs.add(doc);
+            	}
+            	
                 if (docs.size() > 1000) {
                     //logger.info("Adding a stack of the documents to Solr");
                 	startTime();
