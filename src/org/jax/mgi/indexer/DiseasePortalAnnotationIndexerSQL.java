@@ -132,19 +132,6 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             		"hdp_gridcluster_marker gcm " +
             		"where ha.organism_key=2 " +
             		"and ha.marker_key=gcm.marker_key " +
-//            		"and vocab_name='OMIM') " +
-//            		"UNION"+
-//            		"(select distinct ha.marker_key, " +
-//            		"'header' term_type, " +
-//            		"ha.vocab_name, " +
-//            		"ha.header, " +
-//            		"ha.header, " +
-//            		"ha.qualifier_type, " +
-//            		"gcm.hdp_gridcluster_key "+
-//            		"from hdp_annotation ha, " +
-//            		"hdp_gridcluster_marker gcm " +
-//            		"where ha.organism_key=2 " +
-//            		"and ha.marker_key=gcm.marker_key " +
             		"and vocab_name='OMIM') ";
             
             rs = ex.executeProto(query);
@@ -153,7 +140,10 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             logger.info("parsing OMIM data for human markers");
             
             // don't add duplicate headers for each marker
-            Set<String> uniqueMarkerHeaders = new HashSet<String>();
+            Map<String,Set<String>> markerHeaderAnnotationIdMap = new HashMap<String,Set<String>>();
+            
+            String delim = "||";
+            String delimRegex = "\\|\\|";
             
             while (rs.next()) 
             {           
@@ -163,10 +153,11 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	
             	uniqueKey += 1;
             	int markerKey = rs.getInt("marker_key");
+            	int gridClusterKey = rs.getInt("hdp_gridcluster_key");
             	
             	SolrInputDocument doc = new SolrInputDocument();
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
-            	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,rs.getInt("hdp_gridcluster_key"));
+            	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
             	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
             	doc.addField(DiseasePortalFields.TERM_TYPE,"term");
             	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
@@ -181,26 +172,12 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	String header = rs.getString("header");
             	if(header != null && !header.equals(""))
             	{
-            		String markerHeaderKey = markerKey + "--" + header;
-            		if(!uniqueMarkerHeaders.contains(markerHeaderKey))
+            		String markerHeaderKey = gridClusterKey + delim + markerKey + delim + header + delim + qualifier;
+            		if(!markerHeaderAnnotationIdMap.containsKey(markerHeaderKey))
             		{
-            			uniqueMarkerHeaders.add(markerHeaderKey);
-            			
-            			// add the header document
-	            		uniqueKey += 1;
-	            		doc = new SolrInputDocument();
-	                	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
-	                	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,rs.getInt("hdp_gridcluster_key"));
-	                	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
-	                	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); 
-	                	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
-	                	doc.addField(DiseasePortalFields.TERM,header);
-	                	doc.addField(DiseasePortalFields.TERM_ID,header);
-	                	doc.addField("annotationTermId",rs.getString("term_id"));
-	                	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
-	
-	                    docs.add(doc);
+            			markerHeaderAnnotationIdMap.put(markerHeaderKey,new HashSet<String>());
             		}
+            		markerHeaderAnnotationIdMap.get(markerHeaderKey).add(rs.getString("term_id"));
             	}
             	
                 if (docs.size() > 1000) {
@@ -216,6 +193,36 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
 
                 }
             }
+            // add all the header documents for human->disease clumps
+    		for(String markerHeaderKey : markerHeaderAnnotationIdMap.keySet())
+    		{
+        		String qualifier = "";
+        		// parse the values out of our map key
+        		String[] tokens = markerHeaderKey.split(delimRegex);
+        		if(tokens.length<3) continue;
+        		int gridClusterKey = Integer.parseInt(tokens[0]);
+        		int markerKey = Integer.parseInt(tokens[1]);
+        		String header = tokens[2];
+        		if(tokens.length>3) qualifier = tokens[3];
+        		
+        		uniqueKey += 1;
+        		SolrInputDocument doc = new SolrInputDocument();
+            	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
+            	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
+            	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
+            	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); 
+            	doc.addField(DiseasePortalFields.VOCAB_NAME,"OMIM");
+            	doc.addField(DiseasePortalFields.TERM,header);
+            	doc.addField(DiseasePortalFields.TERM_ID,header);
+            	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
+
+            	// add all the annotation termIds that we can join on
+            	this.addAllFromLookup(doc,"annotationTermId",markerHeaderKey,markerHeaderAnnotationIdMap);
+            	
+                docs.add(doc);
+    		
+    		}
+    		
             if (! docs.isEmpty()) {
                 server.add(docs);
             }
