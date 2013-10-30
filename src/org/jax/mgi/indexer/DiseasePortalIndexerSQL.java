@@ -32,8 +32,6 @@ public class DiseasePortalIndexerSQL extends Indexer
     public DiseasePortalIndexerSQL () 
     { super("index.url.diseasePortal"); }    
     
-    public static String JOIN_DELIM = "000000";
-    
     /*
      * Constants
      */
@@ -227,6 +225,20 @@ public class DiseasePortalIndexerSQL extends Indexer
         Map<String,Set<String>> gridHumanSymbolsMap = populateLookupOrdered(gridHumanSymbolsQuery,"hdp_gridcluster_key","symbol", "gridclusterKeys to human symbols");
         
         // ------------- MARKER RELATED LOOKUPS ------------
+        
+        // get IMSR count for each marker that has an allele
+		logger.info("building counts of IMSR to marker key");
+		String markerIMSRQuery = "select distinct on (m.marker_key) m.marker_key, aic.count_for_marker imsr_count \n" + 
+				"from marker m, allele_imsr_counts aic, marker_to_allele mta \n" + 
+				"where mta.marker_key=m.marker_key\n" + 
+				"and mta.allele_key=aic.allele_key";
+		rs = ex.executeProto(markerIMSRQuery);
+		Map<Integer,Integer> markerIMSRMap = new HashMap<Integer,Integer>();
+		while(rs.next())
+		{
+			markerIMSRMap.put(rs.getInt("marker_key"),rs.getInt("imsr_count"));
+		}
+		logger.info("done building counts of IMSR to marker key");
         
 		// get count of disease relevant references
 		logger.info("building counts of disease relevant refs to marker key");
@@ -469,6 +481,8 @@ public class DiseasePortalIndexerSQL extends Indexer
         	String organism = rs.getString("organism");
         	String homologyId = null;
         	if(homologeneIdMap.containsKey(markerKey)) homologyId = homologeneIdMap.get(markerKey);
+        	Integer imsrCount = markerIMSRMap.containsKey(markerKey) ? markerIMSRMap.get(markerKey) : 0;
+        	
         	
         	SolrInputDocument doc = new SolrInputDocument();
         	// -------- Marker centric fields -------------
@@ -484,6 +498,7 @@ public class DiseasePortalIndexerSQL extends Indexer
         	doc.addField(DiseasePortalFields.COORDINATE_DISPLAY,rs.getString("coordinate_display"));
         	doc.addField(DiseasePortalFields.BUILD_IDENTIFIER,rs.getString("build_identifier"));
         	doc.addField(DiseasePortalFields.MARKER_ALL_REF_COUNT,rs.getString("reference_count"));
+        	doc.addField(DiseasePortalFields.MARKER_IMSR_COUNT,imsrCount);
         	
         	// ----------- marker sorts -------------
         	doc.addField(DiseasePortalFields.BY_MARKER_ORGANISM,rs.getString("by_organism"));
@@ -503,7 +518,7 @@ public class DiseasePortalIndexerSQL extends Indexer
         		{
         			doc.addField(coordField,spatialString);
         		}
-        		doc.addField(coordField+"Count",markerLocationMap.get(markerKey).size());
+        		//doc.addField(coordField+"Count",markerLocationMap.get(markerKey).size());
         	}
         	
         	if(orthologLocationMap.containsKey(markerKey))
@@ -516,7 +531,7 @@ public class DiseasePortalIndexerSQL extends Indexer
         			doc.addField(coordField,spatialString);
         		}
         		// for debugging
-        		doc.addField(coordField+"Count",orthologLocationMap.get(markerKey).size());
+        		//doc.addField(coordField+"Count",orthologLocationMap.get(markerKey).size());
         	}
         	
         	// load information for gene query
@@ -683,6 +698,9 @@ public class DiseasePortalIndexerSQL extends Indexer
 	            	doc.addField(DiseasePortalFields.MARKER_ALL_REF_COUNT,rs.getString("reference_count"));
 	            	int markerDiseaseRefCount = markerDiseaseRefCountMap.containsKey(markerKey) ? markerDiseaseRefCountMap.get(markerKey) : 0;
 	            	doc.addField(DiseasePortalFields.MARKER_DISEASE_REF_COUNT,markerDiseaseRefCount);
+
+                	Integer imsrCount = markerIMSRMap.containsKey(markerKey) ? markerIMSRMap.get(markerKey) : 0;
+	            	doc.addField(DiseasePortalFields.MARKER_IMSR_COUNT,imsrCount);
 	            	
 	            	// add all distinct disease names for the marker
 	            	addAllFromLookup(doc,DiseasePortalFields.MARKER_DISEASE,rs.getString("marker_key"),markerDiseaseMap);
@@ -707,7 +725,7 @@ public class DiseasePortalIndexerSQL extends Indexer
 	            		{
 	            			doc.addField(coordField,spatialString);
 	            		}
-	            		doc.addField(coordField+"Count",markerLocationMap.get(markerKey).size());
+	            		//doc.addField(coordField+"Count",markerLocationMap.get(markerKey).size());
 	            	}
 	            	
 	            	if(orthologLocationMap.containsKey(markerKey))
@@ -720,7 +738,7 @@ public class DiseasePortalIndexerSQL extends Indexer
 	            			doc.addField(coordField,spatialString);
 	            		}
 	            		// for debugging
-	            		doc.addField(coordField+"Count",orthologLocationMap.get(markerKey).size());
+	            		//doc.addField(coordField+"Count",orthologLocationMap.get(markerKey).size());
 	            	}
 	            	
 	            	// load information for gene query
@@ -741,7 +759,7 @@ public class DiseasePortalIndexerSQL extends Indexer
 	            	// add the join key for human markers
 	            	if("OMIM".equalsIgnoreCase(vocabName)) 
 	            	{
-	            		doc.addField("humanJoinKey",markerKey + DiseasePortalIndexerSQL.JOIN_DELIM + termId);
+	            		doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,makeHumanDiseaseKey(markerKey,termId));
 	            	}
             	}
             	// ----------- genotype centric fields ----------------
@@ -767,7 +785,7 @@ public class DiseasePortalIndexerSQL extends Indexer
             	Integer termDagSort = rs.getInt("term_seq");
             	if(termDagSort == null) termDagSort = maxTermSort;
             	doc.addField(DiseasePortalFields.BY_TERM_DAG,termDagSort);
-            	doc.addField("termDepth",rs.getInt("term_depth"));
+            	//doc.addField("termDepth",rs.getInt("term_depth"));
             	
             	
             	// find sort for the term header
@@ -1130,6 +1148,19 @@ public class DiseasePortalIndexerSQL extends Indexer
     {
     	indexCounter += 1;
     	this.ex.executeVoid("create index tmp_idx"+indexCounter+" on "+tableName+" ("+column+")");
+    }
+    
+    
+    /*
+     * generates a unique key for a human marker + disease term combo
+     * 	This will be used to link human disease annotations in this index to 
+     * 	grid data in the diseasePortalAnnotation index.
+     * 
+     * 	It is intended to be used in a Solr join, not for anything else.
+     */
+    public static String makeHumanDiseaseKey(Integer markerKey,String omimId)
+    {
+    	return markerKey + "000000" + omimId;
     }
     
     /*
