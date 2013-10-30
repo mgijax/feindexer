@@ -70,22 +70,6 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	String vocabName = getVocabName(rs.getString("annotation_type"));
             	String qualifier = rs.getString("qualifier_type");
             	if(qualifier==null) qualifier = "";
-//            	if("OMIM".equals(vocabName))
-//            	{
-//            		// for now... artificially add header-like documents for every OMIM disease to simulate disease clump infrastructure
-//            		SolrInputDocument doc = new SolrInputDocument();
-//                	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
-//                	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
-//                	doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY,genoClusterKey);
-//                	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); // either term or header
-//                	doc.addField(DiseasePortalFields.VOCAB_NAME,vocabName);
-//                	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
-//                	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
-//                	doc.addField(DiseasePortalFields.TERM_QUALIFIER,""); // forget rolling up conflicts for now... no one will notice anyway
-//                	
-//                    docs.add(doc);
-//                    uniqueKey += 1;
-//            	}
             	
             	SolrInputDocument doc = new SolrInputDocument();
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
@@ -155,7 +139,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	int markerKey = rs.getInt("marker_key");
             	int gridClusterKey = rs.getInt("hdp_gridcluster_key");
             	
-            	String humanJoinKey = markerKey + DiseasePortalIndexerSQL.JOIN_DELIM + rs.getString("term_id");
+            	String humanJoinKey = DiseasePortalIndexerSQL.makeHumanDiseaseKey(markerKey,rs.getString("term_id"));
             	
             	SolrInputDocument doc = new SolrInputDocument();
             	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
@@ -165,7 +149,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
             	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
             	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
-            	doc.addField("humanJoinKey",humanJoinKey);
+            	doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanJoinKey);
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
 
                 docs.add(doc);
@@ -219,7 +203,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
 
             	// add all the annotation termIds that we can join on
-            	this.addAllFromLookup(doc,"humanJoinKey",markerHeaderKey,markerHeaderAnnotationIdMap);
+            	this.addAllFromLookup(doc,DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,markerHeaderKey,markerHeaderAnnotationIdMap);
             	
                 docs.add(doc);
     		
