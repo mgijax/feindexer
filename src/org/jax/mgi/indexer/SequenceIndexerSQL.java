@@ -89,13 +89,14 @@ public class SequenceIndexerSQL extends Indexer {
             // Parse the main query results here.
             
             //logger.info("Parsing them");
-            while (rs_overall.next()) {
+            while (rs_overall.next()) 
+            {
                 provider = rs_overall.getString("provider");
 
-		if (provider.equals("TrEMBL") ||
-		    provider.equals("SWISS-PROT")) {
-		    	provider = "UniProt";
-		}
+                if (provider.equals("TrEMBL") || provider.equals("SWISS-PROT")) 
+                {
+            	   provider = "UniProt";
+                }
 
                 SolrInputDocument doc = new SolrInputDocument();
                 doc.addField(IndexConstants.SEQ_KEY, rs_overall.getString("sequence_key"));

@@ -38,7 +38,7 @@ public class Main
 		indexerMap.put("journalsAC",new JournalsAutoCompleteIndexerSQL());
 		indexerMap.put("reference", new RefIndexerSQL());
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
-		indexerMap.put("sequence", new SequenceIndexerSQL());
+		//indexerMap.put("sequence", new SequenceIndexerSQL());
 		indexerMap.put("cre", new CreIndexerSQL());
 		indexerMap.put("marker", new MarkerIndexerSQL());
 		indexerMap.put("markerPanesetImage", new MarkerPanesetIndexerSQL());
