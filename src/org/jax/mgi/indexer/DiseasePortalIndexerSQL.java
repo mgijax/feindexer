@@ -620,10 +620,12 @@ public class DiseasePortalIndexerSQL extends Indexer
         		"msqn.by_location, " +
         		"mc.reference_count, " +
         		"gcm.hdp_gridcluster_key, " +
-        		"gcg.hdp_genocluster_key "+
+        		"gcg.hdp_genocluster_key, " +
+        		"gsn.by_hdp_rules by_genocluster "+
         		"from hdp_annotation ha left outer join " +
         		"hdp_gridcluster_marker gcm on gcm.marker_key=ha.marker_key left outer join " +
-        		"hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key, " +
+        		"hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key, left outer join " +
+        		"genotype_sequence_num gsn on gsn.genotype_key=ha.genotype_key, " +
         		"marker m, " +
         		"marker_sequence_num msqn, " +
         		"marker_counts mc " +
@@ -676,7 +678,11 @@ public class DiseasePortalIndexerSQL extends Indexer
             			addAllFromLookup(doc,DiseasePortalFields.GRID_MOUSE_SYMBOLS,gridClusterKey.toString(),gridMouseSymbolsMap);
             			addAllFromLookup(doc,DiseasePortalFields.GRID_HUMAN_SYMBOLS,gridClusterKey.toString(),gridHumanSymbolsMap);
             		}
-            		if(genoClusterKey!=null && genoClusterKey>0) doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY,genoClusterKey);   
+            		if(genoClusterKey!=null && genoClusterKey>0)
+            		{
+            			doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY,genoClusterKey);   
+            			doc.addField(DiseasePortalFields.BY_GENOCLUSTER,rs.getInt("by_genocluster"));
+            		}
             		
             	}
             	
