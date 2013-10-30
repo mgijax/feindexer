@@ -624,7 +624,7 @@ public class DiseasePortalIndexerSQL extends Indexer
         		"gsn.by_hdp_rules by_genocluster "+
         		"from hdp_annotation ha left outer join " +
         		"hdp_gridcluster_marker gcm on gcm.marker_key=ha.marker_key left outer join " +
-        		"hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key, left outer join " +
+        		"hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key left outer join " +
         		"genotype_sequence_num gsn on gsn.genotype_key=ha.genotype_key, " +
         		"marker m, " +
         		"marker_sequence_num msqn, " +
