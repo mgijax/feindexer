@@ -29,6 +29,10 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
     
     public void index() throws Exception
     {    
+    	
+    		// pre-fetch all of the 
+    	
+    	
         	String clusterToClusterQuery="select gcm.hdp_gridcluster_key, genoC.hdp_genocluster_key "+
 				"from hdp_gridcluster_marker gcm, "+
 					"hdp_genocluster genoC "+
@@ -53,7 +57,8 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             		"gca.term_type, " +
             		"gca.term, " +
             		"gca.term_id, " +
-            		"gca.qualifier_type "+
+            		"gca.qualifier_type, " +
+            		"gca.genotermref_count annot_count "+
             		"from hdp_genocluster_annotation gca ";
             
             rs = ex.executeProto(query);
@@ -80,6 +85,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
             	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
+            	doc.addField(DiseasePortalFields.ANNOT_COUNT,rs.getInt("annot_count"));
             	
                 docs.add(doc);
                 if (docs.size() > 1000) {
@@ -129,6 +135,9 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             String delim = "||";
             String delimRegex = "\\|\\|";
             
+            // we assume every human to disease term relationship counts for 1
+            int humanAnnotCountDefault = 1;
+            
             while (rs.next()) 
             {           
             	if(rs.getString("term") == null || rs.getString("term").equals("")) continue;
@@ -151,6 +160,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
             	doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanJoinKey);
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
+            	doc.addField(DiseasePortalFields.ANNOT_COUNT,humanAnnotCountDefault);
 
                 docs.add(doc);
                 
@@ -202,8 +212,22 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.TERM_ID,header);
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
 
-            	// add all the annotation termIds that we can join on
-            	this.addAllFromLookup(doc,DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,markerHeaderKey,markerHeaderAnnotationIdMap);
+            	if(markerHeaderAnnotationIdMap.containsKey(markerHeaderKey))
+            	{
+            		Set<String> humanDiseaseJoinKeys = markerHeaderAnnotationIdMap.get(markerHeaderKey);
+	            	// add all the human marker -> termId combos so that we can join on them
+            		for(String humanDiseaseJoinKey : humanDiseaseJoinKeys)
+            		{
+	            		doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanDiseaseJoinKey);
+            		}
+	            	int annotCount = humanDiseaseJoinKeys.size() * humanAnnotCountDefault;
+	            	doc.addField(DiseasePortalFields.ANNOT_COUNT,annotCount);
+            	}
+            	else
+            	{
+            		// NOTE: this shouldn't really happen, but it makes sense to set this just in case
+            		doc.addField(DiseasePortalFields.ANNOT_COUNT,humanAnnotCountDefault);
+            	}
             	
                 docs.add(doc);
     		
