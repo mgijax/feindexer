@@ -160,7 +160,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
             	doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanJoinKey);
             	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
-            	doc.addField(DiseasePortalFields.ANNOT_COUNT,humanAnnotCountDefault);
+            	doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,humanAnnotCountDefault);
 
                 docs.add(doc);
                 
@@ -221,12 +221,12 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
 	            		doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanDiseaseJoinKey);
             		}
 	            	int annotCount = humanDiseaseJoinKeys.size() * humanAnnotCountDefault;
-	            	doc.addField(DiseasePortalFields.ANNOT_COUNT,annotCount);
+	            	doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,annotCount);
             	}
             	else
             	{
             		// NOTE: this shouldn't really happen, but it makes sense to set this just in case
-            		doc.addField(DiseasePortalFields.ANNOT_COUNT,humanAnnotCountDefault);
+            		doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,humanAnnotCountDefault);
             	}
             	
                 docs.add(doc);
