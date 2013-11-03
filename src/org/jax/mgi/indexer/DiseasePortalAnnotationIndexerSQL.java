@@ -168,12 +168,6 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	String header = rs.getString("header");
             	if(header != null && !header.equals(""))
             	{
-//            		String markerHeaderKey = gridClusterKey + delim + markerKey + delim + header + delim + qualifier;
-//            		if(!markerHeaderAnnotationIdMap.containsKey(markerHeaderKey))
-//            		{
-//            			markerHeaderAnnotationIdMap.put(markerHeaderKey,new HashSet<String>());
-//            		}
-//            		markerHeaderAnnotationIdMap.get(markerHeaderKey).add(humanJoinKey);
             		uniqueKey += 1;
             		doc = new SolrInputDocument();
                 	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
@@ -203,49 +197,6 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
 
                 }
             }
-            // add all the header documents for human->disease clumps
-//    		for(String markerHeaderKey : markerHeaderAnnotationIdMap.keySet())
-//    		{
-//        		String qualifier = "";
-//        		// parse the values out of our map key
-//        		String[] tokens = markerHeaderKey.split(delimRegex);
-//        		if(tokens.length<3) continue;
-//        		int gridClusterKey = Integer.parseInt(tokens[0]);
-//        		int markerKey = Integer.parseInt(tokens[1]);
-//        		String header = tokens[2];
-//        		if(tokens.length>3) qualifier = tokens[3];
-//        		
-//        		uniqueKey += 1;
-//        		SolrInputDocument doc = new SolrInputDocument();
-//            	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
-//            	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
-//            	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
-//            	doc.addField(DiseasePortalFields.TERM_TYPE,"header"); 
-//            	doc.addField(DiseasePortalFields.VOCAB_NAME,"OMIM");
-//            	doc.addField(DiseasePortalFields.TERM,header);
-//            	doc.addField(DiseasePortalFields.TERM_ID,header);
-//            	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
-//
-//            	if(markerHeaderAnnotationIdMap.containsKey(markerHeaderKey))
-//            	{
-//            		Set<String> humanDiseaseJoinKeys = markerHeaderAnnotationIdMap.get(markerHeaderKey);
-//	            	// add all the human marker -> termId combos so that we can join on them
-//            		for(String humanDiseaseJoinKey : humanDiseaseJoinKeys)
-//            		{
-//	            		doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanDiseaseJoinKey);
-//            		}
-//	            	int annotCount = humanDiseaseJoinKeys.size() * humanAnnotCountDefault;
-//	            	doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,annotCount);
-//            	}
-//            	else
-//            	{
-//            		// NOTE: this shouldn't really happen, but it makes sense to set this just in case
-//            		doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,humanAnnotCountDefault);
-//            	}
-//            	
-//                docs.add(doc);
-//    		
-//    		}
     		
             if (! docs.isEmpty()) {
                 server.add(docs);
