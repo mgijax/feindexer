@@ -186,6 +186,8 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
                 	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
                 	doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanJoinKey);
                 	doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,humanAnnotCountDefault);
+                	
+                	docs.add(doc);
             	}
             	
                 if (docs.size() > 1000) {
