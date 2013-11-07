@@ -822,7 +822,7 @@ public class DiseasePortalIndexerSQL extends Indexer
             		doc.addField(DiseasePortalFields.DISEASE_REF_COUNT,diseaseRefCount);
             		
             		addAllFromLookup(doc,DiseasePortalFields.MP_TERM_FOR_DISEASE,hdpAnnotationKey,mpTermForDiseaseMap);
-            		addAllFromLookup(doc,"mpTermForSSDisease",hdpAnnotationKey,mpTermForSSDiseaseMap);
+            		addAllFromLookup(doc,DiseasePortalFields.MP_TERM_FOR_SS_DISEASE,hdpAnnotationKey,mpTermForSSDiseaseMap);
             		addAllFromLookup(doc,DiseasePortalFields.OMIM_TERM_FOR_DISEASE,hdpAnnotationKey,omimTermForDiseaseMap);
             	}
             	else if(vocabName.equals("Mammalian Phenotype"))
