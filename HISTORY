@@ -1,8 +1,10 @@
-TAG: feindexer-5-1-6-1
+TAG: feindexer-5-1-6-1,feindexer-5-1-6-2
 DATE: 11/12/2013
 STAFF: kstone
 CHANGES: 
 1) TR11423 (Disease Portal)
+2) upgrade to Solr 4.5.1
+3) retire sequence indexer (using hibernate solution in fewi now)
 
 TAG: feindexer-tr11468-BP
 DATE: 10/07/2013
