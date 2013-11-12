@@ -51,7 +51,7 @@ STANDARD_INDEXES = [
 # of output to stdout or stderr
 LARGE_IO_INDEXES = [
 	('gxdResult', 3, 6),
-	('sequence', 4, 8),
+	#('sequence', 4, 8),
 	]
 
 # number of indexing subprocesses to allow simultaneously

@@ -25,18 +25,18 @@ done
 
 # indexes with larger memory requirements
 
-for index in sequence
-do
+#for index in sequence
+#do
 
-uptime
-echo "Beginning ${index}..."
+#uptime
+#echo "Beginning ${index}..."
 
-./buildIndex ${index} 4 8
-if [ $? -ne 0 ]; then
-    echo "Failed on ${index}"
-    exit 1
-fi
-echo "Finished ${index}..."
+#./buildIndex ${index} 4 8
+#if [ $? -ne 0 ]; then
+#    echo "Failed on ${index}"
+#    exit 1
+#fi
+#echo "Finished ${index}..."
 
-done
+#done
 echo "Successfully completed"
