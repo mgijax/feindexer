@@ -49,9 +49,13 @@ STANDARD_INDEXES = [
 # same as STANDARD_INDEXES, but for indexers which can produce a large amount
 # of output to stdout or stderr
 LARGE_IO_INDEXES = [
-	('diseasePortal', 2, 6),
 	('gxdResult', 3, 6),
-	#('sequence', 4, 8),
+	#('sequence', 4, 8), 
+	]
+
+# NOTE: this is a hack until we figure out how to run temp tables through the python Dispatcher
+INDEXES_WITH_TEMP_TABLES = [
+	('diseasePortal', 2, 6),
 	]
 
 # number of indexing subprocesses to allow simultaneously
@@ -108,6 +112,10 @@ def main():
 	log ('Starting indexers, up to %d running concurrently' % \
 		CONCURRENT_INDEXERS)
 
+	for (name, minMem, maxMem) in INDEXES_WITH_TEMP_TABLES:
+		import subprocess
+		subprocess.call(['./buildIndex', name, minMen, maxMem])
+	"""
 	for (name, minMem, maxMem) in STANDARD_INDEXES:
 		IDS[name] = (INDEX_DISPATCHER, 
 			INDEX_DISPATCHER.schedule (
@@ -117,6 +125,7 @@ def main():
 		IDS[name] = (LARGE_IO_DISPATCHER,
 			LARGE_IO_DISPATCHER.schedule (
 			'./buildIndex %s %d %d' % (name, minMem, maxMem)) )
+	"""
 
 	IDS_COPY = copy.copy (IDS)
 
