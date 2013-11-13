@@ -112,10 +112,6 @@ def main():
 	log ('Starting indexers, up to %d running concurrently' % \
 		CONCURRENT_INDEXERS)
 
-	for (name, minMem, maxMem) in INDEXES_WITH_TEMP_TABLES:
-		import subprocess
-		subprocess.call(['./buildIndex', name, minMen, maxMem])
-	"""
 	for (name, minMem, maxMem) in STANDARD_INDEXES:
 		IDS[name] = (INDEX_DISPATCHER, 
 			INDEX_DISPATCHER.schedule (
@@ -125,7 +121,10 @@ def main():
 		IDS[name] = (LARGE_IO_DISPATCHER,
 			LARGE_IO_DISPATCHER.schedule (
 			'./buildIndex %s %d %d' % (name, minMem, maxMem)) )
-	"""
+
+	for (name, minMem, maxMem) in INDEXES_WITH_TEMP_TABLES:
+		import subprocess
+		subprocess.call(['./buildIndex', name, str(minMem), str(maxMem)])
 
 	IDS_COPY = copy.copy (IDS)
 
