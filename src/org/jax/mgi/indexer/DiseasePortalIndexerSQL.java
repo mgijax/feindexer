@@ -241,8 +241,8 @@ public class DiseasePortalIndexerSQL extends Indexer
 		while(rs.next())
 		{
 			int organismKey = rs.getInt("organism_key");
-			if(organismKey==1) gridByMouseLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("by_location"));
-			else gridByHumanLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("by_location"));
+			if(organismKey==1) gridByMouseLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("min_location"));
+			else gridByHumanLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("min_location"));
 
 		}
 		logger.info("done builing map of grid cluster key -> human/mouse location sorts");
