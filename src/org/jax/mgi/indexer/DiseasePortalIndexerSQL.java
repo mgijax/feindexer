@@ -703,7 +703,7 @@ public class DiseasePortalIndexerSQL extends Indexer
             			
             			// add special grid sorts
             			int gridByMouseLocation = gridByMouseLocationMap.containsKey(gridClusterKey) ? gridByMouseLocationMap.get(gridClusterKey) : maxSort;
-            			int gridByHumanLocation = gridByMouseLocationMap.containsKey(gridClusterKey) ? gridByMouseLocationMap.get(gridClusterKey) : maxSort;
+            			int gridByHumanLocation = gridByHumanLocationMap.containsKey(gridClusterKey) ? gridByHumanLocationMap.get(gridClusterKey) : maxSort;
             			doc.addField(DiseasePortalFields.GRID_BY_MOUSE_LOCATION,gridByMouseLocation);
             			doc.addField(DiseasePortalFields.GRID_BY_HUMAN_LOCATION,gridByHumanLocation);
             		}
