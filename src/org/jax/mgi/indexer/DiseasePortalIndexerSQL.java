@@ -224,6 +224,29 @@ public class DiseasePortalIndexerSQL extends Indexer
 				"where gcm.organism_key=2 ";
         Map<String,Set<String>> gridHumanSymbolsMap = populateLookupOrdered(gridHumanSymbolsQuery,"hdp_gridcluster_key","symbol", "gridclusterKeys to human symbols");
         
+        // load grid cluster sorts
+        String gridByLocationQuery="select hdp_gridcluster_key,organism_key,min_location\n" + 
+        		"from (select gcm.hdp_gridcluster_key,gcm.organism_key,min(msn.by_location) min_location\n" + 
+        		"	from hdp_gridcluster_marker gcm,\n" + 
+        		"		marker_sequence_num msn\n" + 
+        		"	where gcm.marker_key=msn.marker_key\n" + 
+        		"	group by gcm.hdp_gridcluster_key,gcm.organism_key) q1 ";
+
+		Map<Integer, Integer> gridByHumanLocationMap = new HashMap<Integer,Integer>();
+		Map<Integer, Integer> gridByMouseLocationMap = new HashMap<Integer,Integer>();
+		Integer maxSort = 99999999;
+		
+		logger.info("builing map of grid cluster key -> human/mouse location sorts");
+		rs = ex.executeProto(gridByLocationQuery);
+		while(rs.next())
+		{
+			int organismKey = rs.getInt("organism_key");
+			if(organismKey==1) gridByMouseLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("byLocation"));
+			else gridByHumanLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("byLocation"));
+
+		}
+		logger.info("done builing map of grid cluster key -> human/mouse location sorts");
+        
         // ------------- MARKER RELATED LOOKUPS ------------
         
         // get IMSR count for each marker that has an allele
@@ -677,6 +700,12 @@ public class DiseasePortalIndexerSQL extends Indexer
             			doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
             			addAllFromLookup(doc,DiseasePortalFields.GRID_MOUSE_SYMBOLS,gridClusterKey.toString(),gridMouseSymbolsMap);
             			addAllFromLookup(doc,DiseasePortalFields.GRID_HUMAN_SYMBOLS,gridClusterKey.toString(),gridHumanSymbolsMap);
+            			
+            			// add special grid sorts
+            			int gridByMouseLocation = gridByMouseLocationMap.containsKey(gridClusterKey) ? gridByMouseLocationMap.get(gridClusterKey) : maxSort;
+            			int gridByHumanLocation = gridByMouseLocationMap.containsKey(gridClusterKey) ? gridByMouseLocationMap.get(gridClusterKey) : maxSort;
+            			doc.addField(DiseasePortalFields.GRID_BY_MOUSE_LOCATION,gridByMouseLocation);
+            			doc.addField(DiseasePortalFields.GRID_BY_HUMAN_LOCATION,gridByHumanLocation);
             		}
             		if(genoClusterKey!=null && genoClusterKey>0)
             		{
