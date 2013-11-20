@@ -147,7 +147,7 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
 
             	// only add each human disease combo once
             	String uniqueHumanDisease = markerKey + rs.getString("term_id");
-            	if(uniqueHumanDiseases.contains(uniqueHumanDisease))
+            	if(!uniqueHumanDiseases.contains(uniqueHumanDisease))
             	{
             		uniqueHumanDiseases.add(uniqueHumanDisease);
 	            	SolrInputDocument doc = new SolrInputDocument();
