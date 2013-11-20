@@ -129,14 +129,9 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             docs = new ArrayList<SolrInputDocument>();
             logger.info("parsing OMIM data for human markers");
             
-            // don't add duplicate headers for each marker
-            Map<String,Set<String>> markerHeaderAnnotationIdMap = new HashMap<String,Set<String>>();
-            
-            String delim = "||";
-            String delimRegex = "\\|\\|";
-            
             // we assume every human to disease term relationship counts for 1
             int humanAnnotCountDefault = 1;
+            Set<String> uniqueHumanDiseases = new HashSet<String>();
             
             while (rs.next()) 
             {           
@@ -147,29 +142,35 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer
             	uniqueKey += 1;
             	int markerKey = rs.getInt("marker_key");
             	int gridClusterKey = rs.getInt("hdp_gridcluster_key");
-            	
-            	String humanJoinKey = DiseasePortalIndexerSQL.makeHumanDiseaseKey(markerKey,rs.getString("term_id"));
-            	
-            	SolrInputDocument doc = new SolrInputDocument();
-            	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
-            	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
-            	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
-            	doc.addField(DiseasePortalFields.TERM_TYPE,"term");
-            	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
-            	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
-            	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
-            	doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanJoinKey);
-            	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
-            	doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,humanAnnotCountDefault);
 
-                docs.add(doc);
+            	String humanJoinKey = DiseasePortalIndexerSQL.makeHumanDiseaseKey(markerKey,rs.getString("term_id"));
+
+            	// only add each human disease combo once
+            	String uniqueHumanDisease = markerKey + rs.getString("term_id");
+            	if(uniqueHumanDiseases.contains(uniqueHumanDisease))
+            	{
+            		uniqueHumanDiseases.add(uniqueHumanDisease);
+	            	SolrInputDocument doc = new SolrInputDocument();
+	            	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
+	            	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
+	            	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
+	            	doc.addField(DiseasePortalFields.TERM_TYPE,"term");
+	            	doc.addField(DiseasePortalFields.VOCAB_NAME,rs.getString("vocab_name"));
+	            	doc.addField(DiseasePortalFields.TERM,rs.getString("term"));
+	            	doc.addField(DiseasePortalFields.TERM_ID,rs.getString("term_id"));
+	            	doc.addField(DiseasePortalFields.HUMAN_DISEASE_JOIN_KEY,humanJoinKey);
+	            	doc.addField(DiseasePortalFields.TERM_QUALIFIER,qualifier);
+	            	doc.addField(DiseasePortalFields.HUMAN_ANNOT_COUNT,humanAnnotCountDefault);
+	                docs.add(doc);
+            	}
+
                 
                 // Now add a header if one is set
             	String header = rs.getString("header");
             	if(header != null && !header.equals(""))
             	{
             		uniqueKey += 1;
-            		doc = new SolrInputDocument();
+            		SolrInputDocument doc = new SolrInputDocument();
                 	doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
                 	doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
                 	doc.addField(DiseasePortalFields.MARKER_KEY,markerKey);
