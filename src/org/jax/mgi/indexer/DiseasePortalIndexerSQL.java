@@ -1077,9 +1077,9 @@ public class DiseasePortalIndexerSQL extends Indexer
     			"hdp_genocluster_genotype gcg\n" + 
     			"where ha.genotype_key=gcg.genotype_key";
     	this.ex.executeVoid(genoClusterKeyQuery);
-    	if(true) return;
     	
     	createTempIndex("tmp_ha_genocluster","hdp_annotation_key");
+    	if(true) return;
     	createTempIndex("tmp_ha_genocluster","hdp_genocluster_key");
     	logger.info("done creating temp table of hdp_annotation to hdp_genocluster_key");
 
