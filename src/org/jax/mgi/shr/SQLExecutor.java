@@ -10,9 +10,8 @@ import java.util.Date;
 import java.util.Properties;
 
 import org.jax.mgi.indexer.Indexer;
-import org.jax.mgi.indexer.RefIndexerSQL;
-//import org.slf4j.Logger;
-//import org.slf4j.LoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 
 
@@ -32,7 +31,7 @@ import org.jax.mgi.indexer.RefIndexerSQL;
 
 public class SQLExecutor {
 
-    //private Logger logger = LoggerFactory.getLogger(this.getClass());
+    private Logger logger = LoggerFactory.getLogger(this.getClass());
     public Properties props = new Properties();
     protected Connection conMGD = null;
     private String user;
@@ -73,7 +72,9 @@ public class SQLExecutor {
      */
     
     private void getMGDConnection() throws SQLException {
+    	logger.info("getting db connection");
         conMGD = DriverManager.getConnection(mgdJDBCUrl, user, password);
+    	logger.info("finished getting db connection");
     }
     
     /**
@@ -82,9 +83,13 @@ public class SQLExecutor {
      */
     
     public void cleanup() throws SQLException {
+    	logger.info("cleanup db connection");
+
         if (conMGD != null) {
             conMGD.close();
         }
+    	logger.info("finished cleanup db connection");
+
     }
     
     /**
@@ -109,6 +114,30 @@ public class SQLExecutor {
             System.exit(1);
             return;
         }
+    }
+    /*
+     * execute any SQL that does not return a result
+     */
+    public void executeVoid(String sql)
+    {
+    	logger.info("executeVoid start");
+    	 try 
+    	 {
+             if (conMGD == null)  getMGDConnection();
+         	 logger.info("executeVoid hasConnection");
+
+             java.sql.Statement stmt = conMGD.createStatement();
+         	 logger.info("executeVoid finished create statement");
+
+             stmt.execute(sql);
+         	 logger.info("executeVoid finished execute");
+
+         } catch (Exception e) {
+             e.printStackTrace();
+             System.exit(1);
+         }
+     	logger.info("executeVoid stop");
+
     }
         
     /**
@@ -136,23 +165,6 @@ public class SQLExecutor {
             System.exit(1);
             return null;
         }
-    }
-    
-    /*
-     * execute any SQL that does not return a result
-     */
-    public void executeVoid(String sql)
-    {
-    	 try 
-    	 {
-             if (conMGD == null)  getMGDConnection();
-             
-             java.sql.Statement stmt = conMGD.createStatement();
-             stmt.execute(sql);
-         } catch (Exception e) {
-             e.printStackTrace();
-             System.exit(1);
-         }
     }
         
     /**
