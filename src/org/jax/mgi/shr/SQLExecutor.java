@@ -31,7 +31,7 @@ import org.slf4j.LoggerFactory;
 
 public class SQLExecutor {
 
-    private Logger logger = LoggerFactory.getLogger(this.getClass());
+    //private Logger logger = LoggerFactory.getLogger(this.getClass());
     public Properties props = new Properties();
     protected Connection conMGD = null;
     private String user;
@@ -72,9 +72,7 @@ public class SQLExecutor {
      */
     
     private void getMGDConnection() throws SQLException {
-    	logger.info("getting db connection");
         conMGD = DriverManager.getConnection(mgdJDBCUrl, user, password);
-    	logger.info("finished getting db connection");
     }
     
     /**
@@ -83,13 +81,9 @@ public class SQLExecutor {
      */
     
     public void cleanup() throws SQLException {
-    	logger.info("cleanup db connection");
-
         if (conMGD != null) {
             conMGD.close();
         }
-    	logger.info("finished cleanup db connection");
-
     }
     
     /**
@@ -120,24 +114,18 @@ public class SQLExecutor {
      */
     public void executeVoid(String sql)
     {
-    	logger.info("executeVoid start");
     	 try 
     	 {
              if (conMGD == null)  getMGDConnection();
-         	 logger.info("executeVoid hasConnection");
 
              java.sql.Statement stmt = conMGD.createStatement();
-         	 logger.info("executeVoid finished create statement");
 
              stmt.execute(sql);
-         	 logger.info("executeVoid finished execute");
 
          } catch (Exception e) {
              e.printStackTrace();
              System.exit(1);
          }
-     	logger.info("executeVoid stop");
-
     }
         
     /**
