@@ -50,7 +50,6 @@ public class DiseasePortalIndexerSQL extends Indexer
     	logger.info("creating any necessary temp tables");
     	createTempTables();
     	logger.info("done creating temp tables");
-    	if(true) return;
     	
     	logger.info("building counts of disease relevant refs to disease ID");
 		String diseaseRefCountQuery = "select ha.term_id disease_id, count(distinct trt.reference_key) ref_count " +
