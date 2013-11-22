@@ -127,7 +127,7 @@ def main():
 	INDEX_DISPATCHER.wait(report)
 	LARGE_IO_DISPATCHER.wait(report)
 
-	log ('Finished all indexers')
+	log ('Finished indexers that run through Dispatcher')
 
 	divider = '-' * 60
 
@@ -143,11 +143,15 @@ def main():
 		print ''.join (dispatcher.getStderr(id))
 	print divider
 
+	log ('Starting indexers that DO NOT run through Dispatcher')
 	print "Running indexers with temp tables that don't work with the Dispatcher:\n"
+
 	for (name, minMem, maxMem) in INDEXES_WITH_TEMP_TABLES:
 		import subprocess
 		subprocess.call(['./buildIndex', name, str(minMem), str(maxMem)])
 	print divider
+
+	log ('Finished all indexers')
 
 	print "Completed successfully"
 	return 
