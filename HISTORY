@@ -1,4 +1,4 @@
-TAG: feindexer-5-1-6-1,feindexer-5-1-6-2,feindexer-5-1-6-3,feindexer-5-1-6-4,feindexer-5-1-6-5
+TAG: feindexer-5-1-6-1,feindexer-5-1-6-2,feindexer-5-1-6-3,feindexer-5-1-6-4,feindexer-5-1-6-5,feindexer-5-1-6-6
 DATE: 11/20/2013
 STAFF: kstone
 CHANGES: 
@@ -7,6 +7,7 @@ CHANGES:
 3) retire sequence indexer (using hibernate solution in fewi now)
 4) fix for temp table bug when running indexes in parallel (added config to run them separately)
 5) fix Alpha bugs
+6) Fixing install bug on mtdoom
 
 TAG: feindexer-tr11468-BP
 DATE: 10/07/2013
