@@ -122,10 +122,6 @@ def main():
 			LARGE_IO_DISPATCHER.schedule (
 			'./buildIndex %s %d %d' % (name, minMem, maxMem)) )
 
-	for (name, minMem, maxMem) in INDEXES_WITH_TEMP_TABLES:
-		import subprocess
-		subprocess.call(['./buildIndex', name, str(minMem), str(maxMem)])
-
 	IDS_COPY = copy.copy (IDS)
 
 	INDEX_DISPATCHER.wait(report)
@@ -146,6 +142,13 @@ def main():
 		print 'Name: %s    stderr:' % name
 		print ''.join (dispatcher.getStderr(id))
 	print divider
+
+	print "Running indexers with temp tables that don't work with the Dispatcher:\n"
+	for (name, minMem, maxMem) in INDEXES_WITH_TEMP_TABLES:
+		import subprocess
+		subprocess.call(['./buildIndex', name, str(minMem), str(maxMem)])
+	print divider
+
 	print "Completed successfully"
 	return 
 
