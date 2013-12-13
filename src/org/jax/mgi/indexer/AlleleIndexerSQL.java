@@ -110,10 +110,8 @@ public class AlleleIndexerSQL extends Indexer {
          
             docs.add(doc);   
             if (docs.size() > 10000) {
-                logger.info("Adding a stack of the documents to Solr");
                 writeDocs(docs);
                 docs = new ArrayList<SolrInputDocument>();
-                logger.info("Done adding to solr, Moving on");
             }
         }
         logger.info("Adding final stack of the documents to Solr");
