@@ -44,7 +44,7 @@ public class AlleleIndexerSQL extends Indexer {
     	while(rs.next())
     	{
     		Integer allKey = rs.getInt("allele_key");
-    		String chromosome = rs.getString("chromsome");
+    		String chromosome = rs.getString("chromosome");
     		Integer start = rs.getInt("start_coordinate");
     		Integer end = rs.getInt("end_coordinate");
     		Double cmOffset = rs.getDouble("cm_offset");
