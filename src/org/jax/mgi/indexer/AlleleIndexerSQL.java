@@ -97,6 +97,8 @@ public class AlleleIndexerSQL extends Indexer {
             	if(al.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, al.chromosome);
             	if(al.startCoordinate>0) doc.addField(IndexConstants.START_COORD, al.startCoordinate);
             	if(al.endCoordinate>0) doc.addField(IndexConstants.END_COORD, al.endCoordinate);
+            	if(al.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, al.cmOffset);
+            	if(al.cytogeneticOffset!=null) doc.addField(IndexConstants.CYTOGENETIC_OFFSET, al.cytogeneticOffset);
             }
 
             
