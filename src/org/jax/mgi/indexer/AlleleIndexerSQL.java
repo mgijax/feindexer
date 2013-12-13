@@ -38,7 +38,7 @@ public class AlleleIndexerSQL extends Indexer {
     	logger.info("building map of allele_keys -> marker locations");
     	String locationQuery="select allele_key,ml.* " +
     			"from marker_to_allele mta join " +
-    			"marker_location ml on ml.marker_key=mta.marker_key limit 100";
+    			"marker_location ml on ml.marker_key=mta.marker_key";
     	HashMap<Integer,AlleleLocation> locationMap = new HashMap<Integer,AlleleLocation>();
     	ResultSet rs = ex.executeProto(locationQuery);
     	while(rs.next())
@@ -49,72 +49,84 @@ public class AlleleIndexerSQL extends Indexer {
     		Integer end = rs.getInt("end_coordinate");
     		Double cmOffset = rs.getDouble("cm_offset");
     		String cytogeneticOffset = rs.getString("cytogenetic_offset");
-    		logger.info("chr="+chromosome+",start="+start+",end="+end+",cm="+cmOffset+",cyto="+cytogeneticOffset);
+    		
+    		if(!locationMap.containsKey(allKey)) locationMap.put(allKey,new AlleleLocation());
+    		AlleleLocation al = locationMap.get(allKey);
+    		
+    		// set any non-null fields from this location row
+    		if(chromosome!=null) al.chromosome=chromosome;
+    		if(start>0) al.startCoordinate=start;
+    		if(end>0) al.endCoordinate=end;
+    		if(cmOffset>0.0) al.cmOffset=cmOffset;
+    		if(cytogeneticOffset!=null) al.cytogeneticOffset=cytogeneticOffset;
     	}
     	logger.info("done building map of allele_keys -> marker locations");
-    	if(true)return;
+    	
+        // The system sub object relationship.  This has no 
+        // chunking as it shouldn't be needed.
+        
+        logger.info("Seleceting all allele -> ID relationship");
+        String allToIDSQL = "select allele_key, acc_id from allele_id";
+        System.out.println(allToIDSQL);
+        HashMap <String, HashSet <String>> allToIDs = makeHash(allToIDSQL, "allele_key", "acc_id");
 
-            // The system sub object relationship.  This has no 
-            // chunking as it shouldn't be needed.
-            
-            logger.info("Seleceting all allele -> ID relationship");
-            String allToIDSQL = "select allele_key, acc_id from allele_id";
-            System.out.println(allToIDSQL);
-            HashMap <String, HashSet <String>> allToIDs = makeHash(allToIDSQL, "allele_key", "acc_id");
 
+        // The main sql for cre, this is a very large, but simple sql statement.
+        
+        logger.info("Getting all alleles");
+        rs = ex.executeProto("select allele_key, symbol, name, allele_type from allele");
+        
+        Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
+        
+        // Parse the results, again this is a very large query, but fairly
+        // flat and straightforward. 
+        
+        logger.info("Parsing them");
+        while (rs.next()) {
+            SolrInputDocument doc = new SolrInputDocument();
+            Integer allKey=rs.getInt("allele_key");
+            doc.addField(IndexConstants.ALL_KEY, allKey.toString());
+            doc.addField(IndexConstants.ALL_SYMBOL, rs.getString("symbol"));
+            doc.addField(IndexConstants.ALL_NAME, rs.getString("name"));
+            doc.addField(IndexConstants.ALL_TYPE, rs.getString("allele_type"));
+            
+            if(locationMap.containsKey(allKey))
+            {
+            	AlleleLocation al = locationMap.get(allKey);
+            	// add any location data for this allele
+            	if(al.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, al.chromosome);
+            	if(al.startCoordinate!=null) doc.addField(IndexConstants.START_COORD, al.startCoordinate);
+            	if(al.endCoordinate!=null) doc.addField(IndexConstants.END_COORD, al.endCoordinate);
+            }
 
-            // The main sql for cre, this is a very large, but simple sql statement.
             
-            logger.info("Getting all alleles");
-            ResultSet rs_overall = ex.executeProto("select allele_key, symbol, name, allele_type from allele");
+            // Bring in the multi-valued field allele system. 
             
-            rs_overall.next();
-            
-            Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-            
-            // Parse the results, again this is a very large query, but fairly
-            // flat and straightforward. 
-            
-            logger.info("Parsing them");
-            while (!rs_overall.isAfterLast()) {
-                SolrInputDocument doc = new SolrInputDocument();
-                doc.addField(IndexConstants.ALL_KEY, rs_overall.getString("allele_key"));
-                doc.addField(IndexConstants.ALL_SYMBOL, rs_overall.getString("symbol"));
-                doc.addField(IndexConstants.ALL_NAME, rs_overall.getString("name"));
-                doc.addField(IndexConstants.ALL_TYPE, rs_overall.getString("allele_type"));
-
-                
-                // Bring in the multi-valued field allele system. 
-                
-                if (allToIDs.containsKey(rs_overall.getString("allele_key"))) {
-                    for (String id: allToIDs.get(rs_overall.getString("allele_key"))) {
-                        doc.addField(IndexConstants.ALL_ID, id);
-                    }
-                }
-                
-                rs_overall.next();
-                
-                docs.add(doc);
-                
-                if (docs.size() > 10000) {
-                    logger.info("Adding a stack of the documents to Solr");
-                    server.add(docs);
-                    docs = new ArrayList<SolrInputDocument>();
-                    logger.info("Done adding to solr, Moving on");
+            if (allToIDs.containsKey(allKey.toString())) {
+                for (String id: allToIDs.get(allKey.toString())) {
+                    doc.addField(IndexConstants.ALL_ID, id);
                 }
             }
-            logger.info("Adding final stack of the documents to Solr");
-            server.add(docs);
-            server.commit();
-            
+         
+            docs.add(doc);   
+            if (docs.size() > 10000) {
+                logger.info("Adding a stack of the documents to Solr");
+                writeDocs(docs);
+                docs = new ArrayList<SolrInputDocument>();
+                logger.info("Done adding to solr, Moving on");
+            }
+        }
+        logger.info("Adding final stack of the documents to Solr");
+        server.add(docs);
+        server.commit();       
     }
     
     private class AlleleLocation
     {
     	String chromosome=null;
-    	Integer startCoordinate=null;
-    	Integer endCoordinate=null;
-    	Double cmOffset=null;
+    	Integer startCoordinate=0;
+    	Integer endCoordinate=0;
+    	Double cmOffset=0.0;
     	String cytogeneticOffset=null;
     }
     
