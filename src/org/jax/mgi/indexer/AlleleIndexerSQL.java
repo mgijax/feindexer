@@ -95,8 +95,8 @@ public class AlleleIndexerSQL extends Indexer {
             	AlleleLocation al = locationMap.get(allKey);
             	// add any location data for this allele
             	if(al.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, al.chromosome);
-            	if(al.startCoordinate!=null) doc.addField(IndexConstants.START_COORD, al.startCoordinate);
-            	if(al.endCoordinate!=null) doc.addField(IndexConstants.END_COORD, al.endCoordinate);
+            	if(al.startCoordinate>0) doc.addField(IndexConstants.START_COORD, al.startCoordinate);
+            	if(al.endCoordinate>0) doc.addField(IndexConstants.END_COORD, al.endCoordinate);
             }
 
             
