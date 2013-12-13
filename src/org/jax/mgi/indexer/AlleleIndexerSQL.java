@@ -111,7 +111,7 @@ public class AlleleIndexerSQL extends Indexer {
             }
          
             docs.add(doc);   
-            if (docs.size() > 10000) {
+            if (docs.size() > 1000) {
                 writeDocs(docs);
                 docs = new ArrayList<SolrInputDocument>();
             }
