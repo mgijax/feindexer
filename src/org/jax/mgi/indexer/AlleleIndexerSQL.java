@@ -49,10 +49,10 @@ public class AlleleIndexerSQL extends Indexer {
     		Integer end = rs.getInt("end_coordinate");
     		Double cmOffset = rs.getDouble("cm_offset");
     		String cytogeneticOffset = rs.getString("cytogenetic_offset");
-    		logger.debug("chr="+chromosome+",start="+start+",end="+end+",cm="+cmOffset+",cyto="+cytogeneticOffset);
+    		logger.info("chr="+chromosome+",start="+start+",end="+end+",cm="+cmOffset+",cyto="+cytogeneticOffset);
     	}
-    	if(true)return;
     	logger.info("done building map of allele_keys -> marker locations");
+    	if(true)return;
 
             // The system sub object relationship.  This has no 
             // chunking as it shouldn't be needed.
