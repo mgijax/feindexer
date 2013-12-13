@@ -34,6 +34,26 @@ public class AlleleIndexerSQL extends Indexer {
     
     public void index() throws Exception
     {
+    	
+    	logger.info("building map of allele_keys -> marker locations");
+    	String locationQuery="select allele_key,ml.* " +
+    			"from marker_to_allele mta join " +
+    			"marker_location ml on ml.marker_key=mta.marker_key limit 100";
+    	HashMap<Integer,AlleleLocation> locationMap = new HashMap<Integer,AlleleLocation>();
+    	ResultSet rs = ex.executeProto(locationQuery);
+    	while(rs.next())
+    	{
+    		Integer allKey = rs.getInt("allele_key");
+    		String chromosome = rs.getString("chromsome");
+    		Integer start = rs.getInt("start_coordinate");
+    		Integer end = rs.getInt("end_coordinate");
+    		Double cmOffset = rs.getDouble("cm_offset");
+    		String cytogeneticOffset = rs.getString("cytogenetic_offset");
+    		logger.debug("chr="+chromosome+",start="+start+",end="+end+",cm="+cmOffset+",cyto="+cytogeneticOffset);
+    	}
+    	if(true)return;
+    	logger.info("done building map of allele_keys -> marker locations");
+
             // The system sub object relationship.  This has no 
             // chunking as it shouldn't be needed.
             
@@ -87,6 +107,15 @@ public class AlleleIndexerSQL extends Indexer {
             server.add(docs);
             server.commit();
             
+    }
+    
+    private class AlleleLocation
+    {
+    	String chromosome=null;
+    	Integer startCoordinate=null;
+    	Integer endCoordinate=null;
+    	Double cmOffset=null;
+    	String cytogeneticOffset=null;
     }
     
 }
