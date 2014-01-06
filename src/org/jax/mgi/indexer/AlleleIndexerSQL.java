@@ -74,7 +74,7 @@ public class AlleleIndexerSQL extends Indexer {
         // The main sql for cre, this is a very large, but simple sql statement.
         
         logger.info("Getting all alleles");
-        rs = ex.executeProto("select allele_key, symbol, name, allele_type, is_wild_type from allele");
+        rs = ex.executeProto("select allele_key, symbol, name, allele_type, collection, is_wild_type from allele");
         
         Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
         
@@ -90,6 +90,7 @@ public class AlleleIndexerSQL extends Indexer {
             doc.addField(IndexConstants.ALL_NAME, rs.getString("name"));
             doc.addField(IndexConstants.ALL_TYPE, rs.getString("allele_type"));
             doc.addField(IndexConstants.ALL_IS_WILD_TYPE, rs.getString("is_wild_type"));
+            doc.addField(IndexConstants.ALL_COLLECTION, rs.getString("collection"));
             
             if(locationMap.containsKey(allKey))
             {
