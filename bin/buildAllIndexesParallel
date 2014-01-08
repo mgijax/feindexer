@@ -38,7 +38,6 @@ STANDARD_INDEXES = [
 	('cre', 2, 4),
 	('creAlleleSystem', 2, 4),
 	('creAssayResult', 2, 4),
-	('gxdLitIndex', 2, 4),
 	('markerPanesetImage', 2, 4),
 	('image', 2, 4),
 	('gxdImagePane', 2, 4),
@@ -50,6 +49,7 @@ STANDARD_INDEXES = [
 # of output to stdout or stderr
 LARGE_IO_INDEXES = [
 	('gxdResult', 3, 6),
+	('gxdLitIndex', 2, 4),
 	#('sequence', 4, 8), 
 	]
 
