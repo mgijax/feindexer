@@ -182,7 +182,7 @@ public class AlleleIndexerSQL extends Indexer {
 		
 		// add the parent IDs
 		String mpAncIdsSQL="select mpt.allele_key, tas.ancestor_primary_id " + 
-				"from temp_allele_mp_term mpt join " +
+				"from tmp_allele_mp_term mpt join " +
 				"	term t on t.primary_id=mpt.term_id join " + 
 				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
 				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
