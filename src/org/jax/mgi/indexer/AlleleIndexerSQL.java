@@ -330,7 +330,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"from tmp_allele_mp_term mpt join " + 
 				"	term t on t.primary_id=mpt.term_id "+
 					"UNION " +
-				"select asg.allele_key,t.term_key " + 
+				"select aot.allele_key,t.term_key " + 
 				"from tmp_allele_omim_term aot join " + 
 				"	term t on t.primary_id=aot.term_id ";
     	this.ex.executeVoid(alleleTermsQuery);
