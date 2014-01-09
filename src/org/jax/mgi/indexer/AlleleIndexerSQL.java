@@ -191,7 +191,7 @@ public class AlleleIndexerSQL extends Indexer {
 
 		// add OMIM IDs
 		String omimIdSql="select aot.allele_key,aot.term_id " + 
-				"from tmp_allele_omim_term aot join " + 
+				"from tmp_allele_omim_term aot " + 
 				"where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoIdMap = this.populateLookup(omimIdSql,"allele_key","term_id","allele_key->OMIM IDs",allelePhenoIdMap);
 		
