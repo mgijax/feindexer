@@ -129,6 +129,7 @@ public class AlleleIndexerSQL extends Indexer {
             // add the phenotype notes
             this.addAllFromLookup(doc,IndexConstants.ALL_PHENO_TEXT,allKeyString,alleleNotesMap);
             this.addAllFromLookup(doc,IndexConstants.ALL_PHENO_ID,allKeyString,alleleTermIdMap);
+            this.addAllFromLookup(doc,IndexConstants.ALL_PHENO_TEXT,allKeyString,alleleTermMap);
             
             /*
              * Allele Location data
