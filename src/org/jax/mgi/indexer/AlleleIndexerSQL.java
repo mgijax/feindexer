@@ -36,6 +36,8 @@ public class AlleleIndexerSQL extends Indexer {
     
     public void index() throws Exception
     {
+    	this.tempTables();
+    	
         // Parse the results, again this is a very large query, but fairly
         // flat and straightforward. 
         ResultSet rs = ex.executeProto("select max(allele_key) as max_allele_key from allele");

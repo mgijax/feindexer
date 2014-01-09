@@ -365,4 +365,11 @@ public abstract class Indexer {
     		}
     	}
     }
+    
+    private int indexCounter=0;
+    protected void createTempIndex(String tableName,String column)
+    {
+    	indexCounter += 1;
+    	this.ex.executeVoid("create index tmp_idx"+indexCounter+" on "+tableName+" ("+column+")");
+    }
 }
