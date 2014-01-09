@@ -163,14 +163,9 @@ public class AlleleIndexerSQL extends Indexer {
     public Map<String,Set<String>> getAlleleNotesMap(int start,int end) throws Exception
     {
     	// get all phenotype notes for alleles
-    	String phenoNotesSQL="select atg.allele_key, mpan.note\r\n" + 
-    			"from allele_summary_genotype atg join \r\n" + 
-    			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-    			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
-    			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join\r\n" + 
-    			" 	reference ref on ref.jnum_id=mpr.jnum_id join "+
-    			"	reference_note  mpan on mpan.reference_key=ref.reference_key "+
-    			"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
+    	String phenoNotesSQL="select allele_key, note\r\n" + 
+    			"from tmp_allele_note "+
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
     	return this.populateLookup(phenoNotesSQL,"allele_key","note","allele_key->annotation notes");
     }
     public Map<String,Set<String>> getAlleleMPIdsMap(int start,int end) throws Exception
@@ -252,6 +247,22 @@ public class AlleleIndexerSQL extends Indexer {
     	}
     	logger.info("done building map of allele_keys -> marker locations");
     	return locationMap;
+    }
+    
+    public void tempTables() throws Exception
+    {
+    	logger.info("creating temp table of allele_key to mp annotation note");
+    	String alleleNotesQuery = "select distinct atg.allele_key, replace(mpan.note,'Background Sensitivity: ','') note\r\n" + 
+    			"into tmp_allele_note "+
+    			"from allele_summary_genotype atg join \r\n" + 
+    			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
+    			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
+    			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join\r\n" + 
+    			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
+    	this.ex.executeVoid(alleleNotesQuery);
+    	
+    	createTempIndex("tmp_allele_note","allele_key");
+    	logger.info("done creating temp table of allele_key to mp annotation note");
     }
     
     // helper class for storing allele location info
