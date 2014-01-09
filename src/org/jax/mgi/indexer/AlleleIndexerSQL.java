@@ -178,7 +178,7 @@ public class AlleleIndexerSQL extends Indexer {
 	    String mpIdsSQL="select atg.allele_key, mpt.term_id\r\n" + 
 	    		"from allele_to_genotype atg join \r\n" + 
 	    		"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-	    		"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key"+
+	    		"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key "+
 				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
 		Map<String,Set<String>> allelePhenoIdMap = this.populateLookup(mpIdsSQL,"allele_key","note","allele_key->MP Ids");
 		
