@@ -177,7 +177,7 @@ public class AlleleIndexerSQL extends Indexer {
     	// get the direct MP ID associations
 	    String mpIdsSQL="select mpt.allele_key, mpt.term_id " + 
 	    		"from tmp_allele_mp_term mpt "+
-				"and mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
+				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		Map<String,Set<String>> allelePhenoIdMap = this.populateLookup(mpIdsSQL,"allele_key","term_id","allele_key->MP Ids");
 		
 		// add the parent IDs
@@ -185,7 +185,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"from temp_allele_mp_term mpt join " +
 				"	term t on t.primary_id=mpt.term_id join " + 
 				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
-				"and mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
+				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoIdMap = this.populateLookup(mpAncIdsSQL,"allele_key","ancestor_primary_id","allele_key->ancestor IDs",allelePhenoIdMap);
 		
 
@@ -231,7 +231,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"from tmp_allele_mp_term mpt join "+
 				"	term t on t.primary_id=mpt.term_id join " + 
 				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
-				"and mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
+				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoTermMap = this.populateLookup(mpAncTermsSQL,"allele_key","ancestor_term","allele_key->ancestor IDs",allelePhenoTermMap);
 		
 		// add the synonyms for all parents and MP and OMIM terms
