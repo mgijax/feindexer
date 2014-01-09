@@ -322,7 +322,7 @@ public class AlleleIndexerSQL extends Indexer {
     {
     	logger.info("creating temp table of allele_key to mp annotation note");
     	String alleleNotesQuery = "select distinct atg.allele_key, replace(mpan.note,'Background Sensitivity: ','') note\r\n" + 
-    			"into tmp_allele_note "+
+    			"into temp tmp_allele_note "+
     			"from allele_summary_genotype atg join \r\n" + 
     			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
     			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
