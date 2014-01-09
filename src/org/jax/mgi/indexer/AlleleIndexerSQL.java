@@ -164,7 +164,7 @@ public class AlleleIndexerSQL extends Indexer {
     {
     	// get all phenotype notes for alleles
     	String phenoNotesSQL="select atg.allele_key, mpan.note\r\n" + 
-    			"from allele_to_genotype atg join \r\n" + 
+    			"from allele_summary_genotype atg join \r\n" + 
     			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
     			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
     			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join\r\n" + 
@@ -176,7 +176,7 @@ public class AlleleIndexerSQL extends Indexer {
     {
     	// get the direct MP ID associations
 	    String mpIdsSQL="select atg.allele_key, mpt.term_id\r\n" + 
-	    		"from allele_to_genotype atg join \r\n" + 
+	    		"from allele_summary_genotype atg join \r\n" + 
 	    		"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
 	    		"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key "+
 				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
@@ -184,7 +184,7 @@ public class AlleleIndexerSQL extends Indexer {
 		
 		// add the parent IDs
 		String mpAncIdsSQL="select atg.allele_key, tas.ancestor_primary_id\r\n" + 
-				"from allele_to_genotype atg join \r\n" + 
+				"from allele_summary_genotype atg join \r\n" + 
 				"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
 				"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
 				"	term t on t.primary_id=mpt.term_id join\r\n" + 
@@ -195,7 +195,7 @@ public class AlleleIndexerSQL extends Indexer {
 		// add the alt IDs for all parents
 		String altIdSQL="WITH\r\n" + 
 				"allele_terms AS (select atg.allele_key,t.term_key\r\n" + 
-				"from allele_to_genotype atg join \r\n" + 
+				"from allele_summary_genotype atg join \r\n" + 
 				"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
 				"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
 				"	term t on t.primary_id=mpt.term_id\r\n" + 
