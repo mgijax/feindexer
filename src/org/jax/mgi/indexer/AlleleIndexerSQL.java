@@ -168,7 +168,8 @@ public class AlleleIndexerSQL extends Indexer {
     			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
     			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
     			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join\r\n" + 
-    			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key "+
+    			" 	reference ref on ref.jnum_id=mpr.jnum_id "+
+    			"	reference_note  mpan on mpan.reference_key=ref.reference_key "+
     			"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
     	return this.populateLookup(phenoNotesSQL,"allele_key","note","allele_key->annotation notes");
     }
