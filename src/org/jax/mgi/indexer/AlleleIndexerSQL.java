@@ -78,7 +78,7 @@ public class AlleleIndexerSQL extends Indexer {
         Map<String,Set<String>> allIdMap = this.getAlleleIdsMap(startKey,endKey);
         
     	// The main sql for allele
-        logger.info("Getting all alleles");
+        logger.info("Getting all alleles from keys "+startKey+" to "+endKey);
         ResultSet rs = ex.executeProto("select m.marker_key,m.primary_id marker_id, " +
         		"a.allele_key, " +
         		"a.symbol, a.name, " +
