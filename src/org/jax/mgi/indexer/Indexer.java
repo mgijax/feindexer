@@ -51,7 +51,7 @@ public abstract class Indexer {
     private List<Thread> currentThreads =new ArrayList<Thread>();
     // maxThreads is configurable. When maxThreads is reached, program waits until they are finished.
     // This is essentially running them in batches
-    private int maxThreads = 40;
+    private int maxThreads = 10;
     
     protected Indexer(String httpPropName) {
       this.httpPropName = httpPropName;

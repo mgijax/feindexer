@@ -61,7 +61,7 @@ public class Main
 	}
 	
 	// other command args
-	public static int maxThreads = 30; // uses default unless set to > 0
+	public static int maxThreads = 10; // uses default unless set to > 0
 	
 	private static void parseCommandInput(String[] args)
     {
