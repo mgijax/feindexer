@@ -175,54 +175,38 @@ public class AlleleIndexerSQL extends Indexer {
     public Map<String,Set<String>> getAlleleTermIdsMap(int start,int end) throws Exception
     {
     	// get the direct MP ID associations
-	    String mpIdsSQL="select atg.allele_key, mpt.term_id\r\n" + 
-	    		"from allele_summary_genotype atg join \r\n" + 
-	    		"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-	    		"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key "+
-				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
+	    String mpIdsSQL="select mpt.allele_key, mpt.term_id " + 
+	    		"from tmp_allele_mp_term mpt "+
+				"and mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		Map<String,Set<String>> allelePhenoIdMap = this.populateLookup(mpIdsSQL,"allele_key","term_id","allele_key->MP Ids");
 		
 		// add the parent IDs
-		String mpAncIdsSQL="select atg.allele_key, tas.ancestor_primary_id\r\n" + 
-				"from allele_summary_genotype atg join \r\n" + 
-				"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-				"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
-				"	term t on t.primary_id=mpt.term_id join\r\n" + 
+		String mpAncIdsSQL="select mpt.allele_key, tas.ancestor_primary_id " + 
+				"from temp_allele_mp_term mpt join " +
+				"	term t on t.primary_id=mpt.term_id join " + 
 				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
-				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
+				"and mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoIdMap = this.populateLookup(mpAncIdsSQL,"allele_key","ancestor_primary_id","allele_key->ancestor IDs",allelePhenoIdMap);
 		
 
 		// add OMIM IDs
-		String omimIdSql="select asg.allele_key,gd.term_id\r\n" + 
-				"from allele_summary_genotype asg join\r\n" + 
-				"	genotype_disease gd on gd.genotype_key=asg.genotype_key";
+		String omimIdSql="select aot.allele_key,aot.term_id " + 
+				"from tmp_allele_omim_term aot join " + 
+				"where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoIdMap = this.populateLookup(omimIdSql,"allele_key","term_id","allele_key->OMIM IDs",allelePhenoIdMap);
 		
 		// add the alt IDs for all parents and MP and OMIM terms
-		String altIdSQL="WITH\r\n" + 
-				"allele_terms AS (select atg.allele_key,t.term_key\r\n" + 
-				"from allele_summary_genotype atg join \r\n" + 
-				"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-				"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
-				"	term t on t.primary_id=mpt.term_id\r\n" + 
-				"		and atg.allele_key > "+start+" and atg.allele_key <= "+end+" " +
-						"UNION " +
-						"select asg.allele_key,t.term_key " + 
-						"				from allele_summary_genotype asg join " + 
-						"					genotype_disease gd on gd.genotype_key=asg.genotype_key join " +
-						"					term t on t.primary_id=gd.term_id " +
-						"and asg.allele_key > "+start+" and asg.allele_key <= "+end+" " +
-				")\r\n" + 
-				"select at.allele_key, ti.acc_id\r\n" + 
-				"from allele_terms at join\r\n" + 
-				"	term_ancestor_simple tas on tas.term_key=at.term_key join\r\n" + 
-				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join\r\n" + 
-				"	term_id ti on ti.term_key=anc_t.term_key\r\n" + 
-				"UNION\r\n" + 
-				"select at.allele_key,ti.acc_id\r\n" + 
-				"from allele_terms at join\r\n" + 
-				"	term_id ti on ti.term_key=at.term_key";
+		String altIdSQL="select at.allele_key, ti.acc_id " + 
+				"from tmp_allele_term at join " + 
+				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
+				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join " + 
+				"	term_id ti on ti.term_key=anc_t.term_key " + 
+				"where at.allele_key > "+start+" and at.allele_key <= "+end+" "+
+				"UNION " + 
+				"select at.allele_key,ti.acc_id " + 
+				"from tmp_allele_term at join " + 
+				"	term_id ti on ti.term_key=at.term_key "+
+				"where at.allele_key > "+start+" and at.allele_key <= "+end+" ";
 		allelePhenoIdMap = this.populateLookup(altIdSQL,"allele_key","acc_id","allele_key->alt IDs",allelePhenoIdMap);
 		
 		
@@ -231,53 +215,37 @@ public class AlleleIndexerSQL extends Indexer {
     public Map<String,Set<String>> getAlleleTermsMap(int start,int end) throws Exception
     {
     	// get the direct MP Term associations
-	    String mpTermsSQL="select atg.allele_key, mpt.term\r\n" + 
-	    		"from allele_summary_genotype atg join \r\n" + 
-	    		"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-	    		"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key "+
-				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
+	    String mpTermsSQL="select mpt.allele_key, mpt.term\r\n" + 
+	    		"from tmp_allele_mp_term mpt "+
+				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		Map<String,Set<String>> allelePhenoTermMap = this.populateLookup(mpTermsSQL,"allele_key","term","allele_key->MP terms");
 		
 		// add OMIM IDs
-		String omimTermSql="select asg.allele_key,gd.term\r\n" + 
-				"from allele_summary_genotype asg join\r\n" + 
-				"	genotype_disease gd on gd.genotype_key=asg.genotype_key";
+		String omimTermSql="select aot.allele_key,aot.term " + 
+				"from tmp_allele_omim_term aot "+
+				"where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoTermMap = this.populateLookup(omimTermSql,"allele_key","term","allele_key->OMIM IDs",allelePhenoTermMap);
 				
 		// add the parent terms
-		String mpAncTermsSQL="select atg.allele_key, tas.ancestor_term\r\n" + 
-				"from allele_summary_genotype atg join \r\n" + 
-				"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-				"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
-				"	term t on t.primary_id=mpt.term_id join\r\n" + 
+		String mpAncTermsSQL="select mpt.allele_key, tas.ancestor_term\r\n" + 
+				"from tmp_allele_mp_term mpt join "+
+				"	term t on t.primary_id=mpt.term_id join " + 
 				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
-				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" ";
+				"and mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoTermMap = this.populateLookup(mpAncTermsSQL,"allele_key","ancestor_term","allele_key->ancestor IDs",allelePhenoTermMap);
 		
 		// add the synonyms for all parents and MP and OMIM terms
-		String mpSynonymSQL="WITH\r\n" + 
-				"allele_terms AS (select atg.allele_key,t.term_key\r\n" + 
-				"from allele_summary_genotype atg join \r\n" + 
-				"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-				"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
-				"	term t on t.primary_id=mpt.term_id\r\n" + 
-				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" "+
-						"UNION " +
-						"select asg.allele_key,t.term_key " + 
-						"				from allele_summary_genotype asg join " + 
-						"					genotype_disease gd on gd.genotype_key=asg.genotype_key join" +
-						"					term t on t.primary_id=gd.term_id " +
-						"and asg.allele_key > "+start+" and asg.allele_key <= "+end+" " +
-				")\r\n" + 
-				"select at.allele_key, ti.synonym\r\n" + 
-				"from allele_terms at join\r\n" + 
-				"	term_ancestor_simple tas on tas.term_key=at.term_key join\r\n" + 
-				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join\r\n" + 
-				"	term_synonym ti on ti.term_key=anc_t.term_key\r\n" + 
-				"UNION\r\n" + 
-				"select at.allele_key,ti.synonym\r\n" + 
-				"from allele_terms at join\r\n" + 
-				"	term_synonym ti on ti.term_key=at.term_key";
+		String mpSynonymSQL="select at.allele_key, ti.synonym " + 
+				"from tmp_allele_term at join " + 
+				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
+				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join " + 
+				"	term_synonym ti on ti.term_key=anc_t.term_key " + 
+				"where at.allele_key > "+start+" and at.allele_key <= "+end+" "+
+				"UNION " + 
+				"select at.allele_key,ti.synonym " + 
+				"from tmp_allele_term at join " + 
+				"	term_synonym ti on ti.term_key=at.term_key "+
+				"where at.allele_key > "+start+" and at.allele_key <= "+end+" ";
 		allelePhenoTermMap = this.populateLookup(mpSynonymSQL,"allele_key","synonym","allele_key->alt IDs",allelePhenoTermMap);
 		
 		return allelePhenoTermMap;
@@ -321,18 +289,62 @@ public class AlleleIndexerSQL extends Indexer {
     	return locationMap;
     }
     
+    /*
+     * creates: 
+     * 	tmp_allele_mp_term,
+     * 	tmp_allele_omim_term,
+     * 	tmp_allele_term,
+     * 	tmp_allele_note
+     */
     public void tempTables() throws Exception
     {
-    	logger.info("creating temp table of allele_key to mp annotation note");
-    	String alleleNotesQuery = "select distinct atg.allele_key, replace(mpan.note,'Background Sensitivity: ','') note\r\n" + 
-    			"into temp tmp_allele_note "+
+    	// create abnormal MP terms
+    	logger.info("creating temp table of allele_key to mp abnormal term");
+    	String mpAbnormalQuery="select atg.allele_key, mpt.term,mpt.term_id " + 
+    			"into temp tmp_allele_mp_term "+
     			"from allele_summary_genotype atg join \r\n" + 
     			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-    			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join\r\n" + 
-    			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join\r\n" + 
+    			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join " +
+    			"	mp_annot mpa on mpa.mp_term_key=mpt.mp_term_key " + 
+    			"where mpa.call=1 ";
+    	this.ex.executeVoid(mpAbnormalQuery);
+    	createTempIndex("tmp_allele_mp_term","allele_key");
+    	createTempIndex("tmp_allele_mp_term","term_id");
+    	logger.info("done creating temp table of allele_key to mp abnormal term");
+    	
+    	logger.info("creating temp table of allele_key to OMIM abnormal term");
+    	String omimAbnormalQuery="select asg.allele_key,gd.term,gd.term_id " + 
+    			"into temp tmp_allele_omim_term "+
+				"from allele_summary_genotype asg join " + 
+				"	genotype_disease gd on gd.genotype_key=asg.genotype_key "+
+				"where gd.is_not=0 ";
+    	this.ex.executeVoid(omimAbnormalQuery);
+    	createTempIndex("tmp_allele_omim_term","allele_key");
+    	createTempIndex("tmp_allele_omim_term","term_id");
+    	logger.info("done creating temp table of allele_key to OMIM abnormal term");
+    	    	
+    	// create allele to MP+OMIM term keys
+    	logger.info("creating temp table of allele_key to term_key");
+    	String alleleTermsQuery="select mpt.allele_key,t.term_key " +
+    			"into temp tmp_allele_term " + 
+				"from tmp_allele_mp_term mpt join " + 
+				"	term t on t.primary_id=mpt.term_id "+
+					"UNION " +
+				"select asg.allele_key,t.term_key " + 
+				"from tmp_allele_omim_term aot join " + 
+				"	term t on t.primary_id=aot.term_id ";
+    	this.ex.executeVoid(alleleTermsQuery);
+    	createTempIndex("tmp_allele_term","allele_key");
+    	logger.info("done creating temp table of allele_key to term_key");
+
+    	// create allele to mp notes
+    	logger.info("creating temp table of allele_key to mp annotation note");
+    	String alleleNotesQuery = "select distinct mpt.allele_key, replace(mpan.note,'Background Sensitivity: ','') note " + 
+    			"into temp tmp_allele_note "+
+    			"from tmp_allele_mp_term mpt join " + 
+    			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join " + 
     			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
     	this.ex.executeVoid(alleleNotesQuery);
-    	
     	createTempIndex("tmp_allele_note","allele_key");
     	logger.info("done creating temp table of allele_key to mp annotation note");
     }
