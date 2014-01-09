@@ -207,9 +207,10 @@ public class AlleleIndexerSQL extends Indexer {
 				"	term t on t.primary_id=mpt.term_id\r\n" + 
 				"		and atg.allele_key > "+start+" and atg.allele_key <= "+end+" " +
 						"UNION " +
-						"select asg.allele_key,gd.term_id\\r\\n\" + \r\n" + 
-						"				\"from allele_summary_genotype asg join\\r\\n\" + \r\n" + 
-						"				\"	genotype_disease gd on gd.genotype_key=asg.genotype_key " +
+						"select asg.allele_key,t.term_key " + 
+						"				from allele_summary_genotype asg join " + 
+						"					genotype_disease gd on gd.genotype_key=asg.genotype_key join " +
+						"					term t on t.primary_id=gd.term_id " +
 						"and asg.allele_key > "+start+" and asg.allele_key <= "+end+" " +
 				")\r\n" + 
 				"select at.allele_key, ti.acc_id\r\n" + 
@@ -261,9 +262,10 @@ public class AlleleIndexerSQL extends Indexer {
 				"	term t on t.primary_id=mpt.term_id\r\n" + 
 				"and atg.allele_key > "+start+" and atg.allele_key <= "+end+" "+
 						"UNION " +
-						"select asg.allele_key,gd.term_id " + 
+						"select asg.allele_key,t.term_key " + 
 						"				from allele_summary_genotype asg join " + 
-						"					genotype_disease gd on gd.genotype_key=asg.genotype_key " +
+						"					genotype_disease gd on gd.genotype_key=asg.genotype_key join" +
+						"					term t on t.primary_id=gd.term_id " +
 						"and asg.allele_key > "+start+" and asg.allele_key <= "+end+" " +
 				")\r\n" + 
 				"select at.allele_key, ti.synonym\r\n" + 
