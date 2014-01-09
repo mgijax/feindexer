@@ -300,7 +300,7 @@ public class AlleleIndexerSQL extends Indexer {
     {
     	// create abnormal MP terms
     	logger.info("creating temp table of allele_key to mp abnormal term");
-    	String mpAbnormalQuery="select atg.allele_key, mpt.term,mpt.term_id " + 
+    	String mpAbnormalQuery="select atg.allele_key, mpt.term,mpt.term_id,mpt.mp_term_key " + 
     			"into temp tmp_allele_mp_term "+
     			"from allele_summary_genotype atg join \r\n" + 
     			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
@@ -310,6 +310,7 @@ public class AlleleIndexerSQL extends Indexer {
     	this.ex.executeVoid(mpAbnormalQuery);
     	createTempIndex("tmp_allele_mp_term","allele_key");
     	createTempIndex("tmp_allele_mp_term","term_id");
+    	createTempIndex("tmp_allele_mp_term","mp_term_key");
     	logger.info("done creating temp table of allele_key to mp abnormal term");
     	
     	logger.info("creating temp table of allele_key to OMIM abnormal term");
