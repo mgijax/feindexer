@@ -1,3 +1,9 @@
+TAG: feindexer-5-1-6-9
+DATE: 01/16/2014
+STAFF: jsb
+CHANGES:
+1) changed ConnectionTimeout in Indexer.java from 100 sec to 200 sec to help avoid IOException errors in gxdLitIndex
+
 TAG: feindexer-5-1-6-8
 DATE: 1/8/2014
 STAFF: dbm
