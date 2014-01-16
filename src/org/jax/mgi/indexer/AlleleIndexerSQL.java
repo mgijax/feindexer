@@ -137,8 +137,8 @@ public class AlleleIndexerSQL extends Indexer
              */
             doc.addField(IndexConstants.ALL_TRANSMISSION_SORT,byTransmission);
             doc.addField(IndexConstants.ALL_SYMBOL_SORT,rs.getInt("by_symbol"));
-            doc.addField(IndexConstants.ALL_TYPE_SORT,rs.getInt("by_chromosome"));
-            doc.addField(IndexConstants.ALL_CHR_SORT,rs.getInt("by_allele_type"));
+            doc.addField(IndexConstants.ALL_TYPE_SORT,rs.getInt("by_allele_type"));
+            doc.addField(IndexConstants.ALL_CHR_SORT,rs.getInt("by_chromosome"));
             
             /*
              * Phenotype data
