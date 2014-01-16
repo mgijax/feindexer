@@ -91,7 +91,7 @@ public abstract class Indexer {
         logger.info("Past the initial connection.");
         
         server.setSoTimeout(100000);  // socket read timeout
-        server.setConnectionTimeout(100000);
+        server.setConnectionTimeout(200000);	// upped to avoid IOExceptions
         //server.setDefaultMaxConnectionsPerHost(100);
         //server.setMaxTotalConnections(100);
         server.setFollowRedirects(false);  // defaults to false
