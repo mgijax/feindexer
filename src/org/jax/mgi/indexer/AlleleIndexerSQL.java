@@ -22,8 +22,10 @@ import org.jax.mgi.shr.fe.IndexConstants;
  * Note: Refactored during 5.x development
  */
 
-public class AlleleIndexerSQL extends Indexer {
-
+public class AlleleIndexerSQL extends Indexer 
+{
+	// Constants
+	private static final String CELL_LINE = "Cell Line";
    
     public AlleleIndexerSQL () {
         super("index.url.allele");
@@ -86,10 +88,15 @@ public class AlleleIndexerSQL extends Indexer {
         		"a.allele_key, " +
         		"a.symbol, a.name, " +
         		"a.allele_type,a.allele_subtype, " +
-        		"a.collection, is_wild_type " +
+        		"a.collection, is_wild_type, " +
+        		"a.transmission_type, " +
+        		"asn.by_symbol, " +
+        		"asn.by_chromosome, " +
+        		"asn.by_allele_type " +
         		"from allele a join " +
         		"marker_to_allele mta on a.allele_key=mta.allele_key join " +
-        		"marker m on m.marker_key=mta.marker_key "+
+        		"marker m on m.marker_key=mta.marker_key join " +
+        		"allele_sequence_num asn on asn.allele_key=a.allele_key "+
         		"where mta.allele_key > "+startKey+" and mta.allele_key <= "+endKey+" ");
         
         logger.info("Parsing them");
@@ -98,6 +105,7 @@ public class AlleleIndexerSQL extends Indexer {
             SolrInputDocument doc = new SolrInputDocument();
             Integer allKey=rs.getInt("allele_key");
             String allKeyString=allKey.toString();
+            int byTransmission = CELL_LINE.equalsIgnoreCase(rs.getString("transmission_type")) ? 1 : 0;
             
             /*
              * Add marker fields
@@ -114,6 +122,7 @@ public class AlleleIndexerSQL extends Indexer {
             doc.addField(IndexConstants.ALL_TYPE, rs.getString("allele_type"));
             doc.addField(IndexConstants.ALL_IS_WILD_TYPE, rs.getString("is_wild_type"));
             doc.addField(IndexConstants.ALL_COLLECTION, rs.getString("collection"));
+            
             String subTypes = rs.getString("allele_subtype");
             if(notEmpty(subTypes))
             {
@@ -122,6 +131,14 @@ public class AlleleIndexerSQL extends Indexer {
             		doc.addField(IndexConstants.ALL_SUBTYPE,subType);
             	}
             }
+            
+            /*
+             * Allele sorts
+             */
+            doc.addField(IndexConstants.ALL_TRANSMISSION_SORT,byTransmission);
+            doc.addField(IndexConstants.ALL_SYMBOL_SORT,rs.getInt("by_symbol"));
+            doc.addField(IndexConstants.ALL_TYPE_SORT,rs.getInt("by_chromosome"));
+            doc.addField(IndexConstants.ALL_CHR_SORT,rs.getInt("by_allele_type"));
             
             /*
              * Phenotype data
