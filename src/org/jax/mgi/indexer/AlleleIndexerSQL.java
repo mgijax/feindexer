@@ -363,6 +363,12 @@ public class AlleleIndexerSQL extends Indexer
     			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join " + 
     			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
     	this.ex.executeVoid(alleleNotesQuery);
+    	logger.info("adding QTL text notes to allele notes temp table");
+    	String qtlNotesQuery = "select mta.allele_key, mqtl.note\r\n" + 
+    			"from marker_to_allele mta join\r\n" + 
+    			"marker_qtl_experiments mqtl on mqtl.marker_key=mta.marker_key\r\n" + 
+    			"where mqtl.note_type='TEXT-QTL' ";
+    	this.ex.executeVoid(qtlNotesQuery);
     	createTempIndex("tmp_allele_note","allele_key");
     	logger.info("done creating temp table of allele_key to mp annotation note");
     }
