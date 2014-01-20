@@ -285,9 +285,13 @@ public class AlleleIndexerSQL extends Indexer
     
     public Map<String,Set<String>> getAlleleNomenMap(int start, int end) throws Exception
     {
-    	String nomenQuery = "select allele_key, nomen " +
-    			"from tmp_allele_nomen " +
-    			 "where allele_key > "+start+" and allele_key <= "+end+" ";
+//    	String nomenQuery = "select allele_key, nomen " +
+//    			"from tmp_allele_nomen " +
+//    			 "where allele_key > "+start+" and allele_key <= "+end+" ";
+    	String nomenQuery = "select mta.allele_key, msn.term nomen " +
+    			"from marker_to_allele mta join " +
+    			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key " +
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
     	Map<String,Set<String>> nomenMap = this.populateLookup(nomenQuery,"allele_key","nomen","allele_keys -> nomenclature");
     	return nomenMap;
     }
@@ -391,15 +395,15 @@ public class AlleleIndexerSQL extends Indexer
     	createTempIndex("tmp_allele_note","allele_key");
     	logger.info("done creating temp table of allele_key to mp annotation note");
     	
-    	// create allele to nomenclature
-    	logger.info("creating temp table of allele_key to nomenclature");
-    	String alleleNomenQuery = "select mta.allele_key, msn.term nomen " +
-    			"into temp tmp_allele_nomen " +
-    			"from marker_to_allele mta join " +
-    			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key ";
-    	this.ex.executeVoid(alleleNomenQuery);
-    	createTempIndex("tmp_allele_nomen","allele_key");
-    	logger.info("done creating temp table of allele_key to nomenclature");
+//    	// create allele to nomenclature
+//    	logger.info("creating temp table of allele_key to nomenclature");
+//    	String alleleNomenQuery = "select mta.allele_key, msn.term nomen " +
+//    			"into temp tmp_allele_nomen " +
+//    			"from marker_to_allele mta join " +
+//    			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key ";
+//    	this.ex.executeVoid(alleleNomenQuery);
+//    	createTempIndex("tmp_allele_nomen","allele_key");
+//    	logger.info("done creating temp table of allele_key to nomenclature");
     }
     
     // helper class for storing allele location info
