@@ -364,8 +364,8 @@ public class AlleleIndexerSQL extends Indexer
     			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
     	this.ex.executeVoid(alleleNotesQuery);
     	logger.info("adding QTL text notes to allele notes temp table");
-    	String qtlNotesQuery = "select mta.allele_key, mqtl.note\r\n" + 
-    			"into temp tmp_allele_note " + 
+    	String qtlNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
+    			"select mta.allele_key, mqtl.note\r\n" + 
     			"from marker_to_allele mta join\r\n" +
     			"marker_qtl_experiments mqtl on mqtl.marker_key=mta.marker_key\r\n" + 
     			"where mqtl.note_type='TEXT-QTL' ";
