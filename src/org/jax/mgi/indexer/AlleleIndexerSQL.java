@@ -410,17 +410,17 @@ public class AlleleIndexerSQL extends Indexer
     	
     	// create allele to nomenclature
     	logger.info("creating temp table of allele_key to nomenclature");
-    	String alleleNomenQuery = "select allele_key, symbol nomen " +
+    	String alleleNomenQuery = "select allele_key, synonym nomen " + 
     			"into temp tmp_allele_nomen " +
-    			"from allele ";
+    			"from allele_synonym ";
     	this.ex.executeVoid(alleleNomenQuery);
     	alleleNomenQuery = "insert into tmp_allele_nomen (allele_key,nomen) " +
     			"select allele_key, name nomen " + 
     			"from allele ";
     	this.ex.executeVoid(alleleNomenQuery);
     	alleleNomenQuery = "insert into tmp_allele_nomen (allele_key,nomen) " +
-    			"select allele_key, synonym nomen " + 
-    			"from allele_synonym ";
+    			"select allele_key, symbol nomen " +
+    			"from allele ";
     	this.ex.executeVoid(alleleNomenQuery);
     	createTempIndex("tmp_allele_nomen","allele_key");
     	logger.info("done creating temp table of allele_key to nomenclature");
