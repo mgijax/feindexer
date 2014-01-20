@@ -78,7 +78,8 @@ public class AlleleIndexerSQL extends Indexer
     	Map<String,Set<String>> alleleTermIdMap = getAlleleTermIdsMap(startKey,endKey);
     	
     	// nomenclature
-    	Map<String,Set<String>> nomenMap = getAlleleNomenMap(startKey, endKey);
+    	Map<String,Set<String>> mrkNomenMap = getMarkerNomenMap(startKey, endKey);
+    	Map<String,Set<String>> allNomenMap = getAlleleNomenMap(startKey, endKey);
     	
     	// locations
     	Map<Integer,AlleleLocation> locationMap = getAlleleLocations(startKey,endKey);
@@ -108,12 +109,13 @@ public class AlleleIndexerSQL extends Indexer
             SolrInputDocument doc = new SolrInputDocument();
             Integer allKey=rs.getInt("allele_key");
             String allKeyString=allKey.toString();
+            String mrkKeyString = rs.getString("marker_key");
             int byTransmission = CELL_LINE.equalsIgnoreCase(rs.getString("transmission_type")) ? 1 : 0;
             
             /*
              * Add marker fields
              */
-            doc.addField(IndexConstants.MRK_KEY,rs.getString("marker_key"));
+            doc.addField(IndexConstants.MRK_KEY,mrkKeyString);
             doc.addField(IndexConstants.MRK_ID,rs.getString("marker_id"));
 
             /*
@@ -154,7 +156,8 @@ public class AlleleIndexerSQL extends Indexer
             /*
              * nomenclature data
              */
-            this.addAllFromLookup(doc,IndexConstants.ALL_NOMEN,allKeyString,nomenMap);
+            this.addAllFromLookup(doc,IndexConstants.ALL_NOMEN,mrkKeyString,mrkNomenMap);
+            this.addAllFromLookup(doc,IndexConstants.ALL_NOMEN,allKeyString,allNomenMap);
             
             /*
              * Allele Location data
@@ -283,20 +286,26 @@ public class AlleleIndexerSQL extends Indexer
         return allIdMap;
     }
     
+    public Map<String,Set<String>> getMarkerNomenMap(int start, int end) throws Exception
+    {
+    	String mrkNomenQuery = "WITH " +
+    			"allele_markers AS (select distinct marker_key " +
+    				"from marker_to_allele mta " +
+    				"where allele_key > "+start+" and allele_key <= "+end+" ) "+
+    			"select msn.marker_key, msn.term nomen " +
+    			"from marker_searchable_nomenclature msn join " +
+    			"allele_markers am on am.marker_key=msn.marker_key " +
+    			"where msn.term_type in ('human name','human synonym','human symbol'," +
+        				"'current symbol','current name','old symbol','synonym','related synonym','old name' ) ";
+    	Map<String,Set<String>> mrkNomenMap = this.populateLookup(mrkNomenQuery,"marker_key","nomen","marker_keys -> marker nomenclature");
+    	return mrkNomenMap;
+    }
     public Map<String,Set<String>> getAlleleNomenMap(int start, int end) throws Exception
     {
     	String nomenQuery = "select allele_key, nomen " +
-    			"from tmp_allele_nomen " +
-    			 "where allele_key > "+start+" and allele_key <= "+end+" ";
-//    	String nomenQuery = "select mta.allele_key, msn.term nomen " +
-//    			"from marker_to_allele mta join " +
-//    			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key " +
-//    			"where allele_key > "+start+" and allele_key <= "+end+" ";
-    	Map<String,Set<String>> nomenMap = this.populateLookup(nomenQuery,"allele_key","nomen","allele_keys -> nomenclature");
-    	String alleleSynonymQuery = "select  allele_key, synonym " +
-    			"from allele_synonym " +
-    			"where allele_key > "+start+" and allele_key <= "+end+" ";
-    	nomenMap = this.populateLookup(alleleSynonymQuery,"allele_key","synonym","allele_keys -> allele synonyms",nomenMap);
+		"from tmp_allele_nomen " +
+		 "where allele_key > "+start+" and allele_key <= "+end+" ";
+    	Map<String,Set<String>> nomenMap = this.populateLookup(nomenQuery,"allele_key","synonym","allele_keys -> allele nomenclature");
     	return nomenMap;
     }
     
@@ -401,13 +410,17 @@ public class AlleleIndexerSQL extends Indexer
     	
     	// create allele to nomenclature
     	logger.info("creating temp table of allele_key to nomenclature");
-    	String alleleNomenQuery = "select mta.allele_key, msn.term nomen " +
+    	String alleleNomenQuery = "select allele_key, symbol nomen " +
     			"into temp tmp_allele_nomen " +
-    			"from marker_to_allele mta join " +
-    			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key " +
-    			"where term_type in ('human name','human synonym','human symbol'," +
-    				"'allele symbol','allele name'," +
-    				"'current symbol','current name','old symbol','synonym','related synonym','old name' ) ";
+    			"from allele ";
+    	this.ex.executeVoid(alleleNomenQuery);
+    	alleleNomenQuery = "insert into tmp_allele_nomen (allele_key,nomen) " +
+    			"select allele_key, name nomen " + 
+    			"from allele ";
+    	this.ex.executeVoid(alleleNomenQuery);
+    	alleleNomenQuery = "insert into tmp_allele_nomen (allele_key,nomen) " +
+    			"select allele_key, synonym nomen " + 
+    			"from allele_synonym ";
     	this.ex.executeVoid(alleleNomenQuery);
     	createTempIndex("tmp_allele_nomen","allele_key");
     	logger.info("done creating temp table of allele_key to nomenclature");
