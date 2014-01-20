@@ -365,8 +365,8 @@ public class AlleleIndexerSQL extends Indexer
     	this.ex.executeVoid(alleleNotesQuery);
     	logger.info("adding QTL text notes to allele notes temp table");
     	String qtlNotesQuery = "select mta.allele_key, mqtl.note\r\n" + 
-    			"from marker_to_allele mta join\r\n" +
     			"into temp tmp_allele_note " + 
+    			"from marker_to_allele mta join\r\n" +
     			"marker_qtl_experiments mqtl on mqtl.marker_key=mta.marker_key\r\n" + 
     			"where mqtl.note_type='TEXT-QTL' ";
     	this.ex.executeVoid(qtlNotesQuery);
