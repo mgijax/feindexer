@@ -296,7 +296,7 @@ public class AlleleIndexerSQL extends Indexer
     	String alleleSynonymQuery = "select  allele_key, synonym " +
     			"from allele_synonym " +
     			"where allele_key > "+start+" and allele_key <= "+end+" ";
-    	nomenMap = this.populateLookup(alleleSynonymQuery,"allele_key","nomen","allele_keys -> allele synonyms",nomenMap);
+    	nomenMap = this.populateLookup(alleleSynonymQuery,"allele_key","synonym","allele_keys -> allele synonyms",nomenMap);
     	return nomenMap;
     }
     
