@@ -395,7 +395,7 @@ public class AlleleIndexerSQL extends Indexer
     	logger.info("creating temp table of allele_key to nomenclature");
     	String alleleNomenQuery = "select mta.allele_key, msn.term nomen " +
     			"into temp tmp_allele_nomen " +
-    			"from marker_to_allele mta join" +
+    			"from marker_to_allele mta join " +
     			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key ";
     	this.ex.executeVoid(alleleNomenQuery);
     	createTempIndex("tmp_allele_nomen","allele_key");
