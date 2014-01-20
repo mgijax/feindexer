@@ -305,7 +305,7 @@ public class AlleleIndexerSQL extends Indexer
     	String nomenQuery = "select allele_key, nomen " +
 		"from tmp_allele_nomen " +
 		 "where allele_key > "+start+" and allele_key <= "+end+" ";
-    	Map<String,Set<String>> nomenMap = this.populateLookup(nomenQuery,"allele_key","synonym","allele_keys -> allele nomenclature");
+    	Map<String,Set<String>> nomenMap = this.populateLookup(nomenQuery,"allele_key","nomen","allele_keys -> allele nomenclature");
     	return nomenMap;
     }
     
