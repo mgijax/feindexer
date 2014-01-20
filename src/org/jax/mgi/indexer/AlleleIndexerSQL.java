@@ -293,6 +293,10 @@ public class AlleleIndexerSQL extends Indexer
     			"marker_searchable_nomenclature msn on msn.marker_key=mta.marker_key " +
     			"where allele_key > "+start+" and allele_key <= "+end+" ";
     	Map<String,Set<String>> nomenMap = this.populateLookup(nomenQuery,"allele_key","nomen","allele_keys -> nomenclature");
+    	String alleleSynonymQuery = "select  allele_key, synonym " +
+    			"from allele_synonym " +
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
+    	nomenMap = this.populateLookup(alleleSynonymQuery,"allele_key","nomen","allele_keys -> allele synonyms",nomenMap);
     	return nomenMap;
     }
     
