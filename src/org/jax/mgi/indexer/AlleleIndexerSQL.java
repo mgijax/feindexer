@@ -81,6 +81,11 @@ public class AlleleIndexerSQL extends Indexer
     	Map<String,Set<String>> mrkNomenMap = getMarkerNomenMap(startKey, endKey);
     	Map<String,Set<String>> allNomenMap = getAlleleNomenMap(startKey, endKey);
     	
+    	// references
+    	Map<String,Set<String>> refKeysMap = getRefKeys(startKey, endKey);
+    	Map<String,Set<String>> jnumMap = getJnumIds(startKey, endKey);
+    	Set<Integer> alleleKeysWithOMIM = getAllelesWithOMIM(startKey, endKey);
+    	
     	// locations
     	Map<Integer,AlleleLocation> locationMap = getAlleleLocations(startKey,endKey);
     	
@@ -158,6 +163,14 @@ public class AlleleIndexerSQL extends Indexer
              */
             this.addAllFromLookup(doc,IndexConstants.ALL_NOMEN,mrkKeyString,mrkNomenMap);
             this.addAllFromLookup(doc,IndexConstants.ALL_NOMEN,allKeyString,allNomenMap);
+            
+            /*
+             * References data
+             */
+            this.addAllFromLookup(doc,IndexConstants.REF_KEY,allKeyString,refKeysMap);
+            this.addAllFromLookup(doc,IndexConstants.JNUM_ID,allKeyString,jnumMap);
+            int hasOMIM = alleleKeysWithOMIM.contains(allKey) ? 1 : 0;
+            doc.addField(IndexConstants.ALL_HAS_OMIM,hasOMIM);
             
             /*
              * Allele Location data
@@ -339,6 +352,39 @@ public class AlleleIndexerSQL extends Indexer
     	}
     	logger.info("done building map of allele_keys -> marker locations");
     	return locationMap;
+    }
+    
+    public Map<String,Set<String>> getRefKeys(int start, int end) throws Exception
+    {
+    	String refQuery="select allele_key,reference_key " +
+    			"from allele_to_reference "+
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
+    	Map<String,Set<String>> refKeyMap = this.populateLookup(refQuery,"allele_key","reference_key","allele_keys -> reference keys");
+    	return refKeyMap;
+    }
+    
+    public Map<String,Set<String>> getJnumIds(int start, int end) throws Exception
+    {
+    	String refQuery="select allele_key,jnum_id " +
+    			"from allele_to_reference atr join " +
+    			"reference r on r.reference_key=atr.reference_key "+
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
+    	Map<String,Set<String>> jnumMap = this.populateLookup(refQuery,"allele_key","jnum_id","allele_keys -> jnum IDs");
+    	return jnumMap;
+    }
+    
+    public Set<Integer> getAllelesWithOMIM(int start, int end) throws Exception
+    {
+    	String omimAllelesQuery="select allele_key " +
+    			"from allele_summary_disease asd "+
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
+    	Set<Integer> alleleKeys = new HashSet<Integer>();
+    	ResultSet rs = ex.executeProto(omimAllelesQuery);
+    	while(rs.next())
+    	{
+    		alleleKeys.add(rs.getInt("allele_key"));
+    	}
+    	return alleleKeys;
     }
     
     /*
