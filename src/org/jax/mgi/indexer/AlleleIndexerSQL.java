@@ -376,8 +376,10 @@ public class AlleleIndexerSQL extends Indexer
     public Set<Integer> getAllelesWithOMIM(int start, int end) throws Exception
     {
     	String omimAllelesQuery="select allele_key " +
-    			"from allele_summary_disease asd "+
-    			"where allele_key > "+start+" and allele_key <= "+end+" ";
+    			"from diseasetable_disease dtd " +
+    			"where exists (select 1 from diseasetable_disease_cell dtdc " +
+    					"where dtdc.diseasetable_disease_key=dtd.diseasetable_disease_key) "+
+    			"and allele_key > "+start+" and allele_key <= "+end+" ";
     	Set<Integer> alleleKeys = new HashSet<Integer>();
     	ResultSet rs = ex.executeProto(omimAllelesQuery);
     	while(rs.next())
