@@ -450,8 +450,8 @@ public class AlleleIndexerSQL extends Indexer
     	logger.info("adding General Allele notes to allele notes temp table");
     	String generalNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
     			"select mn.allele_key, mn.note\r\n" + 
-    			"from allele_note mta " +
-    			"where note_type in ('General') ";
+    			"from allele_note mn " +
+    			"where mn.note_type in ('General') ";
     	this.ex.executeVoid(generalNotesQuery);
     	logger.info("adding QTL text notes to allele notes temp table");
     	String qtlNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
