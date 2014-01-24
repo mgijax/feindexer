@@ -378,7 +378,8 @@ public class AlleleIndexerSQL extends Indexer
     	String omimAllelesQuery="select allele_key " +
     			"from diseasetable_disease dtd " +
     			"where exists (select 1 from diseasetable_disease_cell dtdc " +
-    					"where dtdc.diseasetable_disease_key=dtd.diseasetable_disease_key) "+
+    					"where dtdc.diseasetable_disease_key=dtd.diseasetable_disease_key " +
+    					"	and dtdc.call='Y') "+
     			"and allele_key > "+start+" and allele_key <= "+end+" ";
     	Set<Integer> alleleKeys = new HashSet<Integer>();
     	ResultSet rs = ex.executeProto(omimAllelesQuery);
