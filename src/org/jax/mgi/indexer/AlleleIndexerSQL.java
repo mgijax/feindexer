@@ -447,13 +447,12 @@ public class AlleleIndexerSQL extends Indexer
     			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join " + 
     			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
     	this.ex.executeVoid(alleleNotesQuery);
-    	// Temporarily commented out until we implement sto114
-//    	logger.info("adding General Allele notes to allele notes temp table");
-//    	String generalNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
-//    			"select mn.allele_key, mn.note\r\n" + 
-//    			"from allele_note mn " +
-//    			"where mn.note_type in ('General') ";
-//    	this.ex.executeVoid(generalNotesQuery);
+    	logger.info("adding General Allele notes to allele notes temp table");
+    	String generalNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
+    			"select mn.allele_key, mn.note\r\n" + 
+    			"from allele_note mn " +
+    			"where mn.note_type in ('General') ";
+    	this.ex.executeVoid(generalNotesQuery);
     	logger.info("adding QTL text notes to allele notes temp table");
     	String qtlNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
     			"select mta.allele_key, mqtl.note\r\n" + 
