@@ -13,11 +13,10 @@ import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
- * CreIndexerSQL
- * @author mhall
+ * AlleleIndexerSQL
+ * @author kstone
  * 
- * This class is responsible for populating the cre index.  This index is 
- * fairly straight forward, with only one sub object relationship.
+ * This class is responsible for populating the allele index. 
  * 
  * Note: Refactored during 5.x development
  */
@@ -132,6 +131,7 @@ public class AlleleIndexerSQL extends Indexer
             doc.addField(IndexConstants.ALL_TYPE, rs.getString("allele_type"));
             doc.addField(IndexConstants.ALL_IS_WILD_TYPE, rs.getString("is_wild_type"));
             doc.addField(IndexConstants.ALL_COLLECTION, rs.getString("collection"));
+            doc.addField(IndexConstants.ALL_IS_CELLLINE, byTransmission);
             
             String subTypes = rs.getString("allele_subtype");
             if(notEmpty(subTypes))
