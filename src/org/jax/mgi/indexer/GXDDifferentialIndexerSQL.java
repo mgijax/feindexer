@@ -34,7 +34,7 @@ public class GXDDifferentialIndexerSQL extends Indexer
     {    
         Map<String,List<String>> structureAncestorIdMap = new HashMap<String,List<String>>();
         logger.info("building map of structure ancestors");
-        String structureAncestorQuery =SharedQueries.GXD_ANATOMY_ANCESTOR_QUERY;
+        String structureAncestorQuery = SharedQueries.GXD_EMAP_ANCESTOR_QUERY;
         ResultSet rs = ex.executeProto(structureAncestorQuery);
 
         while (rs.next())
@@ -54,11 +54,15 @@ public class GXDDifferentialIndexerSQL extends Indexer
         
         Map<String,List<Structure>> structureSynonymMap = new HashMap<String,List<Structure>>();
         logger.info("building map of structure synonyms");
-        String structureSynonymQuery ="select ts.synonym, t.definition structure,t.primary_id structure_id,tae.theiler_stage "+
-        		"from term t left outer join term_synonym ts on t.term_key=ts.term_key, " +
-        		"term_anatomy_extras tae "+
-        		"where t.vocab_name='Anatomical Dictionary' " +
-        		"and tae.term_key=t.term_key ";
+	String structureSynonymQuery = "select ts.synonym, "
+	    + "  t.term as structure, "
+	    + "  t.primary_id as structure_id, "
+	    + "  e.stage as theiler_stage "
+	    + "from term t "
+	    + "inner join term_emap e on (t.term_key = e.term_key) "
+	    + "left outer join term_synonym ts on (t.term_key=ts.term_key) "
+	    + "where t.vocab_name in ('EMAPA', 'EMAPS')";
+
         rs = ex.executeProto(structureSynonymQuery);
 
         while (rs.next())

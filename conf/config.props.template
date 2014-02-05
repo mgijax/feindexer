@@ -1,3 +1,5 @@
+index.url.anatomyAC={BASE_URL}/anatomyAC/
+index.url.emapaAC={BASE_URL}/emapaAC/
 index.url.journalAC={BASE_URL}/journalsAC/
 index.url.reference={BASE_URL}/reference/
 index.url.authorsAC={BASE_URL}/authorsAC/

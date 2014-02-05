@@ -35,6 +35,8 @@ public class Main
 		 * All indexers must be added to this list in order to be run. 
 		 * The key is the name you would use to specify your indexer as a command argument
 		 * */
+		indexerMap.put("anatomyAC",new AnatomyAutoCompleteIndexerSQL());
+		indexerMap.put("emapaAC",new EmapaAutoCompleteIndexerSQL());
 		indexerMap.put("journalsAC",new JournalsAutoCompleteIndexerSQL());
 		indexerMap.put("reference", new RefIndexerSQL());
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());

@@ -46,4 +46,54 @@ public class SharedQueries {
 	static String GXD_ANATOMY_SYNONYMS_QUERY ="select ts.synonym, t.definition structure,t.primary_id structure_id "+
     		"from term t left outer join term_synonym ts on t.term_key=ts.term_key "+
     		"where t.vocab_name='Anatomical Dictionary' ";
+
+	// Gets All anatomy term ancestors (for EMAPA and EMAPS terms).  For
+	// EMAPS terms, also gets their corresponding EMAPA terms and the
+	// ancestors of those terms.
+	static String GXD_EMAP_ANCESTOR_QUERY =
+		"select ta.ancestor_primary_id ancestor_id, "+
+		    "t.primary_id structure_id, "+
+		    "t.term_key structure_term_key, "+
+		    "tae.default_parent_key "+
+		"from term t, " +
+		    "term_ancestor_simple ta, " +
+		    "term_emap tae, " +
+		    "term ancestor_join "+
+		"where t.term_key = ta.term_key " +
+		    "and t.vocab_name in ('EMAPA', 'EMAPS') " +
+		    "and ta.ancestor_primary_id = ancestor_join.primary_id "+
+		    "and tae.term_key = ancestor_join.term_key " +
+		"union " +
+		"select anc.ancestor_primary_id, " +
+		    "emaps.primary_id, " +
+		    "emaps.term_key, " +
+		    "anc.ancestor_term_key " +
+		"from term emaps, " +
+		    "term_emap te, " +
+		    "term emapa, " +
+		    "term_ancestor anc, " +
+		    "term_emap ae " +
+		"where emaps.vocab_name = 'EMAPS' " +
+		    "and emaps.term_key = te.term_key " +
+		    "and te.emapa_term_key = emapa.term_key " +
+		    "and emapa.term_key = anc.term_key " +
+		    "and anc.ancestor_term_key = ae.term_key " +
+		    "and te.stage >= ae.start_stage " +
+		    "and te.stage <= ae.end_stage " +
+		"union " +
+		"select emapa.primary_id, " +
+		    "emaps.primary_id, " +
+		    "emaps.term_key, " +
+		    "emapa.term_key " +
+		"from term emaps, " +
+		    "term_emap te, " +
+		    "term emapa " +
+		"where emaps.vocab_name = 'EMAPS' " +
+		    "and emaps.term_key = te.term_key " +
+		    "and te.emapa_term_key = emapa.term_key ";
+
+	// Gets all the anatomy synonyms by term_id (for EMAPA and EMAPS terms)
+	static String GXD_EMAP_SYNONYMS_QUERY ="select ts.synonym, t.term structure,t.primary_id structure_id "+
+    		"from term t left outer join term_synonym ts on t.term_key=ts.term_key "+
+    		"where t.vocab_name in ('EMAPA', 'EMAPS') ";
 }
