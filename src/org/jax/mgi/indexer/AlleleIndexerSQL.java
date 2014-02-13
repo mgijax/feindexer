@@ -403,7 +403,7 @@ public class AlleleIndexerSQL extends Indexer
     	logger.info("creating temp table of allele_key to mp abnormal term");
     	String mpAbnormalQuery="select atg.allele_key, mpt.term,mpt.term_id,mpt.mp_term_key " + 
     			"into temp tmp_allele_mp_term "+
-    			"from allele_summary_genotype atg join \r\n" + 
+    			"from allele_to_genotype atg join \r\n" + 
     			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
     			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join " +
     			"	mp_annot mpa on mpa.mp_term_key=mpt.mp_term_key " + 
@@ -417,7 +417,7 @@ public class AlleleIndexerSQL extends Indexer
     	logger.info("creating temp table of allele_key to OMIM abnormal term");
     	String omimAbnormalQuery="select asg.allele_key,gd.term,gd.term_id " + 
     			"into temp tmp_allele_omim_term "+
-				"from allele_summary_genotype asg join " + 
+				"from allele_to_genotype asg join " + 
 				"	genotype_disease gd on gd.genotype_key=asg.genotype_key "+
 				"where gd.is_not=0 ";
     	this.ex.executeVoid(omimAbnormalQuery);
