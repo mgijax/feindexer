@@ -3,6 +3,7 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
 /**
  * AlleleIndexerSQL
@@ -25,6 +27,8 @@ public class AlleleIndexerSQL extends Indexer
 {
 	// Constants
 	private static final String CELL_LINE = "Cell Line";
+	
+	private Map<String,Integer> diseaseSorts = new HashMap<String,Integer>();
    
     public AlleleIndexerSQL () {
         super("index.url.allele");
@@ -38,6 +42,8 @@ public class AlleleIndexerSQL extends Indexer
     public void index() throws Exception
     {
     	this.tempTables();
+    	
+    	this.initSorts();
     	
         // Parse the results, again this is a very large query, but fairly
         // flat and straightforward. 
@@ -59,6 +65,29 @@ public class AlleleIndexerSQL extends Indexer
             end = start + chunkSize;
             
             processAlleles(start,end);
+        }
+        
+        // clean up class variables
+        this.diseaseSorts=null;
+    }
+    
+    private void initSorts() throws Exception
+    {
+    	ResultSet rs = ex.executeProto("select distinct disease from disease ");
+    	Set<String> unorderedDiseases = new HashSet<String>();
+    	while(rs.next())
+    	{
+    		unorderedDiseases.add(rs.getString("disease"));
+    	}
+    	ArrayList<String> orderedDiseases = new ArrayList<String>(unorderedDiseases);
+    	unorderedDiseases=null;
+        Collections.sort(orderedDiseases, new SmartAlphaComparator());
+        
+        int count=0;
+        for(String disease : orderedDiseases)
+        {
+        	count+=1;
+        	this.diseaseSorts.put(disease,count);
         }
     }
     
@@ -91,6 +120,9 @@ public class AlleleIndexerSQL extends Indexer
     	// accession IDs
         Map<String,Set<String>> allIdMap = this.getAlleleIdsMap(startKey,endKey);
         
+        // sorts
+        Map<Integer,Integer> diseaseSortMap = this.getAlleleDiseaseSortMap(startKey,endKey);
+        
     	// The main sql for allele
         ResultSet rs = ex.executeProto("select m.marker_key,m.primary_id marker_id, " +
         		"a.allele_key, " +
@@ -109,12 +141,14 @@ public class AlleleIndexerSQL extends Indexer
         
         logger.info("Parsing them");
         Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-        while (rs.next()) {
+        while (rs.next()) 
+        {
             SolrInputDocument doc = new SolrInputDocument();
             Integer allKey=rs.getInt("allele_key");
             String allKeyString=allKey.toString();
             String mrkKeyString = rs.getString("marker_key");
             int byTransmission = CELL_LINE.equalsIgnoreCase(rs.getString("transmission_type")) ? 1 : 0;
+            int byDisease = diseaseSortMap.containsKey(allKey) ? diseaseSortMap.get(allKey) : 9999999;
             
             /*
              * Add marker fields
@@ -149,6 +183,7 @@ public class AlleleIndexerSQL extends Indexer
             doc.addField(IndexConstants.ALL_SYMBOL_SORT,rs.getInt("by_symbol"));
             doc.addField(IndexConstants.ALL_TYPE_SORT,rs.getInt("by_allele_type"));
             doc.addField(IndexConstants.ALL_CHR_SORT,rs.getInt("by_chromosome"));
+            doc.addField(IndexConstants.ALL_DISEASE_SORT,byDisease);
             
             /*
              * Phenotype data
@@ -388,6 +423,27 @@ public class AlleleIndexerSQL extends Indexer
     		alleleKeys.add(rs.getInt("allele_key"));
     	}
     	return alleleKeys;
+    }
+    
+    public Map<Integer,Integer> getAlleleDiseaseSortMap(int start, int end) throws Exception
+    {
+    	String alleleDiseaseQuery="select asd.allele_key,asd.disease " +
+    			"from allele_summary_disease asd " +
+    			"where allele_key > "+start+" and allele_key <= "+end+" ";
+    	ResultSet rs = ex.executeProto(alleleDiseaseQuery);
+    	Map<Integer,Integer> alleleDiseaseSortMap = new HashMap<Integer,Integer>();
+    	while(rs.next())
+    	{
+    		int allKey = rs.getInt("allele_key");
+    		Integer dSort = this.diseaseSorts.get(rs.getString("disease"));
+    		if(!alleleDiseaseSortMap.containsKey(allKey) ||
+    				alleleDiseaseSortMap.get(allKey) > dSort)
+    		{ 
+    			alleleDiseaseSortMap.put(allKey,dSort); 
+    		}
+    	}
+    	
+    	return alleleDiseaseSortMap;
     }
     
     /*
