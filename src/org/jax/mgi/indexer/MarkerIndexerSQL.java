@@ -94,6 +94,7 @@ public class MarkerIndexerSQL extends Indexer
         while (rs.next()) 
         {
         	String mrkKey = rs.getString("marker_key");
+        	int mrkKeyInt = rs.getInt("marker_key");
             SolrInputDocument doc = new SolrInputDocument();
             
             doc.addField(IndexConstants.MRK_KEY, rs.getString("marker_key"));
@@ -116,9 +117,9 @@ public class MarkerIndexerSQL extends Indexer
             /*
              * Marker Location data
              */
-            if(locationMap.containsKey(mrkKey))
+            if(locationMap.containsKey(mrkKeyInt))
             {
-            	MarkerLocation ml = locationMap.get(mrkKey);
+            	MarkerLocation ml = locationMap.get(mrkKeyInt);
             	// add any location data for this marker
             	if(ml.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, ml.chromosome);
             	if(ml.startCoordinate>0) doc.addField(IndexConstants.START_COORD, ml.startCoordinate);
