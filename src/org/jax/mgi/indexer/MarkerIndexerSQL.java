@@ -59,6 +59,8 @@ public class MarkerIndexerSQL extends Indexer
     
     private void processMarkers(int start, int end) throws Exception
     {
+    	logger.info("Processing marker keys "+start+" to "+end);
+    	
     	 // Get all marker id -> marker relationships
         String markerToIDSQL = "select distinct marker_key, acc_id from marker_id where marker_key > " + start + " and marker_key <= "+ end + " and private = 0";
         Map<String,Set<String>> idToMarkers = this.populateLookup(markerToIDSQL, "marker_key", "acc_id","marker to IDs");
@@ -68,9 +70,7 @@ public class MarkerIndexerSQL extends Indexer
         Map<String,Set<String>> referenceToMarkers = this.populateLookup(markerToReferenceSQL, "marker_key", "reference_key","marker to ref keys");
                     
         // Get all marker -> vocab relationships, by marker key
-        logger.info("Seleceting all vocab terms/ID's -> marker");
         String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
-        logger.info(markerToTermSQL);
         Map<String,Set<String>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
 
         // Get all marker terms and their IDs
@@ -81,9 +81,10 @@ public class MarkerIndexerSQL extends Indexer
         Map<Integer,MarkerLocation> locationMap = getMarkerLocations(start,end);
         
         logger.info("Getting all mouse markers");
-        String markerSQL = "select distinct marker_key, primary_id marker_id,symbol," +
-        			" name, marker_type, marker_subtype, status, organism from marker" +
-        		" where organism = 'mouse'";
+        String markerSQL = "select distinct marker_key, primary_id marker_id,symbol, " +
+        			" name, marker_type, marker_subtype, status, organism from marker " +
+        		"where organism = 'mouse' " +
+        		"	and marker_key > "+start+" and marker_key <= "+end;
         ResultSet rs = ex.executeProto(markerSQL);
         
         Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
