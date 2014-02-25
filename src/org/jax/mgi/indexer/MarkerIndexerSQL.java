@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.indexer.AlleleIndexerSQL.AlleleLocation;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
@@ -76,6 +77,9 @@ public class MarkerIndexerSQL extends Indexer
         String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
         Map<String,Set <String>> termToMarkersID = this.populateLookup(markerToTermIDSQL, "marker_key", "term_id","marker to Terms/IDs");
         
+        // Get all marker location information
+        Map<Integer,MarkerLocation> locationMap = getMarkerLocations(start,end);
+        
         logger.info("Getting all mouse markers");
         String markerSQL = "select distinct marker_key, primary_id marker_id,symbol," +
         			" name, marker_type, marker_subtype, status, organism from marker" +
@@ -108,6 +112,18 @@ public class MarkerIndexerSQL extends Indexer
             this.addAllFromLookup(doc,IndexConstants.MRK_ID,mrkKey,idToMarkers);
             this.addAllFromLookup(doc,IndexConstants.MRK_TERM_ID,mrkKey,termToMarkersID);
             
+            /*
+             * Marker Location data
+             */
+            if(locationMap.containsKey(mrkKey))
+            {
+            	MarkerLocation ml = locationMap.get(mrkKey);
+            	// add any location data for this marker
+            	if(ml.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, ml.chromosome);
+            	if(ml.startCoordinate>0) doc.addField(IndexConstants.START_COORD, ml.startCoordinate);
+            	if(ml.endCoordinate>0) doc.addField(IndexConstants.END_COORD, ml.endCoordinate);
+            	if(ml.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, ml.cmOffset);
+            }
             docs.add(doc);
             
             if (docs.size() > 1000) 
@@ -118,6 +134,35 @@ public class MarkerIndexerSQL extends Indexer
         }
         if(docs.size()>0) server.add(docs);
         server.commit();
+    }
+    
+    public Map<Integer,MarkerLocation> getMarkerLocations(int start,int end) throws Exception
+    {
+    	logger.info("building map of marker_keys -> marker locations");
+    	String locationQuery="select ml.* " +
+    			"from marker_location ml " +
+    			"where ml.marker_key > "+start+" and ml.marker_key <= "+end+" ";
+    	Map<Integer,MarkerLocation> locationMap = new HashMap<Integer,MarkerLocation>();
+    	ResultSet rs = ex.executeProto(locationQuery);
+    	while(rs.next())
+    	{
+    		Integer mrkKey = rs.getInt("marker_key");
+    		String chromosome = rs.getString("chromosome");
+    		Integer startCoord = rs.getInt("start_coordinate");
+    		Integer endCoord = rs.getInt("end_coordinate");
+    		Double cmOffset = rs.getDouble("cm_offset");
+    		
+    		if(!locationMap.containsKey(mrkKey)) locationMap.put(mrkKey,new MarkerLocation());
+    		MarkerLocation al = locationMap.get(mrkKey);
+    		
+    		// set any non-null fields from this location row
+    		if(chromosome!=null) al.chromosome=chromosome;
+    		if(startCoord>0) al.startCoordinate=startCoord;
+    		if(endCoord>0) al.endCoordinate=endCoord;
+    		if(cmOffset>0.0) al.cmOffset=cmOffset;
+    	}
+    	logger.info("done building map of marker_keys -> marker locations");
+    	return locationMap;
     }
     
     private Map<String,Set<String>> makeVocabHash(String sql, String keyString, String valueString) throws Exception
@@ -152,5 +197,18 @@ public class MarkerIndexerSQL extends Indexer
         if (vocab.equals("OMIM/Human Marker"))  return "Disease Model: " + value;
         
         return "";
+    }
+    
+    // helper class for storing marker location info
+    public class MarkerLocation
+    {
+    	String chromosome=null;
+    	Integer startCoordinate=0;
+    	Integer endCoordinate=0;
+    	Double cmOffset=0.0;
+    }
+    private boolean notEmpty(String s)
+    {
+    	return s!=null && !s.equals("");
     }
 }
