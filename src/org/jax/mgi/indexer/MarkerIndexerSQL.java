@@ -199,7 +199,7 @@ public class MarkerIndexerSQL extends Indexer
     		Integer mrkKey = rs.getInt("marker_key");
     		
     		MarkerNomen mn = new MarkerNomen();
-    		mn.term = rs.getString("term");
+    		mn.term = rs.getString("nomen");
     		mn.termType = rs.getString("term_type");
     		
     		if(!nomenMap.containsKey(mrkKey)) nomenMap.put(mrkKey,new ArrayList<MarkerNomen>(Arrays.asList(mn)));
