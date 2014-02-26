@@ -22,6 +22,9 @@ import org.jax.mgi.shr.fe.IndexConstants;
 
 public class MarkerIndexerSQL extends Indexer 
 {  
+	public static String GO_VOCAB="GO";
+	public static String INTERPRO_VOCAB="InterPro";
+	
     public MarkerIndexerSQL () 
     {
         super("index.url.marker");
@@ -74,7 +77,7 @@ public class MarkerIndexerSQL extends Indexer
                     
         // Get marker -> vocab relationships, by marker key
         String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
-        Map<String,Set<String>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
+        Map<String,List<MarkerTerm>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
 
         // Get marker terms and their IDs
         String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
@@ -131,9 +134,19 @@ public class MarkerIndexerSQL extends Indexer
             
             // Parse the 1->N marker relationships here
             this.addAllFromLookup(doc,IndexConstants.REF_KEY,mrkKey,referenceToMarkers);
-            this.addAllFromLookup(doc,IndexConstants.MRK_TERM,mrkKey,termToMarkers);
             this.addAllFromLookup(doc,IndexConstants.MRK_ID,mrkKey,idToMarkers);
             this.addAllFromLookup(doc,IndexConstants.MRK_TERM_ID,mrkKey,termToMarkersID);
+            
+
+            if(termToMarkers.containsKey(mrkKey))
+            {
+            	for(MarkerTerm mt : termToMarkers.get(mrkKey))
+            	{
+            		String field = "goTerm";
+            		if(INTERPRO_VOCAB.equals(mt.vocab)) field = "interProTerm";
+            		doc.addField(field,mt.term);
+            	}
+            }
             
             /*
              * Marker Location data
@@ -319,9 +332,9 @@ public class MarkerIndexerSQL extends Indexer
 		return allelePhenoTermMap;
     }
     
-    private Map<String,Set<String>> makeVocabHash(String sql, String keyString, String valueString) throws Exception
+    private Map<String,List<MarkerTerm>> makeVocabHash(String sql, String keyString, String valueString) throws Exception
     {   
-        Map <String,Set <String>> tempMap = new HashMap <String,Set<String>>();
+        Map <String,List<MarkerTerm>> tempMap = new HashMap<String,List<MarkerTerm>>();
         
         ResultSet rs = ex.executeProto(sql); 
         while (rs.next()) 
@@ -329,15 +342,17 @@ public class MarkerIndexerSQL extends Indexer
             String key = rs.getString(keyString);
             String value = rs.getString(valueString);
             String vocab = rs.getString("annotation_type");
-            if (tempMap.containsKey(key)) 
+            MarkerTerm mt = translateVocab(value,vocab);
+            if(mt!=null)
             {
-                tempMap.get(key).add(translateVocab(value, vocab));
-            }
-            else 
-            {
-                HashSet <String> temp = new HashSet <String> ();
-                temp.add(translateVocab(value, vocab));
-                tempMap.put(key, temp);
+	            if (tempMap.containsKey(key)) 
+	            {
+	                tempMap.get(key).add(translateVocab(value, vocab));
+	            }
+	            else 
+	            {
+	                tempMap.put(key, new ArrayList<MarkerTerm>(Arrays.asList(mt)));
+	            }
             }
         }
         return tempMap;
@@ -446,14 +461,20 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("done creating temp table of tmp_marker_nomen marker_key to nomenclature");
     }
     
-    protected String translateVocab(String value, String vocab) 
+    protected MarkerTerm translateVocab(String value, String vocab) 
     {
-        if (vocab.equals("GO/Marker"))   return "Function: " + value;
-        if (vocab.equals("InterPro/Marker"))   return "Protein Domain: " + value;
-        if (vocab.equals("PIRSF/Marker"))  return "Protein Family: " + value;
-        if (vocab.equals("OMIM/Human Marker"))  return "Disease Model: " + value;
+    	MarkerTerm mt = new MarkerTerm();
+    	mt.term = value;
+        if (vocab.equals("GO/Marker"))  mt.vocab = GO_VOCAB;
+        else if (vocab.equals("InterPro/Marker"))   mt.vocab = INTERPRO_VOCAB;
+        //else if (vocab.equals("PIRSF/Marker"))  return "Protein Family: " + value;
+        //else if (vocab.equals("OMIM/Human Marker"))  return "Disease Model: " + value;
+        else
+        {
+        	return null;
+        }
         
-        return "";
+        return mt;
     }
     
     private String mapNomenField(String termType)
@@ -478,6 +499,13 @@ public class MarkerIndexerSQL extends Indexer
     	Integer startCoordinate=0;
     	Integer endCoordinate=0;
     	Double cmOffset=0.0;
+    }
+    
+    // helper class for marker terms
+    public class MarkerTerm
+    {
+    	String term;
+    	String vocab;
     }
     
     // helper class for storing marker nomen info
