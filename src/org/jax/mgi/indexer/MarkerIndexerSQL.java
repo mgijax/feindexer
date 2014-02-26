@@ -189,7 +189,7 @@ public class MarkerIndexerSQL extends Indexer
     {
     	logger.info("building map of marker_keys -> marker nomen");
     	String mrkNomenQuery = "select marker_key, nomen, term_type " +
-    			"tmp_marker_nomen mn " +
+    			"from tmp_marker_nomen mn " +
     			"where mn.marker_key > "+start+" and mn.marker_key <= "+end;
 
     	Map<Integer,List<MarkerNomen>> nomenMap = new HashMap<Integer,List<MarkerNomen>>();
@@ -244,7 +244,7 @@ public class MarkerIndexerSQL extends Indexer
         				"'current symbol','current name','old symbol','synonym','related synonym','old name' ) ";
     	this.ex.executeVoid(mrkNomenQuery);
     	createTempIndex("tmp_marker_nomen","marker_key");
-    	logger.info("done creating temp table of marker_key to nomenclature");
+    	logger.info("done creating temp table of tmp_marker_nomen marker_key to nomenclature");
     }
     
     protected String translateVocab(String value, String vocab) 
