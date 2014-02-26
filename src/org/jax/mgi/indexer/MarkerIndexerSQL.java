@@ -2,14 +2,15 @@ package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.jax.mgi.indexer.AlleleIndexerSQL.AlleleLocation;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
@@ -34,51 +35,56 @@ public class MarkerIndexerSQL extends Indexer
      */
     public void index() throws Exception
     {
-            // How many markers are there total?
-            ResultSet rs = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
-            rs.next();
+    	this.tempTables();
+    	
+        // How many markers are there total?
+        ResultSet rs = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
+        rs.next();
+        
+        Integer start = 0;
+        Integer end = rs.getInt("maxMarkerKey");
+    	int chunkSize = 20000;
+        
+        int modValue = end.intValue() / chunkSize;
+        
+        // Perform the chunking
+        logger.info("Loading markers up to marker_key="+end);
+        for (int i = 0; i <= modValue; i++) 
+        {
+            start = i * chunkSize;
+            end = start + chunkSize;
             
-            Integer start = 0;
-            Integer end = rs.getInt("maxMarkerKey");
-        	int chunkSize = 20000;
-            
-            int modValue = end.intValue() / chunkSize;
-            
-            // Perform the chunking
-            logger.info("Loading markers up to marker_key="+end);
-            for (int i = 0; i <= modValue; i++) 
-            {
-                start = i * chunkSize;
-                end = start + chunkSize;
-                
-                processMarkers(start,end);
-            }
-            
-           logger.info("Done loading markers");
+            processMarkers(start,end);
+        }
+        
+       logger.info("Done loading markers");
     }
     
     private void processMarkers(int start, int end) throws Exception
     {
     	logger.info("Processing marker keys "+start+" to "+end);
     	
-    	 // Get all marker id -> marker relationships
+    	 // Get marker id -> marker relationships
         String markerToIDSQL = "select distinct marker_key, acc_id from marker_id where marker_key > " + start + " and marker_key <= "+ end + " and private = 0";
         Map<String,Set<String>> idToMarkers = this.populateLookup(markerToIDSQL, "marker_key", "acc_id","marker to IDs");
 
-        // Get all marker -> reference relationships, by marker key
+        // Get marker -> reference relationships, by marker key
         String markerToReferenceSQL = "select distinct marker_key, reference_key from marker_to_reference where marker_key > " + start + " and marker_key <= "+ end;
         Map<String,Set<String>> referenceToMarkers = this.populateLookup(markerToReferenceSQL, "marker_key", "reference_key","marker to ref keys");
                     
-        // Get all marker -> vocab relationships, by marker key
+        // Get marker -> vocab relationships, by marker key
         String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
         Map<String,Set<String>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
 
-        // Get all marker terms and their IDs
+        // Get marker terms and their IDs
         String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
         Map<String,Set <String>> termToMarkersID = this.populateLookup(markerToTermIDSQL, "marker_key", "term_id","marker to Terms/IDs");
         
-        // Get all marker location information
+        // Get marker location information
         Map<Integer,MarkerLocation> locationMap = getMarkerLocations(start,end);
+        
+        // Get marker nomen information
+        Map<Integer,List<MarkerNomen>> nomenMap = getMarkerNomen(start,end);
         
         logger.info("Getting all mouse markers");
         String markerSQL = "select distinct marker_key, primary_id marker_id,symbol, " +
@@ -126,6 +132,18 @@ public class MarkerIndexerSQL extends Indexer
             	if(ml.endCoordinate>0) doc.addField(IndexConstants.END_COORD, ml.endCoordinate);
             	if(ml.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, ml.cmOffset);
             }
+            
+            /*
+             * Marker nomen
+             */
+            if(nomenMap.containsKey(mrkKeyInt))
+            {
+            	for(MarkerNomen mn : nomenMap.get(mrkKeyInt))
+            	{
+            		doc.addField(mapNomenField(mn.termType),mn.term);
+            	}
+            }
+            
             docs.add(doc);
             
             if (docs.size() > 1000) 
@@ -138,7 +156,7 @@ public class MarkerIndexerSQL extends Indexer
         server.commit();
     }
     
-    public Map<Integer,MarkerLocation> getMarkerLocations(int start,int end) throws Exception
+    private Map<Integer,MarkerLocation> getMarkerLocations(int start,int end) throws Exception
     {
     	logger.info("building map of marker_keys -> marker locations");
     	String locationQuery="select ml.* " +
@@ -167,6 +185,30 @@ public class MarkerIndexerSQL extends Indexer
     	return locationMap;
     }
     
+    private Map<Integer,List<MarkerNomen>> getMarkerNomen(int start,int end) throws Exception
+    {
+    	logger.info("building map of marker_keys -> marker nomen");
+    	String mrkNomenQuery = "select marker_key, nomen, term_type " +
+    			"tmp_marker_nomen mn " +
+    			"where mn.marker_key > "+start+" and mn.marker_key <= "+end;
+
+    	Map<Integer,List<MarkerNomen>> nomenMap = new HashMap<Integer,List<MarkerNomen>>();
+    	ResultSet rs = ex.executeProto(mrkNomenQuery);
+    	while(rs.next())
+    	{
+    		Integer mrkKey = rs.getInt("marker_key");
+    		
+    		MarkerNomen mn = new MarkerNomen();
+    		mn.term = rs.getString("term");
+    		mn.termType = rs.getString("term_type");
+    		
+    		if(!nomenMap.containsKey(mrkKey)) nomenMap.put(mrkKey,new ArrayList<MarkerNomen>(Arrays.asList(mn)));
+    		else nomenMap.get(mrkKey).add(mn);
+    	}
+    	logger.info("done building map of marker_keys -> marker nomen");
+    	return nomenMap;
+    }
+    
     private Map<String,Set<String>> makeVocabHash(String sql, String keyString, String valueString) throws Exception
     {   
         Map <String,Set <String>> tempMap = new HashMap <String,Set<String>>();
@@ -191,6 +233,20 @@ public class MarkerIndexerSQL extends Indexer
         return tempMap;
     }
     
+    private void tempTables() throws Exception
+    {
+    	// create marker to nomenclature
+    	logger.info("creating temp table of marker_key to nomenclature");
+    	String mrkNomenQuery = "select msn.marker_key, msn.term nomen, msn.term_type " +
+    			"into temp tmp_marker_nomen " +
+    			"from marker_searchable_nomenclature msn " +
+    			"where msn.term_type in ('human name','human synonym','human symbol'," +
+        				"'current symbol','current name','old symbol','synonym','related synonym','old name' ) ";
+    	this.ex.executeVoid(mrkNomenQuery);
+    	createTempIndex("tmp_marker_nomen","marker_key");
+    	logger.info("done creating temp table of marker_key to nomenclature");
+    }
+    
     protected String translateVocab(String value, String vocab) 
     {
         if (vocab.equals("GO/Marker"))   return "Function: " + value;
@@ -201,6 +257,21 @@ public class MarkerIndexerSQL extends Indexer
         return "";
     }
     
+    private String mapNomenField(String termType)
+    {
+    	if("human name".equals(termType)) return "humanName";
+    	if("human synonym".equals(termType)) return "humanSynonym";
+    	if("human symbol".equals(termType)) return "humanSymbol";
+    	if("current symbol".equals(termType)) return "currentSymbol";
+    	if("current name".equals(termType)) return "currentName";
+    	if("old symbol".equals(termType)) return "oldSymbol";
+    	if("synonym".equals(termType)) return "synonym";
+    	if("related synonym".equals(termType)) return "relatedSynonym";
+    	if("old name".equals(termType)) return "oldName";
+
+    	return termType;
+    }
+    
     // helper class for storing marker location info
     public class MarkerLocation
     {
@@ -209,6 +280,14 @@ public class MarkerIndexerSQL extends Indexer
     	Integer endCoordinate=0;
     	Double cmOffset=0.0;
     }
+    
+    // helper class for storing marker nomen info
+    public class MarkerNomen
+    {
+    	String term;
+    	String termType;
+    }
+    
     private boolean notEmpty(String s)
     {
     	return s!=null && !s.equals("");
