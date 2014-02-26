@@ -99,9 +99,12 @@ public class MarkerIndexerSQL extends Indexer
         			"m.name, m.marker_type, m.marker_subtype, m.status, m.organism, " +
         			"m.coordinate_display, " +
         			"m.location_display, " +
-        			"m_sub_type.term_key marker_subtype_key " +
+        			"m_sub_type.term_key marker_subtype_key, " +
+        			"msn.by_symbol, " +
+        			"msn.by_location " +
         		"from marker m join " +
-        		"term m_sub_type on m_sub_type.term=m.marker_subtype " +
+        		"term m_sub_type on m_sub_type.term=m.marker_subtype join " +
+        		"marker_sequence_num msn on msn.marker_key=m.marker_key " +
         		"where m.organism = 'mouse' " +
         		"	and m_sub_type.vocab_name='Marker Category' " +
         		"	and m.marker_key > "+start+" and m.marker_key <= "+end;
@@ -131,6 +134,10 @@ public class MarkerIndexerSQL extends Indexer
             String markerID = rs.getString("marker_id");
             if (markerID==null) markerID = "";
             doc.addField(IndexConstants.MRK_PRIMARY_ID,markerID);
+            
+            // sorts
+            doc.addField("bySymbol",rs.getInt("by_symbol"));
+            doc.addField("byLocation",rs.getInt("by_location"));
             
             // Parse the 1->N marker relationships here
             this.addAllFromLookup(doc,IndexConstants.REF_KEY,mrkKey,referenceToMarkers);
