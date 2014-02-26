@@ -87,13 +87,16 @@ public class MarkerIndexerSQL extends Indexer
         Map<Integer,List<MarkerNomen>> nomenMap = getMarkerNomen(start,end);
         
         logger.info("Getting all mouse markers");
-        String markerSQL = "select distinct marker_key, primary_id marker_id,symbol, " +
-        			"name, marker_type, marker_subtype, status, organism, " +
-        			"coordinate_display, " +
-        			"location_display " +
-        		"from marker " +
-        		"where organism = 'mouse' " +
-        		"	and marker_key > "+start+" and marker_key <= "+end;
+        String markerSQL = "select m.marker_key, m.primary_id marker_id,m.symbol, " +
+        			"m.name, m.marker_type, m.marker_subtype, m.status, m.organism, " +
+        			"m.coordinate_display, " +
+        			"m.location_display, " +
+        			"m_sub_type.term marker_subtype_key " +
+        		"from marker m join " +
+        		"term m_sub_type on m_sub_type.term=m.marker_subtype " +
+        		"where m.organism = 'mouse' " +
+        		"	and m_sub_type.vocab_name='Marker Category' " +
+        		"	and m.marker_key > "+start+" and m.marker_key <= "+end;
         ResultSet rs = ex.executeProto(markerSQL);
         
         Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
@@ -111,6 +114,7 @@ public class MarkerIndexerSQL extends Indexer
             doc.addField(IndexConstants.MRK_NAME, rs.getString("name"));
             doc.addField(IndexConstants.MRK_TYPE, rs.getString("marker_type"));
             doc.addField("featureType", rs.getString("marker_subtype"));
+            doc.addField("featureTypeKey", rs.getString("marker_subtype_key"));
             doc.addField("coordinateDisplay", rs.getString("coordinate_display"));
             doc.addField("locationDisplay", rs.getString("location_display"));
 
