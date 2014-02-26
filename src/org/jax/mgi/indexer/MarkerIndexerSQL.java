@@ -91,7 +91,7 @@ public class MarkerIndexerSQL extends Indexer
         			"m.name, m.marker_type, m.marker_subtype, m.status, m.organism, " +
         			"m.coordinate_display, " +
         			"m.location_display, " +
-        			"m_sub_type.term marker_subtype_key " +
+        			"m_sub_type.term_key marker_subtype_key " +
         		"from marker m join " +
         		"term m_sub_type on m_sub_type.term=m.marker_subtype " +
         		"where m.organism = 'mouse' " +
