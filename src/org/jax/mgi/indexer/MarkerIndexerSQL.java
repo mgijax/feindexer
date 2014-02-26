@@ -88,7 +88,10 @@ public class MarkerIndexerSQL extends Indexer
         
         logger.info("Getting all mouse markers");
         String markerSQL = "select distinct marker_key, primary_id marker_id,symbol, " +
-        			" name, marker_type, marker_subtype, status, organism from marker " +
+        			"name, marker_type, marker_subtype, status, organism, " +
+        			"coordinate_display, " +
+        			"location_display " +
+        		"from marker " +
         		"where organism = 'mouse' " +
         		"	and marker_key > "+start+" and marker_key <= "+end;
         ResultSet rs = ex.executeProto(markerSQL);
@@ -108,6 +111,9 @@ public class MarkerIndexerSQL extends Indexer
             doc.addField(IndexConstants.MRK_NAME, rs.getString("name"));
             doc.addField(IndexConstants.MRK_TYPE, rs.getString("marker_type"));
             doc.addField("featureType", rs.getString("marker_subtype"));
+            doc.addField("coordinateDisplay", rs.getString("coordinate_display"));
+            doc.addField("locationDisplay", rs.getString("location_display"));
+
             doc.addField(IndexConstants.MRK_STATUS, rs.getString("status"));
             doc.addField(IndexConstants.MRK_ORGANISM, rs.getString("organism"));
             String markerID = rs.getString("marker_id");
