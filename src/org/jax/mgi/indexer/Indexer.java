@@ -51,13 +51,13 @@ public abstract class Indexer {
     private List<Thread> currentThreads =new ArrayList<Thread>();
     // maxThreads is configurable. When maxThreads is reached, program waits until they are finished.
     // This is essentially running them in batches
-    private int maxThreads = 40;
+    private int maxThreads = 10;
     
     protected Indexer(String httpPropName) {
       this.httpPropName = httpPropName;
     }
     
-    protected void setupConnection() throws Exception
+    public void setupConnection() throws Exception
     {
         logger.info("Setting up the properties");
         
@@ -85,8 +85,10 @@ public abstract class Indexer {
         ThreadSafeClientConnManager mgr = new ThreadSafeClientConnManager();
         DefaultHttpClient client = new DefaultHttpClient(mgr);
         
-        server = new HttpSolrServer( props.getProperty(httpPropName),client );
-
+        String httpUrl = props.getProperty(httpPropName);
+        if(httpUrl==null) httpUrl = httpPropName;
+        server = new HttpSolrServer( httpUrl,client );
+        
         logger.info("Working with index: " + props.getProperty(httpPropName)+"/update" );
         logger.info("Past the initial connection.");
         
@@ -364,5 +366,12 @@ public abstract class Indexer {
     			solrDoc.addField(solrField,obj);
     		}
     	}
+    }
+    
+    private int indexCounter=0;
+    protected void createTempIndex(String tableName,String column)
+    {
+    	indexCounter += 1;
+    	this.ex.executeVoid("create index tmp_idx"+indexCounter+" on "+tableName+" ("+column+")");
     }
 }

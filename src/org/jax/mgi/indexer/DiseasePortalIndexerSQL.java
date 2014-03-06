@@ -1179,14 +1179,6 @@ public class DiseasePortalIndexerSQL extends Indexer
     	createTempIndex("tmp_mp_to_mp","hdp_annotation_key");
     }
     
-    private int indexCounter=0;
-    private void createTempIndex(String tableName,String column)
-    {
-    	indexCounter += 1;
-    	this.ex.executeVoid("create index tmp_idx"+indexCounter+" on "+tableName+" ("+column+")");
-    }
-    
-    
     /*
      * generates a unique key for a human marker + disease term combo
      * 	This will be used to link human disease annotations in this index to 
