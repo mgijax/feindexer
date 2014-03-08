@@ -35,22 +35,13 @@ public class StructureAutoCompleteIndexerSQL extends Indexer
     	ArrayList<String> termsToSort = new ArrayList<String>();
     	
             logger.info("Getting all distinct structures & synonyms");
-//            String query = "WITH anatomy_synonyms as "+
-//            		"(select distinct t.term structure, ts.synonym from "+
-//            				"term t left outer join term_synonym ts "+
-//            					"on t.term_key=ts.term_key "+
-//            				"where t.vocab_name='Anatomical Dictionary') "+
-//            		"select a1.structure,a1.synonym, "+
-//            			"case when (exists (select 1 from anatomy_synonyms a2 where a2.structure=a1.synonym)) "+
-//            				"then 'false' else 'true' end as is_strict_synonym "+
-//            		"from anatomy_synonyms a1 order by a1.structure ";
             String query = "WITH anatomy_synonyms as "+
 				    "(select distinct t.term structure, ts.synonym, "+
 						"case when (exists (select 1 from recombinase_assay_result rar where rar.structure=t.term)) "+
 							"then true else false end as has_cre "+
 							 "from term t left outer join term_synonym ts "+
 				            					"on t.term_key=ts.term_key "+
-									"where t.vocab_name='Anatomical Dictionary') "+
+									"where t.vocab_name='EMAPA') "+
 					"select a1.structure,a1.synonym, a1.has_cre, "+
 						"case when (exists (select 1 from anatomy_synonyms a2 where a2.structure=a1.synonym)) "+
 							"then false else true end as is_strict_synonym "+
