@@ -53,26 +53,22 @@ public class CreIndexerSQL extends Indexer {
 	        String structureAlleleQuery = "select distinct ras.allele_key, " +
 	        		"rar.structure, " +
 	        		"struct.term_key, "+
-	        		"struct.primary_id, "+
-	        		"tae.mgd_structure_key "+
+	        		"struct.primary_id "+
 	        		"from recombinase_assay_result rar,  "+
 	        		"recombinase_allele_system ras, "+
-	        		"term struct, "+
-	        		"term_anatomy_extras tae "+
+	        		"term struct "+
 	        		"where rar.allele_system_key=ras.allele_system_key  "+
-	        		"and struct.vocab_name='Anatomical Dictionary' "+
-	        		"and struct.term=rar.structure "+
-	        		"and tae.term_key=struct.term_key";
+	        		"and struct.vocab_name='EMAPA' "+
+	        		"and struct.term=rar.structure ";
 	        ResultSet rs = ex.executeProto(structureAlleleQuery);
 	        while (rs.next())
 	        {
 	        	String alleleKey = rs.getString("allele_key");
 	        	String sId = rs.getString("primary_id");
-	        	String structureMGDKey = rs.getString("mgd_structure_key");
 	        	String structure = rs.getString("structure");
 	        	String sKey = rs.getString("term_key");
 
-	        	CreStructure struct = new CreStructure(sKey,structure,sId,structureMGDKey);
+	        	CreStructure struct = new CreStructure(sKey,structure,sId);
 	        	
 	        	if(!structureAlleleMap.containsKey(alleleKey))
 	        	{
@@ -83,9 +79,8 @@ public class CreIndexerSQL extends Indexer {
 	        logger.info("done gathering structure synonyms");
             
 	        Map<String,List<String>> structureAncestorIdMap = new HashMap<String,List<String>>();
-	        Map<String,List<String>> structureAncestorKeyMap = new HashMap<String,List<String>>();
             logger.info("building map of structure ancestors to allele key");
-	        String structureAncestorQuery = SharedQueries.GXD_ANATOMY_ANCESTOR_QUERY;
+	        String structureAncestorQuery = SharedQueries.GXD_EMAP_ANCESTOR_QUERY;
 	        rs = ex.executeProto(structureAncestorQuery);
 
 	        while (rs.next())
@@ -93,22 +88,19 @@ public class CreIndexerSQL extends Indexer {
 	        	String skey = rs.getString("structure_term_key");
 	        	String ancestorId = rs.getString("ancestor_id");
 	        	String structureId = rs.getString("structure_id");
-	        	String mgdKey = rs.getString("ancestor_mgd_structure_key");
 	        	if(!structureAncestorIdMap.containsKey(skey))
 	        	{
 	        		structureAncestorIdMap.put(skey, new ArrayList<String>());
 	        		// Include original term
 	        		structureAncestorIdMap.get(skey).add(structureId);
-	        		structureAncestorKeyMap.put(skey,new ArrayList<String>());
 	        	}
 	        	structureAncestorIdMap.get(skey).add(ancestorId);
-        		structureAncestorKeyMap.get(skey).add(mgdKey);
 	        }
 	        logger.info("done gathering structure ancestors");
 	        
 	        Map<String,List<String>> structureSynonymMap = new HashMap<String,List<String>>();
 	        logger.info("building map of structure synonyms");
-	        String structureSynonymQuery = SharedQueries.GXD_ANATOMY_SYNONYMS_QUERY;
+	        String structureSynonymQuery = SharedQueries.GXD_EMAP_SYNONYMS_QUERY;
 	        rs = ex.executeProto(structureSynonymQuery);
 	        while (rs.next())
 	        {
@@ -208,18 +200,6 @@ public class CreIndexerSQL extends Indexer {
 			                		}
 			                	}
 			                }
-			                
-			                doc.addField(GxdResultFields.STRUCTURE_KEY, struct.structureMGDKey);
-			                doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, struct.structureMGDKey);
-			                if(structureAncestorKeyMap.containsKey(struct.structureKey))
-			                {
-			                	// get ancestors by key as well (for links from AD browser)
-			                	List<String> structure_ancestor_keys = structureAncestorKeyMap.get(struct.structureKey);
-			                	for (String structure_ancestor_key : structure_ancestor_keys)
-			                	{
-			                		doc.addField(GxdResultFields.STRUCTURE_KEY, structure_ancestor_key);
-			                	}
-			                }
                 		}
                 	}
                 	for(String ancestor : distinctAncestors)
@@ -259,13 +239,11 @@ public class CreIndexerSQL extends Indexer {
     	public String structureKey;
     	public String structureName;
     	public String structureID;
-    	public String structureMGDKey;
-    	public CreStructure(String structureKey,String structureName,String structureID,String structureMGDKey)
+    	public CreStructure(String structureKey,String structureName,String structureID)
     	{
     		this.structureKey=structureKey;
     		this.structureName=structureName;
     		this.structureID=structureID;
-    		this.structureMGDKey=structureMGDKey;
     	}
     }
 }
