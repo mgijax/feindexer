@@ -44,7 +44,6 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer
 			 *	    "  e.start_stage, " +
 			 *	    "  e.end_stage, " +
 			 */
-		    "  false as has_cre " +
 		    "case when (exists (select 1 from recombinase_assay_result rar where rar.structure=t.term)) "+
 			"then true else false end as has_cre "+
 			 "from term t left outer join term_synonym ts "+
