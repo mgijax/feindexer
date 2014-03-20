@@ -23,7 +23,10 @@ import org.jax.mgi.shr.fe.IndexConstants;
 public class MarkerIndexerSQL extends Indexer 
 {  
 	public static String GO_VOCAB="GO";
-	public static String INTERPRO_VOCAB="InterPro";
+	public static String GO_FUNCTION="Function";
+	public static String GO_PROCESS="Process";
+	public static String GO_COMPONENT="Component";
+	public static String INTERPRO_VOCAB="InterPro Domains";
 	
     public MarkerIndexerSQL () 
     {
@@ -76,8 +79,12 @@ public class MarkerIndexerSQL extends Indexer
         Map<String,Set<String>> referenceToMarkers = this.populateLookup(markerToReferenceSQL, "marker_key", "reference_key","marker to ref keys");
                     
         // Get marker -> vocab relationships, by marker key
-        String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
-        Map<String,List<MarkerTerm>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term");
+        String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id,t.display_vocab_name " +
+        		"from marker_to_annotation m, " +
+        		"	annotation a join " +
+        		"	term t on t.primary+id=a.term_id " +
+        		"where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
+        Map<String,List<MarkerTerm>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term","annotation_type","display_vocab_name");
 
         // Get marker terms and their IDs
         String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
@@ -150,7 +157,10 @@ public class MarkerIndexerSQL extends Indexer
             	for(MarkerTerm mt : termToMarkers.get(mrkKey))
             	{
             		String field = "goTerm";
-            		if(INTERPRO_VOCAB.equals(mt.vocab)) field = "interProTerm";
+            		if(GO_PROCESS.equals(mt.vocab)) field = "goProcessTerm";
+            		else if(GO_FUNCTION.equals(mt.vocab)) field = "goFunctionTerm";
+            		else if(GO_COMPONENT.equals(mt.vocab)) field = "goComponentTerm";
+            		else if(INTERPRO_VOCAB.equals(mt.vocab)) field = "interProTerm";
             		doc.addField(field,mt.term);
             	}
             }
@@ -339,22 +349,23 @@ public class MarkerIndexerSQL extends Indexer
 		return allelePhenoTermMap;
     }
     
-    private Map<String,List<MarkerTerm>> makeVocabHash(String sql, String keyString, String valueString) throws Exception
+    private Map<String,List<MarkerTerm>> makeVocabHash(String sql, String keyCol, String termCol,String typeCol,String vocabCol) throws Exception
     {   
         Map <String,List<MarkerTerm>> tempMap = new HashMap<String,List<MarkerTerm>>();
         
         ResultSet rs = ex.executeProto(sql); 
         while (rs.next()) 
         {
-            String key = rs.getString(keyString);
-            String value = rs.getString(valueString);
-            String vocab = rs.getString("annotation_type");
-            MarkerTerm mt = translateVocab(value,vocab);
+            String key = rs.getString(keyCol);
+            String term = rs.getString(termCol);
+            String type = rs.getString(typeCol);
+            String vocab = rs.getString(vocabCol);
+            MarkerTerm mt = translateVocab(term,type,vocab);
             if(mt!=null)
             {
 	            if (tempMap.containsKey(key)) 
 	            {
-	                tempMap.get(key).add(translateVocab(value, vocab));
+	                tempMap.get(key).add(mt);
 	            }
 	            else 
 	            {
@@ -468,12 +479,18 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("done creating temp table of tmp_marker_nomen marker_key to nomenclature");
     }
     
-    protected MarkerTerm translateVocab(String value, String vocab) 
+    protected MarkerTerm translateVocab(String value, String type,String vocab) 
     {
     	MarkerTerm mt = new MarkerTerm();
     	mt.term = value;
-        if (vocab.equals("GO/Marker"))  mt.vocab = GO_VOCAB;
-        else if (vocab.equals("InterPro/Marker"))   mt.vocab = INTERPRO_VOCAB;
+        if (type.equals("GO/Marker"))
+        {
+        	if(vocab.equals(GO_PROCESS)) mt.vocab = GO_PROCESS;
+        	else if(vocab.equals(GO_FUNCTION)) mt.vocab = GO_FUNCTION;
+        	else if(vocab.equals(GO_COMPONENT)) mt.vocab = GO_COMPONENT;
+        	else return null;
+        }
+        else if (type.equals("InterPro/Marker"))   mt.vocab = INTERPRO_VOCAB;
         //else if (vocab.equals("PIRSF/Marker"))  return "Protein Family: " + value;
         //else if (vocab.equals("OMIM/Human Marker"))  return "Disease Model: " + value;
         else
