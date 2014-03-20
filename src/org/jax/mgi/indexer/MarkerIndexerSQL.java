@@ -82,8 +82,10 @@ public class MarkerIndexerSQL extends Indexer
         String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id,t.display_vocab_name " +
         		"from marker_to_annotation m, " +
         		"	annotation a join " +
-        		"	term t on t.primary+id=a.term_id " +
-        		"where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
+        		"	term t on t.primary_id=a.term_id " +
+        		"where m.marker_key > " + start + " and m.marker_key <= "+ end +" "+
+        			"and m.annotation_key = a.annotation_key " +
+        			"and a.annotation_type in ('GO/Marker','InterPro/Marker') ";
         Map<String,List<MarkerTerm>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term","annotation_type","display_vocab_name");
 
         // Get marker terms and their IDs
