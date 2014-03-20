@@ -163,6 +163,8 @@ public class MarkerIndexerSQL extends Indexer
             		else if(GO_FUNCTION.equals(mt.vocab)) field = "goFunctionTerm";
             		else if(GO_COMPONENT.equals(mt.vocab)) field = "goComponentTerm";
             		else if(INTERPRO_VOCAB.equals(mt.vocab)) field = "interProTerm";
+            		
+            		logger.info("marker="+mrkKey+",field="+field+",mtvocab="+mt.vocab+",term="+mt.term);
             		doc.addField(field,mt.term);
             	}
             }
