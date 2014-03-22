@@ -28,6 +28,10 @@ public class MarkerIndexerSQL extends Indexer
 	public static String GO_COMPONENT="Component";
 	public static String INTERPRO_VOCAB="InterPro Domains";
 	
+	public Map<String,Set<String>> goAncestorTerms = null;
+	public Map<String,Set<String>> goAncestorIds = null;
+
+	
     public MarkerIndexerSQL () 
     {
         super("index.url.marker");
@@ -42,6 +46,14 @@ public class MarkerIndexerSQL extends Indexer
     public void index() throws Exception
     {
     	this.tempTables();
+    	
+    	logger.info("loading go ancestor terms");
+    	String goAncestorQuery = "select t.primary_id term_id,tas.ancestor_term,tas.ancestor_primary_id " +
+    			"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
+    			"where t.vocab_name='GO' ";
+    	this.goAncestorTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
+    	this.goAncestorIds = this.populateLookup(goAncestorQuery,"term_id","ancestor_primary_id","GO term ID -> Ancestor Term ID");
+
     	
         // How many markers are there total?
         ResultSet rs = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
@@ -64,6 +76,10 @@ public class MarkerIndexerSQL extends Indexer
         }
         
        logger.info("Done loading markers");
+       
+       // clean up any references
+       this.goAncestorTerms=null;
+       this.goAncestorIds=null;
     }
     
     private void processMarkers(int start, int end) throws Exception
@@ -78,15 +94,7 @@ public class MarkerIndexerSQL extends Indexer
         String markerToReferenceSQL = "select distinct marker_key, reference_key from marker_to_reference where marker_key > " + start + " and marker_key <= "+ end;
         Map<String,Set<String>> referenceToMarkers = this.populateLookup(markerToReferenceSQL, "marker_key", "reference_key","marker to ref keys");
                     
-        // Get marker -> vocab relationships, by marker key
-        String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id,t.display_vocab_name " +
-        		"from marker_to_annotation m, " +
-        		"	annotation a join " +
-        		"	term t on t.primary_id=a.term_id " +
-        		"where m.marker_key > " + start + " and m.marker_key <= "+ end +" "+
-        			"and m.annotation_key = a.annotation_key " +
-        			"and a.annotation_type in ('GO/Marker','InterPro/Marker') ";
-        Map<String,List<MarkerTerm>> termToMarkers = makeVocabHash(markerToTermSQL, "marker_key", "term","annotation_type","display_vocab_name");
+        Map<String,List<MarkerTerm>> termToMarkers = this.getMarkerTerms(start,end);
 
         // Get marker terms and their IDs
         String markerToTermIDSQL = "select distinct m.marker_key, a.term_id from marker_to_annotation m, annotation a where m.marker_key > " + start + " and m.marker_key <= "+ end + " and m.annotation_key = a.annotation_key";
@@ -168,6 +176,14 @@ public class MarkerIndexerSQL extends Indexer
             		
             		//logger.info("field="+field+",mtvocab="+mt.vocab+",term="+mt.term);
             		doc.addField(field,mt.term);
+            		
+            		// add go ancestors if we need to
+            		if(this.goAncestorTerms.containsKey(mt.termId))
+            		{
+            			this.addAllFromLookup(doc,field,mt.termId,this.goAncestorTerms);
+            			this.addAllFromLookup(doc,IndexConstants.MRK_TERM_ID,mt.termId,this.goAncestorIds);
+
+            		}
             	}
             }
             
@@ -355,18 +371,28 @@ public class MarkerIndexerSQL extends Indexer
 		return allelePhenoTermMap;
     }
     
-    private Map<String,List<MarkerTerm>> makeVocabHash(String sql, String keyCol, String termCol,String typeCol,String vocabCol) throws Exception
-    {   
+    
+    private Map<String,List<MarkerTerm>> getMarkerTerms(int start,int end) throws Exception
+    {
+        // Get marker -> vocab relationships, by marker key
+        String markerToTermSQL = "select distinct m.marker_key, a.term, a.annotation_type, a.term_id,t.display_vocab_name " +
+        		"from marker_to_annotation m, " +
+        		"	annotation a join " +
+        		"	term t on t.primary_id=a.term_id " +
+        		"where m.marker_key > " + start + " and m.marker_key <= "+ end +" "+
+        			"and m.annotation_key = a.annotation_key " +
+        			"and a.annotation_type in ('GO/Marker','InterPro/Marker') ";
         Map <String,List<MarkerTerm>> tempMap = new HashMap<String,List<MarkerTerm>>();
         
-        ResultSet rs = ex.executeProto(sql); 
+        ResultSet rs = ex.executeProto(markerToTermSQL); 
         while (rs.next()) 
         {
-            String key = rs.getString(keyCol);
-            String term = rs.getString(termCol);
-            String type = rs.getString(typeCol);
-            String vocab = rs.getString(vocabCol);
-            MarkerTerm mt = translateVocab(term,type,vocab);
+            String key = rs.getString("marker_key");
+            String term = rs.getString("term");
+            String type = rs.getString("annotation_type");
+            String vocab = rs.getString("display_vocab_name");
+            String termId = rs.getString("term_id");
+            MarkerTerm mt = translateVocab(term,termId,type,vocab);
             if(mt!=null)
             {
 	            if (tempMap.containsKey(key)) 
@@ -485,10 +511,11 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("done creating temp table of tmp_marker_nomen marker_key to nomenclature");
     }
     
-    protected MarkerTerm translateVocab(String value, String type,String vocab) 
+    protected MarkerTerm translateVocab(String term, String termId,String type,String vocab) 
     {
     	MarkerTerm mt = new MarkerTerm();
-    	mt.term = value;
+    	mt.term = term;
+    	mt.termId = termId;
         if (type.equals("GO/Marker"))
         {
         	if(vocab.equals(GO_PROCESS)) mt.vocab = GO_PROCESS;
@@ -535,6 +562,7 @@ public class MarkerIndexerSQL extends Indexer
     public class MarkerTerm
     {
     	String term;
+    	String termId;
     	String vocab;
     }
     
