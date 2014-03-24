@@ -445,7 +445,7 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("creating temp table of marker_key to OMIM abnormal term");
     	String omimAbnormalQuery="select tmg.marker_key,gd.term,gd.term_id " + 
     			"into temp tmp_allele_omim_term "+
-				"from tmp_marker_genotype tmg mta join " +
+				"from tmp_marker_genotype tmg join " +
 					"genotype_disease gd on gd.genotype_key=tmg.genotype_key "+
 				"where gd.is_not=0 ";
     	this.ex.executeVoid(omimAbnormalQuery);
