@@ -419,13 +419,20 @@ public class MarkerIndexerSQL extends Indexer
     private void tempTables() throws Exception
     {
     	// create marker to phenotype/disease terms/IDs
+    	logger.info("creating temp table of marker to 'simple' genotypes");
+    	String simpleGenotypeQuery="select distinct marker_key,genotype_key " +
+    			"into temp tmp_marker_genotype " +
+    			"from hdp_annotation ha " +
+    			"where ha.genotype_type!='complex' ";
+    	this.ex.executeVoid(simpleGenotypeQuery);
+    	createTempIndex("tmp_marker_genotype","marker_key");
+    	createTempIndex("tmp_marker_genotype","genotype_key");
+    	
     	logger.info("creating temp table of marker_key to mp abnormal term");
-    	String mpAbnormalQuery="select mta.marker_key, mpt.term,mpt.term_id,mpt.mp_term_key " + 
+    	String mpAbnormalQuery="select tmg.marker_key, mpt.term,mpt.term_id,mpt.mp_term_key " + 
     			"into temp tmp_allele_mp_term "+
-    			"from marker_to_allele mta join " +
-	    			"allele_to_genotype atg on atg.allele_key=mta.allele_key join " +
-	    			"hdp_annotation ha on (ha.genotype_key=atg.genotype_key and ha.genotype_type!='complex') join " + 
-	    			"mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
+    			"from tmp_marker_genotype tmg join "+
+	    			"mp_system ms on ms.genotype_key=tmg.genotype_key join " + 
 	    			"mp_term mpt on mpt.mp_system_key=ms.mp_system_key join " +
 	    			"mp_annot mpa on mpa.mp_term_key=mpt.mp_term_key " + 
     			"where mpa.call=1 ";
@@ -436,12 +443,10 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("done creating temp table of marker_key to mp abnormal term");
     	
     	logger.info("creating temp table of marker_key to OMIM abnormal term");
-    	String omimAbnormalQuery="select mta.marker_key,gd.term,gd.term_id " + 
+    	String omimAbnormalQuery="select tmg.marker_key,gd.term,gd.term_id " + 
     			"into temp tmp_allele_omim_term "+
-				"from marker_to_allele mta join " +
-					"allele_to_genotype atg on atg.allele_key=mta.allele_key join " + 
-	    			"hdp_annotation ha on (ha.genotype_key=atg.genotype_key and ha.genotype_type!='complex') join " + 
-					"genotype_disease gd on gd.genotype_key=atg.genotype_key "+
+				"from tmp_marker_genotype tmg mta join " +
+					"genotype_disease gd on gd.genotype_key=tmg.genotype_key "+
 				"where gd.is_not=0 ";
     	this.ex.executeVoid(omimAbnormalQuery);
     	createTempIndex("tmp_allele_omim_term","marker_key");
