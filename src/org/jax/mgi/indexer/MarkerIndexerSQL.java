@@ -423,10 +423,11 @@ public class MarkerIndexerSQL extends Indexer
     	String mpAbnormalQuery="select mta.marker_key, mpt.term,mpt.term_id,mpt.mp_term_key " + 
     			"into temp tmp_allele_mp_term "+
     			"from marker_to_allele mta join " +
-    			"allele_to_genotype atg on atg.allele_key=mta.allele_key join \r\n" + 
-    			"	mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
-    			"	mp_term mpt on mpt.mp_system_key=ms.mp_system_key join " +
-    			"	mp_annot mpa on mpa.mp_term_key=mpt.mp_term_key " + 
+	    			"allele_to_genotype atg on atg.allele_key=mta.allele_key join " +
+	    			"hdp_annotation ha on (ha.genotype_key=atg.genotype_key and ha.genotype_type!='complex') join " + 
+	    			"mp_system ms on ms.genotype_key=atg.genotype_key join\r\n" + 
+	    			"mp_term mpt on mpt.mp_system_key=ms.mp_system_key join " +
+	    			"mp_annot mpa on mpa.mp_term_key=mpt.mp_term_key " + 
     			"where mpa.call=1 ";
     	this.ex.executeVoid(mpAbnormalQuery);
     	createTempIndex("tmp_allele_mp_term","marker_key");
@@ -438,8 +439,9 @@ public class MarkerIndexerSQL extends Indexer
     	String omimAbnormalQuery="select mta.marker_key,gd.term,gd.term_id " + 
     			"into temp tmp_allele_omim_term "+
 				"from marker_to_allele mta join " +
-				"allele_to_genotype asg on asg.allele_key=mta.allele_key join " + 
-				"	genotype_disease gd on gd.genotype_key=asg.genotype_key "+
+					"allele_to_genotype atg on atg.allele_key=mta.allele_key join " + 
+	    			"hdp_annotation ha on (ha.genotype_key=atg.genotype_key and ha.genotype_type!='complex') join " + 
+					"genotype_disease gd on gd.genotype_key=atg.genotype_key "+
 				"where gd.is_not=0 ";
     	this.ex.executeVoid(omimAbnormalQuery);
     	createTempIndex("tmp_allele_omim_term","marker_key");
