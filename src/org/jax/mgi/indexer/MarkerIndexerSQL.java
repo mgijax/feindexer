@@ -502,11 +502,11 @@ public class MarkerIndexerSQL extends Indexer
     			"from marker_to_allele mta join " +
     			"allele a on a.allele_key=mta.allele_key ";
     	this.ex.executeVoid(mrkNomenQuery);
-    	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
-    			"select mta.marker_key, syn.synonym nomen, 'alleleSynoynm' term_type " +
-    			"from marker_to_allele mta join " +
-    			"allele_synonym syn on syn.allele_key=mta.allele_key ";
-    	this.ex.executeVoid(mrkNomenQuery);
+//    	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
+//    			"select mta.marker_key, syn.synonym nomen, 'alleleSynoynm' term_type " +
+//    			"from marker_to_allele mta join " +
+//    			"allele_synonym syn on syn.allele_key=mta.allele_key ";
+//    	this.ex.executeVoid(mrkNomenQuery);
     	createTempIndex("tmp_marker_nomen","marker_key");
     	logger.info("done creating temp table of tmp_marker_nomen marker_key to nomenclature");
     }
