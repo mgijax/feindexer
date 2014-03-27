@@ -28,8 +28,10 @@ public class MarkerIndexerSQL extends Indexer
 	public static String GO_COMPONENT="Component";
 	public static String INTERPRO_VOCAB="InterPro Domains";
 	
-	public Map<String,Set<String>> altTerms = null; // includes ancestors and synonyms
-	public Map<String,Set<String>> goAncestorIds = null;
+	public Map<String,Set<String>> ancestorTerms = null; // includes ancestors and synonyms
+	public Map<String,Set<String>> ancestorIds = null;
+	public Map<String,Set<String>> termSynonyms = null;
+
 
 	
     public MarkerIndexerSQL () 
@@ -50,13 +52,13 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("loading go ancestor terms");
     	String goAncestorQuery = "select t.primary_id term_id,tas.ancestor_term,tas.ancestor_primary_id " +
     			"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
-    			"where t.vocab_name='GO' ";
-    	this.altTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
-    	this.goAncestorIds = this.populateLookup(goAncestorQuery,"term_id","ancestor_primary_id","GO term ID -> Ancestor Term ID");
+    			"where t.vocab_name in ('GO','InterPro Domains') ";
+    	this.ancestorTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
+    	this.ancestorIds = this.populateLookup(goAncestorQuery,"term_id","ancestor_primary_id","GO term ID -> Ancestor Term ID");
     	String synonymQuery = "select t.primary_id term_id,ts.synonym " +
     			"from term t join term_synonym ts on ts.term_key=t.term_key " +
     			"where t.vocab_name in ('GO','InterPro Domains') ";
-    	this.altTerms = this.populateLookup(synonymQuery,"term_id","synonym","term ID -> synonyms");
+    	this.termSynonyms = this.populateLookup(synonymQuery,"term_id","synonym","term ID -> synonyms");
     	
         // How many markers are there total?
         ResultSet rs = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
@@ -81,8 +83,9 @@ public class MarkerIndexerSQL extends Indexer
        logger.info("Done loading markers");
        
        // clean up any references
-       this.altTerms=null;
-       this.goAncestorIds=null;
+       this.ancestorTerms=null;
+       this.ancestorIds=null;
+       this.termSynonyms=null;
     }
     
     private void processMarkers(int start, int end) throws Exception
@@ -171,23 +174,28 @@ public class MarkerIndexerSQL extends Indexer
             	//logger.info("has terms");
             	for(MarkerTerm mt : termToMarkers.get(mrkKey))
             	{
-            		String field = "goTerm";
-            		if(GO_PROCESS.equals(mt.vocab)) field = "goProcessTerm";
-            		else if(GO_FUNCTION.equals(mt.vocab)) field = "goFunctionTerm";
-            		else if(GO_COMPONENT.equals(mt.vocab)) field = "goComponentTerm";
-            		else if(INTERPRO_VOCAB.equals(mt.vocab)) field = "interProTerm";
+            		String termField = "goTerm";
+            		if(GO_PROCESS.equals(mt.vocab)) termField = "goProcessTerm";
+            		else if(GO_FUNCTION.equals(mt.vocab)) termField = "goFunctionTerm";
+            		else if(GO_COMPONENT.equals(mt.vocab)) termField = "goComponentTerm";
+            		else if(INTERPRO_VOCAB.equals(mt.vocab)) termField = "interProTerm";
             		
             		//logger.info("field="+field+",mtvocab="+mt.vocab+",term="+mt.term);
-            		doc.addField(field,mt.term);
+            		doc.addField(termField,mt.term);
             		
-            		// add go ancestors if we need to
-            		if(this.altTerms.containsKey(mt.termId))
+            		// add ancestors and synonyms for this term
+            		this.addAllFromLookup(doc,termField,mt.termId,this.ancestorTerms);
+            		this.addAllFromLookup(doc,termField,mt.termId,this.termSynonyms);
+            		
+            		// if we have ancestors, add their ids, and ancestor synonyms
+            		if(this.ancestorIds.containsKey(mt.termId))
             		{
-            			this.addAllFromLookup(doc,field,mt.termId,this.altTerms);
-            		}
-            		if(this.goAncestorIds.containsKey(mt.termId))
-            		{
-            			this.addAllFromLookup(doc,IndexConstants.MRK_TERM_ID,mt.termId,this.goAncestorIds);
+            			for(String ancestorId : this.ancestorIds.get(mt.termId))
+            			{
+            				doc.addField(IndexConstants.MRK_TERM_ID,ancestorId);
+                    		this.addAllFromLookup(doc,termField,ancestorId,this.termSynonyms);
+            			}
+            			
             		}
             	}
             }
