@@ -28,7 +28,7 @@ public class MarkerIndexerSQL extends Indexer
 	public static String GO_COMPONENT="Component";
 	public static String INTERPRO_VOCAB="InterPro Domains";
 	
-	public Map<String,Set<String>> goAncestorTerms = null;
+	public Map<String,Set<String>> altTerms = null; // includes ancestors and synonyms
 	public Map<String,Set<String>> goAncestorIds = null;
 
 	
@@ -51,8 +51,11 @@ public class MarkerIndexerSQL extends Indexer
     	String goAncestorQuery = "select t.primary_id term_id,tas.ancestor_term,tas.ancestor_primary_id " +
     			"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
     			"where t.vocab_name='GO' ";
-    	this.goAncestorTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
+    	this.altTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
     	this.goAncestorIds = this.populateLookup(goAncestorQuery,"term_id","ancestor_primary_id","GO term ID -> Ancestor Term ID");
+    	String synonymQuery = "select t.primary_id term_id,ts.synonym " +
+    			"from term t join term_synonym tas on ts.term_key=t.term_key " +
+    			"where t.vocab_name in ('GO','InterPro Domains') ";
 
     	
         // How many markers are there total?
@@ -78,7 +81,7 @@ public class MarkerIndexerSQL extends Indexer
        logger.info("Done loading markers");
        
        // clean up any references
-       this.goAncestorTerms=null;
+       this.altTerms=null;
        this.goAncestorIds=null;
     }
     
@@ -178,11 +181,13 @@ public class MarkerIndexerSQL extends Indexer
             		doc.addField(field,mt.term);
             		
             		// add go ancestors if we need to
-            		if(this.goAncestorTerms.containsKey(mt.termId))
+            		if(this.altTerms.containsKey(mt.termId))
             		{
-            			this.addAllFromLookup(doc,field,mt.termId,this.goAncestorTerms);
+            			this.addAllFromLookup(doc,field,mt.termId,this.altTerms);
+            		}
+            		if(this.goAncestorIds.containsKey(mt.termId))
+            		{
             			this.addAllFromLookup(doc,IndexConstants.MRK_TERM_ID,mt.termId,this.goAncestorIds);
-
             		}
             	}
             }
