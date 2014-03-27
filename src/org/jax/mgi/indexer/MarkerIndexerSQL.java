@@ -56,7 +56,7 @@ public class MarkerIndexerSQL extends Indexer
     	String synonymQuery = "select t.primary_id term_id,ts.synonym " +
     			"from term t join term_synonym tas on ts.term_key=t.term_key " +
     			"where t.vocab_name in ('GO','InterPro Domains') ";
-
+    	this.altTerms = this.populateLookup(synonymQuery,"term_id","synonym","term ID -> synonyms");
     	
         // How many markers are there total?
         ResultSet rs = ex.executeProto("select max(marker_key) as maxMarkerKey from marker");
