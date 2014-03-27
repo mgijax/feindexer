@@ -54,7 +54,7 @@ public class MarkerIndexerSQL extends Indexer
     	this.altTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
     	this.goAncestorIds = this.populateLookup(goAncestorQuery,"term_id","ancestor_primary_id","GO term ID -> Ancestor Term ID");
     	String synonymQuery = "select t.primary_id term_id,ts.synonym " +
-    			"from term t join term_synonym tas on ts.term_key=t.term_key " +
+    			"from term t join term_synonym ts on ts.term_key=t.term_key " +
     			"where t.vocab_name in ('GO','InterPro Domains') ";
     	this.altTerms = this.populateLookup(synonymQuery,"term_id","synonym","term ID -> synonyms");
     	
