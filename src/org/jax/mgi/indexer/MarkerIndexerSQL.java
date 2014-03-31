@@ -570,7 +570,7 @@ public class MarkerIndexerSQL extends Indexer
     	if("rat symbol".equals(termType)) return "ratSymbol";
     	if("rat synonym".equals(termType)) return "ratSynonym";
     	if("cattle symbol".equals(termType)) return "cattleSymbol";
-    	if("chicken".equals(termType)) return "chickenSymbol";
+    	if("chicken symbol".equals(termType)) return "chickenSymbol";
     	if("dog symbol".equals(termType)) return "dogSymbol";
     	if("rhesus macaque symbol".equals(termType)) return "rhesusMacaqueSymbol";
     	if("zebrafish symbol".equals(termType)) return "zebrafishSymbol";
