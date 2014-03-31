@@ -511,7 +511,8 @@ public class MarkerIndexerSQL extends Indexer
     			"from marker_searchable_nomenclature msn " +
     			"where msn.term_type in ('human name','human synonym','human symbol'," +
         				"'current symbol','current name','old symbol','synonym','related synonym','old name'," +
-        				"'rat symbol','rat synonym' ) ";
+        				"'rat symbol','rat synonym','cattle symbol','chicken symbol','dog symbol'," +
+        				"'rhesus macaque symbol','zebrafish symbol' ) ";
     	this.ex.executeVoid(mrkNomenQuery);
     	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
     			"select mta.marker_key, a.symbol nomen, 'alleleSymbol' term_type " +
@@ -568,6 +569,11 @@ public class MarkerIndexerSQL extends Indexer
     	if("old name".equals(termType)) return "oldName";
     	if("rat symbol".equals(termType)) return "ratSymbol";
     	if("rat synonym".equals(termType)) return "ratSynonym";
+    	if("cattle symbol".equals(termType)) return "cattleSymbol";
+    	if("chicken".equals(termType)) return "chickenSymbol";
+    	if("dog symbol".equals(termType)) return "dogSymbol";
+    	if("rhesus macaque symbol".equals(termType)) return "rhesusMacaqueSymbol";
+    	if("zebrafish symbol".equals(termType)) return "zebrafishSymbol";
 
 
     	return termType;
