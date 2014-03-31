@@ -510,7 +510,8 @@ public class MarkerIndexerSQL extends Indexer
     			"into temp tmp_marker_nomen " +
     			"from marker_searchable_nomenclature msn " +
     			"where msn.term_type in ('human name','human synonym','human symbol'," +
-        				"'current symbol','current name','old symbol','synonym','related synonym','old name' ) ";
+        				"'current symbol','current name','old symbol','synonym','related synonym','old name'," +
+        				"'rat symbol','rat synonym' ) ";
     	this.ex.executeVoid(mrkNomenQuery);
     	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
     			"select mta.marker_key, a.symbol nomen, 'alleleSymbol' term_type " +
@@ -565,6 +566,9 @@ public class MarkerIndexerSQL extends Indexer
     	if("synonym".equals(termType)) return "synonym";
     	if("related synonym".equals(termType)) return "relatedSynonym";
     	if("old name".equals(termType)) return "oldName";
+    	if("rat symbol".equals(termType)) return "ratSymbol";
+    	if("rat synonym".equals(termType)) return "ratSynonym";
+
 
     	return termType;
     }
