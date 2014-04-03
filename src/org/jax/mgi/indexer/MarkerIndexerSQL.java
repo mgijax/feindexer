@@ -13,6 +13,7 @@ import java.util.Set;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SolrUtils;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.indexconstants.MarkerSummaryFields;
 
 /**
  * MarkerIndexerSQL
@@ -32,34 +33,10 @@ public class MarkerIndexerSQL extends Indexer
 	public Map<String,Set<String>> ancestorTerms = null; // includes ancestors and synonyms
 	public Map<String,Set<String>> ancestorIds = null;
 	public Map<String,Set<String>> termSynonyms = null;
-
-    
-	// fields that get set/mapped related to marker nomen query
-    public Map<String,String> nomenFields = new LinkedHashMap<String,String>();
 	
     public MarkerIndexerSQL () 
     {
         super("index.url.marker");
-        
-        // init nomen fields in priority order
-    	nomenFields.put("current symbol","currentSymbol");
-    	nomenFields.put("current name","currentName");
-        nomenFields.put("allele symbol","alleleSymbol");
-        nomenFields.put("allele name","alleleName");
-        nomenFields.put("old symbol","oldSymbol");
-        nomenFields.put("old name","oldName");
-        nomenFields.put("synonym","synonym");
-        nomenFields.put("human synonym","humanSynonym");
-        nomenFields.put("rat synonym","ratSynonym");
-        nomenFields.put("related synonym","relatedSynonym");
-        nomenFields.put("human symbol","humanSymbol");
-        nomenFields.put("human name","humanName");
-        nomenFields.put("rat symbol","ratSymbol");
-        nomenFields.put("rhesus macaque symbol","rhesusMacaqueSymbol");
-        nomenFields.put("cattle symbol","cattleSymbol");
-        nomenFields.put("dog symbol","dogSymbol");
-        nomenFields.put("zebrafish symbol","zebrafishSymbol");
-        nomenFields.put("chicken symbol","chickenSymbol");
     }
     
     /**
@@ -159,7 +136,7 @@ public class MarkerIndexerSQL extends Indexer
         Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
       
         // strictly for mapping the field boosts for nomen queries
-        List<String> nomenKeyList = new ArrayList<String>(this.nomenFields.keySet());
+        List<String> nomenKeyList = new ArrayList<String>(MarkerSummaryFields.NOMEN_FIELDS.keySet());
         
         // Parse the base query, adding its contents into solr  
         logger.info("Parsing them");
@@ -585,7 +562,7 @@ public class MarkerIndexerSQL extends Indexer
     
     private String mapNomenField(String termType)
     {
-    	if(this.nomenFields.containsKey(termType)) return this.nomenFields.get(termType);
+    	if(MarkerSummaryFields.NOMEN_FIELDS.containsKey(termType)) return MarkerSummaryFields.NOMEN_FIELDS.get(termType);
 
     	return termType;
     }
