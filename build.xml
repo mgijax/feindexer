@@ -33,7 +33,8 @@
 
   <!-- compile -->
   <target name="compile" depends="clean, init" >
-    <javac debug="on" srcdir="${src}" destdir="${build}" >
+    <javac debug="on" srcdir="${src}" destdir="${build}"
+    	excludes="org/jax/mgi/shr/test/**">
 	<classpath>
 		<fileset dir="lib">
 			<include name="**/*.jar"/>
