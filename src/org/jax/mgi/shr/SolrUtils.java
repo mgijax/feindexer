@@ -22,7 +22,7 @@ public class SolrUtils {
     	if(fieldList.contains(field)) 
     	{
     		int idx = fieldList.indexOf(field);
-    		return (float) (maxBoost * Math.pow(0.05,idx));
+    		return (float) (maxBoost * Math.pow(0.01,idx));
     	}
     	return (float) 0;
     }
