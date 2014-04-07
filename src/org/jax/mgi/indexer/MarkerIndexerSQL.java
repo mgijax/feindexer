@@ -5,7 +5,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -187,8 +187,8 @@ public class MarkerIndexerSQL extends Indexer
             		doc.addField(termField,mt.term);
             		
             		// add ancestors and synonyms for this term
-            		this.addAllFromLookup(doc,termField,mt.termId,this.ancestorTerms);
-            		this.addAllFromLookup(doc,termField,mt.termId,this.termSynonyms);
+            		this.addAllFromLookupNoDups(doc,termField,mt.termId,this.ancestorTerms);
+            		this.addAllFromLookupNoDups(doc,termField,mt.termId,this.termSynonyms);
             		
             		// if we have ancestors, add their ids, and ancestor synonyms
             		if(this.ancestorIds.containsKey(mt.termId))
@@ -196,11 +196,12 @@ public class MarkerIndexerSQL extends Indexer
             			for(String ancestorId : this.ancestorIds.get(mt.termId))
             			{
             				doc.addField(IndexConstants.MRK_TERM_ID,ancestorId);
-                    		this.addAllFromLookup(doc,termField,ancestorId,this.termSynonyms);
+                    		this.addAllFromLookupNoDups(doc,termField,ancestorId,this.termSynonyms);
             			}
             			
             		}
             	}
+            	this.resetDupTracking();
             }
             
             /*

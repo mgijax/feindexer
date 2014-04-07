@@ -368,6 +368,34 @@ public abstract class Indexer {
     	}
     }
     
+    
+    private Map<String,Set<String>> dupTracker = new HashMap<String,Set<String>>();
+    protected void addAllFromLookupNoDups(SolrInputDocument solrDoc,String solrField,String lookupId,Map<String,Set<String>> lookupRef)
+    {
+    	Set<String> uniqueList;
+		if(!dupTracker.containsKey(solrField))
+		{
+			uniqueList = new HashSet<String>();
+			dupTracker.put(solrField,uniqueList);
+		}
+		else uniqueList = dupTracker.get(solrField);
+		
+    	if(lookupRef.containsKey(lookupId))
+    	{
+    		for(String obj : lookupRef.get(lookupId))
+    		{
+    			if(uniqueList.contains(obj)) continue;
+    			else uniqueList.add(obj);
+    			solrDoc.addField(solrField,obj);
+    		}
+    	}
+    }
+    
+    protected void resetDupTracking()
+    {
+    	dupTracker = new HashMap<String,Set<String>>();
+    }
+    
     private int indexCounter=0;
     protected void createTempIndex(String tableName,String column)
     {
