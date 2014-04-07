@@ -12,6 +12,7 @@ import java.util.Set;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.indexconstants.CreFields;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 
 /**
@@ -53,7 +54,8 @@ public class CreIndexerSQL extends Indexer {
 	        String structureAlleleQuery = "select distinct ras.allele_key, " +
 	        		"rar.structure, " +
 	        		"struct.term_key, "+
-	        		"struct.primary_id "+
+	        		"struct.primary_id, " +
+	        		"ras.system "+
 	        		"from recombinase_assay_result rar,  "+
 	        		"recombinase_allele_system ras, "+
 	        		"term struct "+
@@ -67,8 +69,9 @@ public class CreIndexerSQL extends Indexer {
 	        	String sId = rs.getString("primary_id");
 	        	String structure = rs.getString("structure");
 	        	String sKey = rs.getString("term_key");
+	        	String system = rs.getString("system");
 
-	        	CreStructure struct = new CreStructure(sKey,structure,sId);
+	        	CreStructure struct = new CreStructure(sKey,structure,sId,system);
 	        	
 	        	if(!structureAlleleMap.containsKey(alleleKey))
 	        	{
@@ -170,42 +173,33 @@ public class CreIndexerSQL extends Indexer {
                 
                 if (structureAlleleMap.containsKey(alleleKey))
                 {
-                	// there can be a great deal of duplicate terms for each allele, so we'll filter out unique ones.
-            		Set<String> distinctAncestors = new HashSet<String>();
-            		Set<String> distinctStructures = new HashSet<String>();
                 	for(CreStructure struct : structureAlleleMap.get(alleleKey))
                 	{
-                		if(!distinctStructures.contains(struct.structureKey))
-                		{
-                			distinctStructures.add(struct.structureKey);
-	                		// Add various fields for structures
-	                		distinctAncestors.add(struct.structureName);
-	                		doc.addField(GxdResultFields.STRUCTURE_ID, struct.structureID);
-	                		if(structureAncestorIdMap.containsKey(struct.structureKey))
-			                {
-			                	// get ancestors
-			                	List<String> structure_ancestor_ids = structureAncestorIdMap.get(struct.structureKey);
-			                	for (String structure_ancestor_id : structure_ancestor_ids)
-			                	{
-			                		// get synonyms for each ancestor/term
-			                		if(structureSynonymMap.containsKey(structure_ancestor_id))
+                		// Add various fields for structures
+                		String strcutureField = mapCreField(struct.system);
+                		this.addFieldNoDup(doc,strcutureField,struct.structureName);
+                		this.addFieldNoDup(doc,GxdResultFields.STRUCTURE_ID, struct.structureID);
+                		if(structureAncestorIdMap.containsKey(struct.structureKey))
+		                {
+		                	// get ancestors
+		                	List<String> structure_ancestor_ids = structureAncestorIdMap.get(struct.structureKey);
+		                	for (String structure_ancestor_id : structure_ancestor_ids)
+		                	{
+		                		// get synonyms for each ancestor/term
+		                		if(structureSynonymMap.containsKey(structure_ancestor_id))
+		                		{
+		                			//also add structure MGI ID
+		                			this.addFieldNoDup(doc,GxdResultFields.STRUCTURE_ID, structure_ancestor_id);
+			                		List<String> structureSynonyms = structureSynonymMap.get(structure_ancestor_id);
+			                		for (String structureSynonym : structureSynonyms)
 			                		{
-			                			//also add structure MGI ID
-			                			doc.addField(GxdResultFields.STRUCTURE_ID, structure_ancestor_id);
-				                		List<String> structure_synonyms = structureSynonymMap.get(structure_ancestor_id);
-				                		for (String structure_synonym : structure_synonyms)
-				                		{
-				                			distinctAncestors.add(structure_synonym);
-				                		}
+			                			this.addFieldNoDup(doc,strcutureField,structureSynonym);
 			                		}
-			                	}
-			                }
+		                		}
+		                	}
                 		}
                 	}
-                	for(String ancestor : distinctAncestors)
-                	{
-                		doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, ancestor);
-                	}
+                	this.resetDupTracking();
                 }
                 
                 rs_overall.next();
@@ -225,7 +219,15 @@ public class CreIndexerSQL extends Indexer {
             
     }
     
-    String doBit(String bit) {
+    private String mapCreField(String system) {
+		if(CreFields.SYSTEM_FIELDS.containsKey(system))
+		{
+			return CreFields.SYSTEM_FIELDS.get(system);
+		}
+		return GxdResultFields.STRUCTURE_ANCESTORS;
+	}
+
+	String doBit(String bit) {
         if (bit == null) {
             return "-1";
         }
@@ -239,11 +241,13 @@ public class CreIndexerSQL extends Indexer {
     	public String structureKey;
     	public String structureName;
     	public String structureID;
-    	public CreStructure(String structureKey,String structureName,String structureID)
+    	public String system;
+    	public CreStructure(String structureKey,String structureName,String structureID,String system)
     	{
     		this.structureKey=structureKey;
     		this.structureName=structureName;
     		this.structureID=structureID;
+    		this.system=system;
     	}
     }
 }

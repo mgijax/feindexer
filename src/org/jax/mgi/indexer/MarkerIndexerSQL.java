@@ -184,7 +184,7 @@ public class MarkerIndexerSQL extends Indexer
             		else if(INTERPRO_VOCAB.equals(mt.vocab)) termField = "interProTerm";
             		
             		//logger.info("field="+field+",mtvocab="+mt.vocab+",term="+mt.term);
-            		doc.addField(termField,mt.term);
+            		this.addFieldNoDup(doc,termField,mt.term);
             		
             		// add ancestors and synonyms for this term
             		this.addAllFromLookupNoDups(doc,termField,mt.termId,this.ancestorTerms);

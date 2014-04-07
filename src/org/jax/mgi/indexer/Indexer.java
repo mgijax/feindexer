@@ -372,13 +372,7 @@ public abstract class Indexer {
     private Map<String,Set<String>> dupTracker = new HashMap<String,Set<String>>();
     protected void addAllFromLookupNoDups(SolrInputDocument solrDoc,String solrField,String lookupId,Map<String,Set<String>> lookupRef)
     {
-    	Set<String> uniqueList;
-		if(!dupTracker.containsKey(solrField))
-		{
-			uniqueList = new HashSet<String>();
-			dupTracker.put(solrField,uniqueList);
-		}
-		else uniqueList = dupTracker.get(solrField);
+    	Set<String> uniqueList = getNoDupList(solrField);
 		
     	if(lookupRef.containsKey(lookupId))
     	{
@@ -389,6 +383,25 @@ public abstract class Indexer {
     			solrDoc.addField(solrField,obj);
     		}
     	}
+    }
+    
+    private Set<String> getNoDupList(String solrField)
+    {
+    	Set<String> uniqueList;
+		if(!dupTracker.containsKey(solrField))
+		{
+			uniqueList = new HashSet<String>();
+			dupTracker.put(solrField,uniqueList);
+		}
+		else uniqueList = dupTracker.get(solrField);
+		return uniqueList;
+    }
+    protected void addFieldNoDup(SolrInputDocument solrDoc,String solrField,String value)
+    {
+    	Set<String> uniqueList = getNoDupList(solrField);
+    	if(uniqueList.contains(value)) return;
+		uniqueList.add(value);
+		solrDoc.addField(solrField,value);
     }
     
     protected void resetDupTracking()
