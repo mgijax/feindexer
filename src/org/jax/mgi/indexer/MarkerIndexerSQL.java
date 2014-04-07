@@ -214,6 +214,7 @@ public class MarkerIndexerSQL extends Indexer
             	if(ml.startCoordinate>0) doc.addField(IndexConstants.START_COORD, ml.startCoordinate);
             	if(ml.endCoordinate>0) doc.addField(IndexConstants.END_COORD, ml.endCoordinate);
             	if(ml.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, ml.cmOffset);
+            	if(ml.strand!=null) doc.addField("strand",ml.strand);
             }
             
             /*
@@ -263,15 +264,17 @@ public class MarkerIndexerSQL extends Indexer
     		Integer startCoord = rs.getInt("start_coordinate");
     		Integer endCoord = rs.getInt("end_coordinate");
     		Double cmOffset = rs.getDouble("cm_offset");
+    		String strand = rs.getString("strand");
     		
     		if(!locationMap.containsKey(mrkKey)) locationMap.put(mrkKey,new MarkerLocation());
-    		MarkerLocation al = locationMap.get(mrkKey);
+    		MarkerLocation ml = locationMap.get(mrkKey);
     		
     		// set any non-null fields from this location row
-    		if(chromosome!=null) al.chromosome=chromosome;
-    		if(startCoord>0) al.startCoordinate=startCoord;
-    		if(endCoord>0) al.endCoordinate=endCoord;
-    		if(cmOffset>0.0) al.cmOffset=cmOffset;
+    		if(chromosome!=null) ml.chromosome=chromosome;
+    		if(startCoord>0) ml.startCoordinate=startCoord;
+    		if(endCoord>0) ml.endCoordinate=endCoord;
+    		if(cmOffset>0.0) ml.cmOffset=cmOffset;
+    		if(strand!=null) ml.strand=strand;
     	}
     	logger.info("done building map of marker_keys -> marker locations");
     	return locationMap;
@@ -574,6 +577,7 @@ public class MarkerIndexerSQL extends Indexer
     	Integer startCoordinate=0;
     	Integer endCoordinate=0;
     	Double cmOffset=0.0;
+    	String strand=null;
     }
     
     // helper class for marker terms
