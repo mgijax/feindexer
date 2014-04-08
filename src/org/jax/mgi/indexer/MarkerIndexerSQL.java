@@ -150,10 +150,10 @@ public class MarkerIndexerSQL extends Indexer
             doc.addField(IndexConstants.MRK_SYMBOL, rs.getString("symbol"));
             doc.addField(IndexConstants.MRK_NAME, rs.getString("name"));
             doc.addField(IndexConstants.MRK_TYPE, rs.getString("marker_type"));
-            doc.addField("featureType", rs.getString("marker_subtype"));
-            doc.addField("featureTypeKey", rs.getString("marker_subtype_key"));
-            doc.addField("coordinateDisplay", rs.getString("coordinate_display"));
-            doc.addField("locationDisplay", rs.getString("location_display"));
+            doc.addField(MarkerSummaryFields.FEATURE_TYPE, rs.getString("marker_subtype"));
+            doc.addField(MarkerSummaryFields.FEATURE_TYPE_KEY, rs.getString("marker_subtype_key"));
+            doc.addField(MarkerSummaryFields.COORDINATE_DISPLAY, rs.getString("coordinate_display"));
+            doc.addField(MarkerSummaryFields.LOCATION_DISPLAY, rs.getString("location_display"));
 
             doc.addField(IndexConstants.MRK_STATUS, rs.getString("status"));
             doc.addField(IndexConstants.MRK_ORGANISM, rs.getString("organism"));
@@ -178,10 +178,10 @@ public class MarkerIndexerSQL extends Indexer
             	for(MarkerTerm mt : termToMarkers.get(mrkKey))
             	{
             		String termField = "goTerm";
-            		if(GO_PROCESS.equals(mt.vocab)) termField = "goProcessTerm";
-            		else if(GO_FUNCTION.equals(mt.vocab)) termField = "goFunctionTerm";
-            		else if(GO_COMPONENT.equals(mt.vocab)) termField = "goComponentTerm";
-            		else if(INTERPRO_VOCAB.equals(mt.vocab)) termField = "interProTerm";
+            		if(GO_PROCESS.equals(mt.vocab)) termField = MarkerSummaryFields.GO_PROCESS_TERM;
+            		else if(GO_FUNCTION.equals(mt.vocab)) termField = MarkerSummaryFields.GO_FUNCTION_TERM;
+            		else if(GO_COMPONENT.equals(mt.vocab)) termField = MarkerSummaryFields.GO_COMPONENT_TERM;
+            		else if(INTERPRO_VOCAB.equals(mt.vocab)) termField = MarkerSummaryFields.INTERPRO_TERM;
             		
             		//logger.info("field="+field+",mtvocab="+mt.vocab+",term="+mt.term);
             		this.addFieldNoDup(doc,termField,mt.term);
@@ -215,7 +215,7 @@ public class MarkerIndexerSQL extends Indexer
             	if(ml.startCoordinate>0) doc.addField(IndexConstants.START_COORD, ml.startCoordinate);
             	if(ml.endCoordinate>0) doc.addField(IndexConstants.END_COORD, ml.endCoordinate);
             	if(ml.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, ml.cmOffset);
-            	if(ml.strand!=null) doc.addField("strand",ml.strand);
+            	if(ml.strand!=null) doc.addField(IndexConstants.STRAND,ml.strand);
             }
             
             /*
@@ -234,9 +234,9 @@ public class MarkerIndexerSQL extends Indexer
              * Allele phenotypes
              */
             // add the phenotype notes
-            this.addAllFromLookup(doc,"phenoText",mrkKey,alleleNotesMap);
-            this.addAllFromLookup(doc,"phenoId",mrkKey,alleleTermIdMap);
-            this.addAllFromLookup(doc,"phenoText",mrkKey,alleleTermMap);
+            this.addAllFromLookup(doc,MarkerSummaryFields.PHENO_TEXT,mrkKey,alleleNotesMap);
+            this.addAllFromLookup(doc,MarkerSummaryFields.PHENO_ID,mrkKey,alleleTermIdMap);
+            this.addAllFromLookup(doc,MarkerSummaryFields.PHENO_TEXT,mrkKey,alleleTermMap);
             
             docs.add(doc);
             
