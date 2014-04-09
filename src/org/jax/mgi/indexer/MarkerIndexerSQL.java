@@ -162,8 +162,8 @@ public class MarkerIndexerSQL extends Indexer
             doc.addField(IndexConstants.MRK_PRIMARY_ID,markerID);
             
             // sorts
-            doc.addField("bySymbol",rs.getInt("by_symbol"));
-            doc.addField("byLocation",rs.getInt("by_location"));
+            doc.addField(MarkerSummaryFields.BY_SYMBOL,rs.getInt("by_symbol"));
+            doc.addField(MarkerSummaryFields.BY_LOCATION,rs.getInt("by_location"));
             
             // Parse the 1->N marker relationships here
             this.addAllFromLookup(doc,IndexConstants.REF_KEY,mrkKey,referenceToMarkers);
