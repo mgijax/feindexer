@@ -52,7 +52,8 @@ public class MarkerIndexerSQL extends Indexer
     	logger.info("loading go ancestor terms");
     	String goAncestorQuery = "select t.primary_id term_id,tas.ancestor_term,tas.ancestor_primary_id " +
     			"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
-    			"where t.vocab_name in ('GO','InterPro Domains') ";
+    			"where t.vocab_name in ('GO','InterPro Domains') " +
+    			"and t.term not in ('cellular_component','biological_process','molecular_function') ";
     	this.ancestorTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
     	this.ancestorIds = this.populateLookup(goAncestorQuery,"term_id","ancestor_primary_id","GO term ID -> Ancestor Term ID");
     	String synonymQuery = "select t.primary_id term_id,ts.synonym " +
@@ -402,7 +403,8 @@ public class MarkerIndexerSQL extends Indexer
         		"	term t on t.primary_id=a.term_id " +
         		"where m.marker_key > " + start + " and m.marker_key <= "+ end +" "+
         			"and m.annotation_key = a.annotation_key " +
-        			"and a.annotation_type in ('GO/Marker','InterPro/Marker') ";
+        			"and a.annotation_type in ('GO/Marker','InterPro/Marker') " +
+        			"and a.term not in ('cellular_component','biological_process','molecular_function') ";
         Map <String,List<MarkerTerm>> tempMap = new HashMap<String,List<MarkerTerm>>();
         
         ResultSet rs = ex.executeProto(markerToTermSQL); 
