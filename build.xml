@@ -10,7 +10,8 @@
   <property name="build" location="build"/>
   <property name="dist" location="dist"/>
   <property name="deploy" location="dist"/>
-
+  <property name="unittestoutput.dir" location="unittest-results" />
+	
   <property environment="env"/>
   <path id="class.path">
     <fileset dir="lib">
@@ -34,7 +35,7 @@
   <!-- compile -->
   <target name="compile" depends="clean, init" >
     <javac debug="on" srcdir="${src}" destdir="${build}"
-    	excludes="org/jax/mgi/shr/test/**">
+    	excludes="unittest/**">
 	<classpath>
 		<fileset dir="lib">
 			<include name="**/*.jar"/>
@@ -42,8 +43,25 @@
      </classpath>
     </javac>
   </target>
+	
+	<target name="unittest" depends="compile">
+			<echo>Running unit tests, output should be in ${unittestoutput.dir}</echo>
+			<mkdir dir="${unittestoutput.dir}"/>
+			<junit fork="yes" forkmode="once" failureproperty="junit.failure" 
+			printsummary="yes" >
+				<classpath>
+					<path refid="class.path" />
+				</classpath>
+				<formatter type="xml" usefile="true" />
+				<batchtest todir="${unittestoutput.dir}">
+					<fileset dir="${build}" includes="unittest/mgi/**/*Test.class">
+					</fileset>
+				</batchtest>
+			</junit>
+			<fail message="Test failure detected, check test results." if="junit.failure" />
+		</target>
   
-  <target name="jar" depends="compile"
+  <target name="jar" depends="unittest"
           description="Generates a jar.">
      <jar jarfile="${dist}/feindexer.jar"
           basedir="${build}"
