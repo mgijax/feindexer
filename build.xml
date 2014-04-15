@@ -18,6 +18,7 @@
       <include name="**/*.jar" />
     </fileset>
     <fileset includes="fe.jar" dir="${env.MGI_JAVALIB}" />
+  	<pathelement location="${build}" />
   </path>
 
   <!-- init -->
@@ -34,8 +35,7 @@
 
   <!-- compile -->
   <target name="compile" depends="clean, init" >
-    <javac debug="on" srcdir="${src}" destdir="${build}"
-    	excludes="unittest/**">
+    <javac debug="on" srcdir="${src}" destdir="${build}">
 	<classpath>
 		<fileset dir="lib">
 			<include name="**/*.jar"/>
@@ -54,7 +54,7 @@
 				</classpath>
 				<formatter type="xml" usefile="true" />
 				<batchtest todir="${unittestoutput.dir}">
-					<fileset dir="${build}" includes="unittest/mgi/**/*Test.class">
+					<fileset dir="${build}" includes="unittest/**/*Test.class">
 					</fileset>
 				</batchtest>
 			</junit>
