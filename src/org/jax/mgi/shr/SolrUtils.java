@@ -15,7 +15,7 @@ public class SolrUtils {
 	 */
     public static float boost(List<String> fieldList, String field)
     {
-    	return boost(fieldList,field,1000000000000000.0);
+    	return boost(fieldList,field,(double)Float.MAX_VALUE);
     }
     public static float boost(List<String> fieldList, String field, Double maxBoost)
     {
