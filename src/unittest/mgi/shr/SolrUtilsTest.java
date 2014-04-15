@@ -13,9 +13,10 @@ public class SolrUtilsTest {
 	@Test
 	public void testBoost() {
 		List<String> fieldList = Arrays.asList("1","2","3","4");
-		Assert.assertEquals(100000000,round(SolrUtils.boost(fieldList,"1",100000000.0)));
-		Assert.assertEquals(10000,round(SolrUtils.boost(fieldList,"2",100000000.0)));
-		Assert.assertEquals(1,round(SolrUtils.boost(fieldList,"3",100000000.0)));
+		double maxBoost = 100000000.0;
+		Assert.assertEquals((float)100000000.0,SolrUtils.boost(fieldList,"1",maxBoost));
+		Assert.assertEquals((float)1000.0,SolrUtils.boost(fieldList,"2",maxBoost));
+		Assert.assertEquals((float)0.01,SolrUtils.boost(fieldList,"3",maxBoost));
 	}
 	@Test
 	public void testBoostNotExists() {
@@ -26,7 +27,7 @@ public class SolrUtilsTest {
 	/*
 	 * private helper functions
 	 */
-	private int round(float f){
+	private long round(float f){
 		return Math.round(f);
 	}
 }

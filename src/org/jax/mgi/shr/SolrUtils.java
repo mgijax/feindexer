@@ -15,14 +15,14 @@ public class SolrUtils {
 	 */
     public static float boost(List<String> fieldList, String field)
     {
-    	return boost(fieldList,field,1000000000000.0);
+    	return boost(fieldList,field,1000000000000000.0);
     }
     public static float boost(List<String> fieldList, String field, Double maxBoost)
     {
     	if(fieldList.contains(field)) 
     	{
     		int idx = fieldList.indexOf(field);
-    		return (float) (maxBoost * Math.pow(0.0001,idx));
+    		return (float) (maxBoost * Math.pow(0.00001,idx));
     	}
     	return (float) 0;
     }
