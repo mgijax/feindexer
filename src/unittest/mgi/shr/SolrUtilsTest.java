@@ -13,9 +13,9 @@ public class SolrUtilsTest {
 	@Test
 	public void testBoost() {
 		List<String> fieldList = Arrays.asList("1","2","3","4");
-		Assert.assertEquals(10000,round(SolrUtils.boost(fieldList,"1",10000.0)));
-		Assert.assertEquals(9000,round(SolrUtils.boost(fieldList,"2",10000.0)));
-		Assert.assertEquals(8100,round(SolrUtils.boost(fieldList,"3",10000.0)));
+		Assert.assertEquals(1000000,round(SolrUtils.boost(fieldList,"1",1000000.0)));
+		Assert.assertEquals(1000,round(SolrUtils.boost(fieldList,"2",1000000.0)));
+		Assert.assertEquals(1,round(SolrUtils.boost(fieldList,"3",1000000.0)));
 	}
 	@Test
 	public void testBoostNotExists() {
