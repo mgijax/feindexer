@@ -9,20 +9,20 @@ public class SolrUtils {
     
 	/*
 	 * Applies a boost to a field depending on its priority in the field list
-	 * 	default maxBoost is 1,000,000,000 for the highest priority item
-	 * 	all lower priority items get 1% of the previous priority item's boost
-	 * 	E.g. 4th item will get maxBoost * 1% ^ 4 = 1
+	 * 	default maxBoost is 1,000,000,000,000 for the highest priority item
+	 * 	all lower priority items get .1% of the previous priority item's boost
+	 * 	E.g. 4th item will get maxBoost * .1% ^ 4 = 1
 	 */
     public static float boost(List<String> fieldList, String field)
     {
-    	return boost(fieldList,field,1000000000.0);
+    	return boost(fieldList,field,1000000000000.0);
     }
     public static float boost(List<String> fieldList, String field, Double maxBoost)
     {
     	if(fieldList.contains(field)) 
     	{
     		int idx = fieldList.indexOf(field);
-    		return (float) (maxBoost * Math.pow(0.001,idx));
+    		return (float) (maxBoost * Math.pow(0.0001,idx));
     	}
     	return (float) 0;
     }
