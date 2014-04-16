@@ -18,7 +18,7 @@ public class SolrUtils {
     {
     	if(fieldList.contains(field)) 
     	{
-    		int decreaseFactor = 4;
+    		double decreaseFactor = 1.5;
     		int idx = fieldList.indexOf(field);
     		double factor = maxBoost / (Math.pow(decreaseFactor,idx));
     		if(factor < 1) factor = 1;
