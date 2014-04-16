@@ -12,11 +12,13 @@ public class SolrUtilsTest {
 
 	@Test
 	public void testBoost() {
-		List<String> fieldList = Arrays.asList("1","2","3","4");
-		double maxBoost = 100000000.0;
-		Assert.assertEquals((float)100000000.0,SolrUtils.boost(fieldList,"1",maxBoost));
-		Assert.assertEquals((float)1000.0,SolrUtils.boost(fieldList,"2",maxBoost));
-		Assert.assertEquals((float)0.01,SolrUtils.boost(fieldList,"3",maxBoost));
+		List<String> fieldList = Arrays.asList("1","2","3","4","5","6","7");
+		double maxBoost = 1000.0;
+		Assert.assertEquals((float)1000.0,SolrUtils.boost(fieldList,"1",maxBoost));
+		Assert.assertEquals((float)100.0,SolrUtils.boost(fieldList,"2",maxBoost));
+		Assert.assertEquals((float)1.0,SolrUtils.boost(fieldList,"4",maxBoost));
+		Assert.assertEquals((float)-10.0,SolrUtils.boost(fieldList,"5",maxBoost));
+		Assert.assertEquals((float)-100.0,SolrUtils.boost(fieldList,"6",maxBoost));
 	}
 	@Test
 	public void testBoostNotExists() {
