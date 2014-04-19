@@ -3,11 +3,8 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /**

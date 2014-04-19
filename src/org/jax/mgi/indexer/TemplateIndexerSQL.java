@@ -7,7 +7,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.jax.mgi.reporting.Timer;
 
 /**
  * The template indexer

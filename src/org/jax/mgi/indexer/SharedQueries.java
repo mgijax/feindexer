@@ -1,7 +1,5 @@
 package org.jax.mgi.indexer;
 
-import java.util.Arrays;
-import java.util.List;
 
 /**
  * A class of shared queries, for cases when logic needs to be consistent across multiple indexes

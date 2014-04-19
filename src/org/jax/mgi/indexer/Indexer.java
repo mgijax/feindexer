@@ -1,14 +1,8 @@
 package org.jax.mgi.indexer;
 
 import java.io.IOException;
-
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
-import org.apache.solr.common.SolrException;
-import org.apache.solr.common.SolrInputDocument;
 import java.io.InputStream;
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -19,10 +13,12 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
+import org.apache.http.impl.client.DefaultHttpClient;
+import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
-//import org.apache.solr.client.solrj.impl.StreamingUpdateSolrServer;
+import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SQLExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -328,8 +324,9 @@ public abstract class Indexer {
     	return populateLookup(query,uniqueFieldName,secondFieldName,logText,lookupRef,LinkedHashSet.class);
     }
 
-    protected Map<String,Set<String>> populateLookup(String query,String uniqueFieldName,String secondFieldName,String logText,
-    		Map<String,? extends Set<String>> lookupRef,Class<? extends Set> setClass) throws Exception
+    @SuppressWarnings("unchecked")
+	protected Map<String,Set<String>> populateLookup(String query,String uniqueFieldName,String secondFieldName,String logText,
+    		Map<String,? extends Set<String>> lookupRef,@SuppressWarnings("rawtypes") Class<? extends Set> setClass) throws Exception
     {
     	// do some type-casting magic in order to create a new instance of "? extends Set"
     	Map<String,Set<String>> returnLookup = (Map<String,Set<String>>) lookupRef;

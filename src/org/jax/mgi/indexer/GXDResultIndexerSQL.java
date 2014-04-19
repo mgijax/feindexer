@@ -1,6 +1,5 @@
 package org.jax.mgi.indexer;
 
-import java.io.IOException;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -14,7 +13,6 @@ import java.util.Set;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
-import org.jax.org.mgi.shr.fe.util.TextFormat;
 
 /**
  * GXDResultIndexerSQL

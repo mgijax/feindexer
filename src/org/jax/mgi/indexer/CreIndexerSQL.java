@@ -7,10 +7,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.CreFields;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;

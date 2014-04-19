@@ -10,8 +10,6 @@ import java.util.Date;
 import java.util.Properties;
 
 import org.jax.mgi.indexer.Indexer;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 
 

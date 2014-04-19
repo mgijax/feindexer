@@ -1,9 +1,7 @@
 package org.jax.mgi.indexer;
 
-import java.io.IOException;
 import java.sql.ResultSet;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;

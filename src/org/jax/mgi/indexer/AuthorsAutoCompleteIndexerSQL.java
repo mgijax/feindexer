@@ -8,7 +8,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -103,7 +102,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
             }
             logger.info("Build HashMap of " + uniqueAuthors.size() + " authors");
             
-            List<String> authors = new ArrayList(uniqueAuthors.keySet());
+            List<String> authors = new ArrayList<String>(uniqueAuthors.keySet());
             Collections.sort(authors);
             
             Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();

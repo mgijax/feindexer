@@ -59,7 +59,7 @@ public class MarkerSearchInfo {
 	/* accessories */
 
 	public List<String> getNomen() {
-		List<String> allNomen = new ArrayList();
+		List<String> allNomen = new ArrayList<String>();
 
 		if (this.symbol != null) { allNomen.add (symbol); }
 		if (this.name != null) { allNomen.add (name); }
