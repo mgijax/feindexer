@@ -14,7 +14,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.tsccm.ThreadSafeClientConnManager;
+import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
@@ -78,7 +78,7 @@ public abstract class Indexer {
         // by using threads.
         // (kstone) NOTE: Supposedly the StreamingUpdateSolrServer does this kind of threading for you, but I could not get it to work
         // 	without either crashing unexpectedly, or running much slower. So good luck to anyone who tries to figure out that approach.
-        ThreadSafeClientConnManager mgr = new ThreadSafeClientConnManager();
+        PoolingClientConnectionManager mgr = new PoolingClientConnectionManager();
         DefaultHttpClient client = new DefaultHttpClient(mgr);
         
         String httpUrl = props.getProperty(httpPropName);
@@ -198,10 +198,10 @@ public abstract class Indexer {
     {
     	HttpSolrServer server;
     	Collection<SolrInputDocument> docs;
-    	private int commitWithin = 50000; // 50 seconds
-    	private int times_to_retry = 5;
+    	private final int commitWithin = 50000; // 50 seconds
+    	private final int times_to_retry = 5;
     	private int times_retried = 0;
-    	private Indexer idx;
+    	private final Indexer idx;
     	
     	public DocWriterThread(Indexer idx,Collection<SolrInputDocument> docs)
     	{

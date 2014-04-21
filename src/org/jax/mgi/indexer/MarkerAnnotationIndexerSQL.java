@@ -34,8 +34,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
             rs_tmp.next();
             
             System.out.println("Max Term Number: " + rs_tmp.getString("maxAnnotKey") + " Timing: "+ ex.getTiming());
-            String start = "0";
-            String end = rs_tmp.getString("maxAnnotKey");
+
                                                
 	    // get the references for each annotation
 

@@ -596,9 +596,4 @@ public class MarkerIndexerSQL extends Indexer
     	String term;
     	String termType;
     }
-    
-    private boolean notEmpty(String s)
-    {
-    	return s!=null && !s.equals("");
-    }
 }

@@ -127,7 +127,7 @@ public class GXDDifferentialIndexerSQL extends Indexer
             	{
             		markerResults.put(marker_key,new ArrayList<Result>());
             	}
-            	String uniqueStageResult = "TS"+stage+":"+structure;
+            	//String uniqueStageResult = "TS"+stage+":"+structure;
             	//TODO: find a way to roll up conflicting results for same structure and stage
 //            	if(uniqueStageResults.contains(uniqueStageResult)) continue;
 //            	else
@@ -343,7 +343,7 @@ public class GXDDifferentialIndexerSQL extends Indexer
     {
     	public String stage;
     	
-    	private Map<String,ExclusiveResultTracker> resultTrackers = new HashMap<String,ExclusiveResultTracker>();
+    	private final Map<String,ExclusiveResultTracker> resultTrackers = new HashMap<String,ExclusiveResultTracker>();
     	private Set<String> exclusiveStructures = new HashSet<String>();
     	
     	ExclusiveStageTracker(String stage)

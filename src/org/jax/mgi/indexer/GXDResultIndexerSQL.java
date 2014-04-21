@@ -430,8 +430,6 @@ public class GXDResultIndexerSQL extends Indexer
         logger.info("Getting all assay results and related search criteria");
 	logger.info("Max result_key: " + end + ", chunks: " + (modValue + 1));
             
-        long commit_every=50000;
-        long record_count=0;
         for (int i = 0; i <= modValue; i++) {
             
             start = i * chunkSize;
@@ -520,7 +518,6 @@ public class GXDResultIndexerSQL extends Indexer
 	            
             logger.info("Parsing them");
             while (rs.next()) {          
-		record_count++;
 		String marker_key = rs.getString("marker_key");
 		// the marker symbol sort
 		String by_symbol = rs.getString("by_symbol");	            	

@@ -15,8 +15,6 @@ import org.jax.mgi.shr.fe.IndexConstants;
  */
 
 public class MPAnnotationIndexerSQL extends Indexer {
-
-    private static Runtime rt = Runtime.getRuntime();
    
     public MPAnnotationIndexerSQL () {
         super("index.url.mpAnnotation");

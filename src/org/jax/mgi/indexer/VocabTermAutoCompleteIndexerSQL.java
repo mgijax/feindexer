@@ -7,7 +7,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -28,7 +27,6 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
     
     public void index() throws Exception
     {    
-    	Set<String> uniqueIds = new HashSet<String>();
     	Map<String,Integer> termSort = new HashMap<String,Integer>();
     	ArrayList<String> termsToSort = new ArrayList<String>();
     	

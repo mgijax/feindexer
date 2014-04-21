@@ -5,9 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -63,8 +61,6 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
     
     public void index() throws Exception 
     {            
-        HashSet<String> authorSet = new HashSet<String>();
-        Map<String, String> fabAuthorsForGXD = new HashMap<String, String>(); 
         HashMap<String, String> uniqueAuthors = new HashMap<String, String>();
        
             // Get the distinct author list from the database.

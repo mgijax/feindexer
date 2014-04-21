@@ -332,7 +332,6 @@ public class DiseasePortalIndexerSQL extends Indexer
         {
         	Integer markerKey = rs.getInt("marker_key");
         	String chromosome = rs.getString("chromosome");
-        	String strand = rs.getString("strand");
         	Long start = rs.getLong("start_coordinate");
         	Long end = rs.getLong("end_coordinate");
         	if(!markerLocationMap.containsKey(markerKey))
@@ -602,7 +601,8 @@ public class DiseasePortalIndexerSQL extends Indexer
             
             // populate the lookups for this chunk of data
             // set which data we query for any given mp term
-            List<Map<String,Set<String>>> mpLookups = Arrays.asList(termSynonymMap,altTermIdMap,termAncestorMap,termAncestorIdMap);
+            @SuppressWarnings("unchecked")
+			List<Map<String,Set<String>>> mpLookups = Arrays.asList(termSynonymMap,altTermIdMap,termAncestorMap,termAncestorIdMap);
             // make a lookup to map MP queries to diseases for related genotype clusters
             Map<String,Set<String>> mpTermForSSDiseaseMap = this.populateMpForSSDiseaseLookup(start,end,mpLookups);
             // make a lookup to map MP queries to diseases for related genotypes
@@ -610,7 +610,8 @@ public class DiseasePortalIndexerSQL extends Indexer
             // make a lookup to map MP queries to other MP terms in related genotype clusters
             Map<String,Set<String>> mpTermForMPMap = this.populateMpForMpGridLookup(start,end,mpLookups);
             // make a lookup to map OMIM queries to other MP terms in related genotype clusters
-            List<Map<String,Set<String>>> omimLookups = Arrays.asList(termSynonymMap);
+            @SuppressWarnings("unchecked")
+			List<Map<String,Set<String>>> omimLookups = Arrays.asList(termSynonymMap);
             Map<String,Set<String>> omimTermForMPMap = populateOMIMForMpGridLookup(start,end,omimLookups);
             Map<String,Set<String>> omimTermForDiseaseMap = populateOMIMForOMIMGridLookup(start,end,omimLookups);
             
