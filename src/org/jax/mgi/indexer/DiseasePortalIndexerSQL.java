@@ -209,15 +209,15 @@ public class DiseasePortalIndexerSQL extends Indexer
 		logger.info("done builing map of marker key -> homologeneId");
 		
 		String gridMouseSymbolsQuery = "select gcm.hdp_gridcluster_key, " +
-				"gcm.symbol||'||'||gcm.marker_key symbol " +
-				"from hdp_gridcluster_marker gcm " +
-				"where gcm.organism_key=1 ";
+				"gcm.symbol||'||'||gcm.marker_key||'||'||mrk.name||'||'||mrk.marker_subtype symbol " +
+				"from hdp_gridcluster_marker gcm, marker mrk " +
+				"where gcm.organism_key=1 and gcm.marker_key = mrk.marker_key";
         Map<String,Set<String>> gridMouseSymbolsMap = populateLookupOrdered(gridMouseSymbolsQuery,"hdp_gridcluster_key","symbol", "gridclusterKeys to mouse symbols");
 		
         String gridHumanSymbolsQuery =  "select gcm.hdp_gridcluster_key, " +
-				"gcm.symbol " +
-				"from hdp_gridcluster_marker gcm " +
-				"where gcm.organism_key=2 ";
+				"gcm.symbol||'||'||gcm.marker_key||'||'||mrk.name||'||'||mrk.marker_subtype symbol " +
+				"from hdp_gridcluster_marker gcm, marker mrk " +
+				"where gcm.organism_key=2 and gcm.marker_key = mrk.marker_key";
         Map<String,Set<String>> gridHumanSymbolsMap = populateLookupOrdered(gridHumanSymbolsQuery,"hdp_gridcluster_key","symbol", "gridclusterKeys to human symbols");
         
         // load grid cluster sorts
