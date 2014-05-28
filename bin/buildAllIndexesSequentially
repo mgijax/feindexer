@@ -6,7 +6,7 @@
 uptime
 
 echo "Building all indexes"
-./buildIndex all 2 6
+./buildIndex all 2 6 || { echo "building indexes failed"; exit 1; }
 
 #done
 echo "Successfully completed"
