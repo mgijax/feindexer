@@ -251,7 +251,7 @@ public class GXDLitIndexerSQL extends Indexer {
     			rs_base.next();
     		}
     		
-            server.add(docs);
+            if(docs.size()>0) server.add(docs);
             server.commit();
            
     	
