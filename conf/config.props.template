@@ -7,6 +7,7 @@ index.url.sequence={BASE_URL}/sequence/
 index.url.cre={BASE_URL}/cre/
 index.url.marker={BASE_URL}/marker/
 index.url.markerPanesetImage={BASE_URL}/markerPanesetImage/
+index.url.interaction={BASE_URL}/interaction/
 index.url.image={BASE_URL}/image/
 index.url.allele={BASE_URL}/allele/
 index.url.markerAnnotation={BASE_URL}/markerAnnotation/

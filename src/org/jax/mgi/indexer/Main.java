@@ -59,6 +59,7 @@ public class Main
 		indexerMap.put("mpAnnotation", new MPAnnotationIndexerSQL());
 		indexerMap.put("diseasePortal", new DiseasePortalIndexerSQL());
 		indexerMap.put("diseasePortalAnnotation", new DiseasePortalAnnotationIndexerSQL());
+		indexerMap.put("interaction", new InteractionIndexerSQL());
 	}
 	
 	// other command args

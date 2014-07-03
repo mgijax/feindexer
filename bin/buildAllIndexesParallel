@@ -45,6 +45,7 @@ STANDARD_INDEXES = [
 	('gxdImagePane', 2, 4),
 	('gxdDifferentialMarker', 2, 4),
 	('diseasePortalAnnotation', 2, 4),
+	('interaction', 2, 4),
 	]
 
 # same as STANDARD_INDEXES, but for indexers which can produce a large amount
