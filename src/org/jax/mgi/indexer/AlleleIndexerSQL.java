@@ -104,6 +104,10 @@ public class AlleleIndexerSQL extends Indexer
     	Map<String,Set<String>> alleleTermMap = getAlleleTermsMap(startKey,endKey);
     	Map<String,Set<String>> alleleTermIdMap = getAlleleTermIdsMap(startKey,endKey);
     	
+	// mutation involves markers
+	Map<String,Set<String>> mutationInvolvesMap = getMutationInvolvesMap(
+		startKey, endKey);
+
     	// nomenclature
     	Map<String,Set<String>> mrkNomenMap = getMarkerNomenMap(startKey, endKey);
     	Map<String,Set<String>> allNomenMap = getAlleleNomenMap(startKey, endKey);
@@ -154,6 +158,20 @@ public class AlleleIndexerSQL extends Indexer
              */
             doc.addField(IndexConstants.MRK_KEY,mrkKeyString);
             doc.addField(IndexConstants.MRK_ID,rs.getString("marker_id"));
+
+	    /*
+	     * Add mutation involves markers:
+	     * 1. to standard MRK_ID field so the allele will be returned
+	     *    for either its traditional marker ID or for any markers
+	     *    with a mutation involves relationship.
+	     * 2. to the new ALL_MI_MARKER_IDS field so we can return just the
+	     *    alleles related to a marker by a mutation involves
+	     *    relationship.
+	     */
+            this.addAllFromLookup(doc,IndexConstants.MRK_ID, allKeyString,
+		mutationInvolvesMap);
+            this.addAllFromLookup(doc,IndexConstants.ALL_MI_MARKER_IDS,
+		allKeyString, mutationInvolvesMap);
 
             /*
              * Add allele fields
@@ -239,6 +257,20 @@ public class AlleleIndexerSQL extends Indexer
     /*
      * Lookup access functions
      */
+    public Map<String,Set<String>> getMutationInvolvesMap(int start, int end)
+	    throws Exception
+    {
+	String mutationInvolvesSQL = "select allele_key, related_marker_id "
+		+ "from allele_related_marker "
+		+ "where relationship_category = 'mutation_involves' "
+		+ "  and allele_key > " + start
+		+ "  and allele_key <= " + end;
+
+	return this.populateLookup(mutationInvolvesSQL, "allele_key",
+		"related_marker_id",
+		"allele_key->mutation involves markers");
+    }
+
     public Map<String,Set<String>> getAlleleNotesMap(int start,int end) throws Exception
     {
     	// get all phenotype notes for alleles
