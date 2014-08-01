@@ -523,7 +523,7 @@ public class MarkerIndexerSQL extends Indexer
     			"where msn.term_type in ('human name','human synonym','human symbol'," +
         				"'current symbol','current name','old symbol','synonym','related synonym','old name'," +
         				"'rat symbol','rat synonym','cattle symbol','chicken symbol','dog symbol'," +
-        				"'rhesus macaque symbol','zebrafish symbol' ) ";
+        				"'rhesus macaque symbol','xenopus symbol','zebrafish symbol' ) ";
     	this.ex.executeVoid(mrkNomenQuery);
     	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
     			"select mta.marker_key, a.symbol nomen, 'alleleSymbol' term_type " +
