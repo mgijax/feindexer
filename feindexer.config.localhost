@@ -1,0 +1,28 @@
+
+if [ "${MGICONFIG}" = "" ]
+then
+    MGICONFIG=/usr/local/mgi/live/mgiconfig
+    export MGICONFIG
+fi
+
+. ${MGICONFIG}/master.config.sh
+
+FILE_DIR=${DATALOADSOUTPUT}/feindexer
+LOG_DIR=${FILE_DIR}/logs
+export FILE_DIR LOG_DIR
+
+CONFIG_MASTER=${MGICONFIG}/master.config.sh
+export CONFIG_MASTER
+
+INSTALL_DIR=${FEINDEXER}
+export INSTALL_DIR
+
+LIB_DIR=$INSTALL_DIR/lib
+export LIB_DIR
+
+SOLR_PORT=8991
+export SOLR_PORT
+
+BUILD_SCRIPT=buildAllIndexesSequentially
+export BUILD_SCRIPT
+
