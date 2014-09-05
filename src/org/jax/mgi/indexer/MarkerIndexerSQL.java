@@ -46,8 +46,6 @@ public class MarkerIndexerSQL extends Indexer
      */
     public void index() throws Exception
     {
-    	this.tempTables();
-    	
     	logger.info("loading go ancestor terms");
     	String goAncestorQuery = "select t.primary_id term_id,tas.ancestor_term,tas.ancestor_primary_id " +
     			"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
@@ -281,115 +279,288 @@ public class MarkerIndexerSQL extends Indexer
     	return locationMap;
     }
     
-    private Map<Integer,List<MarkerNomen>> getMarkerNomen(int start,int end) throws Exception
+    /* execute the given 'sqlCmd', taking data from 'keyField' (marker key),
+     * 'termField' (nomen value), and 'termTypeField' (type of nomen value),
+     * and adding it to the given 'nomenMap'.  'dataSet' identifies the data
+     * set for reporting.
+     */
+    private void populateNomenMap (String sqlCmd, String keyField,
+	String termField, String termTypeField, String dataSet,
+	Map<Integer,List<MarkerNomen>> nomenMap)
+	    throws Exception
     {
-    	logger.info("building map of marker_keys -> marker nomen");
-    	String mrkNomenQuery = "select marker_key, nomen, term_type " +
-    			"from tmp_marker_nomen mn " +
-    			"where mn.marker_key > "+start+" and mn.marker_key <= "+end;
-
-    	Map<Integer,List<MarkerNomen>> nomenMap = new HashMap<Integer,List<MarkerNomen>>();
-    	ResultSet rs = ex.executeProto(mrkNomenQuery);
+    	ResultSet rs = ex.executeProto(sqlCmd);
     	while(rs.next())
     	{
-    		Integer mrkKey = rs.getInt("marker_key");
+    		Integer mrkKey = rs.getInt(keyField);
     		
     		MarkerNomen mn = new MarkerNomen();
-    		mn.term = rs.getString("nomen");
-    		mn.termType = rs.getString("term_type");
+    		mn.term = rs.getString(termField);
+    		mn.termType = rs.getString(termTypeField);
     		
-    		if(!nomenMap.containsKey(mrkKey)) nomenMap.put(mrkKey,new ArrayList<MarkerNomen>(Arrays.asList(mn)));
-    		else nomenMap.get(mrkKey).add(mn);
+    		if (!nomenMap.containsKey(mrkKey)) {
+		    nomenMap.put(mrkKey, 
+			new ArrayList<MarkerNomen>(Arrays.asList(mn)) );
+		} else {
+		    nomenMap.get(mrkKey).add(mn);
+		}
     	}
-    	logger.info("done building map of marker_keys -> marker nomen");
-    	return nomenMap;
+    	logger.info("added " + dataSet + " to nomenMap");
     }
     
+    /* get a mapping from marker key to a list of MarkerNomen objects which
+     * can be searched to find that marker
+     */
+    private Map<Integer,List<MarkerNomen>> getMarkerNomen(int start,int end)
+	throws Exception
+    {
+    	logger.info("building map of marker_keys -> marker nomen");
+
+	// mapping from marker key to list of MarkerNomen objects (to be
+	// constructed and returned)
+    	Map<Integer,List<MarkerNomen>> nomenMap =
+	    new HashMap<Integer,List<MarkerNomen>>();
+
+	// add current and old mouse nomenclature, plus selected ortholog
+	// nomenclature (human, rat, cattle, chicken, dog, monkey, zfin)
+	String markerNomenSQL = "select marker_key, term, term_type "
+	    + "from marker_searchable_nomenclature "
+	    + "where term_type in ("
+	    + "    'human name', 'human synonym', 'human symbol', "
+	    + "    'current symbol', 'current name', 'old symbol', "
+	    + "    'synonym', 'related synonym', 'old name', "
+	    + "    'rat symbol', 'rat synonym', "
+	    + "    'cattle symbol', 'chicken symbol', 'dog symbol', "
+	    + "    'rhesus macaque symbol', 'xenopus symbol', "
+	    + "    'zebrafish symbol') "
+    	    + " and marker_key > " + start
+	    + " and marker_key <= " + end;
+
+	populateNomenMap (markerNomenSQL, "marker_key", "term", "term_type",
+		"marker symbols, names, synonyms", nomenMap);
+
+	// add allele symbols
+	String alleleSymbolSQL = "select m.marker_key, a.symbol, "
+	    + "    'alleleSymbol' as term_type "
+	    + "from marker_to_allele m, "
+	    + "    allele a "
+	    + "where m.allele_key = a.allele_key "
+	    + "    and m.marker_key > " + start
+	    + "    and m.marker_key <= " + end;
+
+	populateNomenMap (alleleSymbolSQL, "marker_key", "symbol", "term_type",
+		"allele symbols", nomenMap);
+
+	// add allele names
+	String alleleNameSQL = "select m.marker_key, a.name, "
+	    + "    'alleleName' as term_type "
+	    + "from marker_to_allele m, "
+	    + "    allele a "
+	    + "where m.allele_key = a.allele_key "
+	    + "    and m.marker_key > " + start
+	    + "    and m.marker_key <= " + end;
+
+	populateNomenMap (alleleNameSQL, "marker_key", "name", "term_type",
+		"allele names", nomenMap);
+
+	// return the completed mapping
+	return nomenMap;
+    }
+
+    /* get a mapping from marker key to a set of notes which can be used to 
+     * search for the marker.
+     */
     public Map<String,Set<String>> getAlleleNotesMap(int start,int end) throws Exception
     {
-    	// get all phenotype notes for alleles
-    	String phenoNotesSQL="select marker_key, note\r\n" + 
-    			"from tmp_allele_note "+
-    			"where marker_key > "+start+" and marker_key <= "+end+" ";
-    	return this.populateLookup(phenoNotesSQL,"marker_key","note","marker_key->annotation notes");
-    }
-    public Map<String,Set<String>> getAlleleTermIdsMap(int start,int end) throws Exception
-    {
-    	// get the direct MP ID associations
-	    String mpIdsSQL="select mpt.marker_key, mpt.term_id " + 
-	    		"from tmp_allele_mp_term mpt "+
-				"where mpt.marker_key > "+start+" and mpt.marker_key <= "+end+" ";
-		Map<String,Set<String>> allelePhenoIdMap = this.populateLookup(mpIdsSQL,"marker_key","term_id","allele_key->MP Ids");
-		
-		// add the parent IDs
-		String mpAncIdsSQL="select mpt.marker_key, tas.ancestor_primary_id " + 
-				"from tmp_allele_mp_term mpt join " +
-				"	term t on t.primary_id=mpt.term_id join " + 
-				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
-				"where mpt.marker_key > "+start+" and mpt.marker_key <= "+end+" ";
-		allelePhenoIdMap = this.populateLookup(mpAncIdsSQL,"marker_key","ancestor_primary_id","marker_key->ancestor IDs",allelePhenoIdMap);
-		
+	// get general notes for alleles related to the marker
+	String generalNotesSQL = "select mta.marker_key, "
+	    + "    replace(n.note, 'Background Sensitivity: ', '') as note "
+	    + "from marker_to_allele mta, "
+	    + "    allele_note n "
+	    + "where mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end
+	    + "    and mta.allele_key = n.allele_key "
+	    + "    and n.note_type = 'General' ";
 
-		// add OMIM IDs
-		String omimIdSql="select aot.marker_key,aot.term_id " + 
-				"from tmp_allele_omim_term aot " + 
-				"where aot.marker_key > "+start+" and aot.marker_key <= "+end+" ";
-		allelePhenoIdMap = this.populateLookup(omimIdSql,"marker_key","term_id","marker_key->OMIM IDs",allelePhenoIdMap);
-		
-		// add the alt IDs for all parents and MP and OMIM terms
-		String altIdSQL="select at.marker_key, ti.acc_id " + 
-				"from tmp_allele_term at join " + 
-				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
-				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join " + 
-				"	term_id ti on ti.term_key=anc_t.term_key " + 
-				"where at.marker_key > "+start+" and at.marker_key <= "+end+" "+
-				"UNION " + 
-				"select at.marker_key,ti.acc_id " + 
-				"from tmp_allele_term at join " + 
-				"	term_id ti on ti.term_key=at.term_key "+
-				"where at.marker_key > "+start+" and at.marker_key <= "+end+" ";
-		allelePhenoIdMap = this.populateLookup(altIdSQL,"marker_key","acc_id","marker_key->alt IDs",allelePhenoIdMap);
-		
-		
-		return allelePhenoIdMap;
+	Map<String,Set<String>> notes = this.populateLookup (generalNotesSQL,
+	    "marker_key", "note", "marker_key->general notes");
+
+	// add QTL notes for the marker
+	String qtlNotesSQL = "select m.marker_key, q.note "
+	    + "from marker m, "
+	    + "    marker_qtl_experiments q "
+	    + "where m.marker_key = q.marker_key "
+	    + "    and q.note_type = 'TEXT_QTL' "
+	    + "    and m.marker_type = 'QTL' "
+	    + "    and m.marker_key > " + start
+	    + "    and m.marker_key <= " + end;
+
+	notes = this.populateLookup (qtlNotesSQL, "marker_key", "note",
+	    "marker_key->QTL notes", notes);
+
+	// add annotation notes rolled up to the marker level
+	String annotationNotesSQL = "select marker_key, note "
+	    + "from marker_note "
+	    + "where marker_key > " + start
+	    + "    and marker_key <= " + end
+	    + "    and note_type = 'rolled up annotation notes' ";
+
+	notes = this.populateLookup (annotationNotesSQL, "marker_key", "note",
+	    "marker_key->annotation notes", notes);
+
+    	return notes;
     }
-    public Map<String,Set<String>> getAlleleTermsMap(int start,int end) throws Exception
+    
+    /* get a mapping from marker key to the set of MP and OMIM IDs that can be
+     * in searching to retrieve that marker
+     */
+    public Map<String,Set<String>> getAlleleTermIdsMap(int start,int end)
+	throws Exception
     {
-    	// get the direct MP Term associations
-	    String mpTermsSQL="select mpt.marker_key, mpt.term\r\n" + 
-	    		"from tmp_allele_mp_term mpt "+
-				"where mpt.marker_key > "+start+" and mpt.marker_key <= "+end+" ";
-		Map<String,Set<String>> allelePhenoTermMap = this.populateLookup(mpTermsSQL,"marker_key","term","marker_key->MP terms");
+    	// get the annotated MP and OMIM IDs
+	String mpIdsSQL = "select distinct mta.marker_key, a.term_id "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a "
+	    + "where mta.annotation_key = a.annotation_key "
+	    + "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
+	    + "        'OMIM/Marker') "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end;
+
+	Map<String,Set<String>> allelePhenoIdMap = this.populateLookup(
+	    mpIdsSQL, "marker_key", "term_id",
+	    "marker key->direct OMIM/MP IDs");
+
+	// add the alternate IDs for the annotated MP and OMIM terms
+	String altIdSQL = "select distinct mta.marker_key, i.acc_id "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a, "
+	    + "    term t, "
+	    + "    term_id i "
+	    + "where mta.annotation_type in ('OMIM/Marker', "
+	    + "         'Mammalian Phenotype/Marker') "
+	    + "    and mta.annotation_key = a.annotation_key "
+	    + "    and a.term_id = t.primary_id "
+	    + "    and a.term_id != i.acc_id "
+	    + "    and t.term_key = i.term_key "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end;
+
+	allelePhenoIdMap = this.populateLookup(altIdSQL, "marker_key",
+	    "acc_id", "marker_key->direct alternate OMIM/MP IDs",
+	    allelePhenoIdMap);
+
+	// add the primary and alternate IDs for ancestors of the annotated
+	// MP and OMIM terms.  (OMIM is technically not a DAG yet, but that
+	// day appears to be coming soon so we'll work it in here, too.)
+	String ancestorIdsSQL = "select distinct mta.marker_key, i.acc_id "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a, "
+	    + "    term t, "
+	    + "    term_ancestor_simple tas, "
+	    + "    term anc, "
+	    + "    term_id i "
+	    + "where mta.annotation_key = a.annotation_key "
+	    + "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
+	    + "        'OMIM/Marker') "
+	    + "    and a.term_id = t.primary_id "
+	    + "    and t.term_key = tas.term_key "
+	    + "    and tas.ancestor_primary_id = anc.primary_id "
+	    + "    and anc.term_key = i.term_key "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end;
 		
-		// add OMIM IDs
-		String omimTermSql="select aot.marker_key,aot.term " + 
-				"from tmp_allele_omim_term aot "+
-				"where aot.marker_key > "+start+" and aot.marker_key <= "+end+" ";
-		allelePhenoTermMap = this.populateLookup(omimTermSql,"marker_key","term","marker_key->OMIM IDs",allelePhenoTermMap);
-				
-		// add the parent terms
-		String mpAncTermsSQL="select mpt.marker_key, tas.ancestor_term\r\n" + 
-				"from tmp_allele_mp_term mpt join "+
-				"	term t on t.primary_id=mpt.term_id join " + 
-				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
-				"where mpt.marker_key > "+start+" and mpt.marker_key <= "+end+" ";
-		allelePhenoTermMap = this.populateLookup(mpAncTermsSQL,"marker_key","ancestor_term","marker_key->ancestor IDs",allelePhenoTermMap);
+	allelePhenoIdMap = this.populateLookup(ancestorIdsSQL, "marker_key",
+	    "acc_id", "marker_key->ancestor OMIM/MP IDs",
+	    allelePhenoIdMap);
+
+	return allelePhenoIdMap;
+    }
+
+    /* get a mapping from marker key to the MP and OMIM terms which can be
+     * used in searching to retrieve that marker
+     */
+    public Map<String,Set<String>> getAlleleTermsMap(int start,int end)
+	throws Exception
+    {
+    	// get the annotated MP and OMIM terms
+	String directTermsSQL = "select distinct mta.marker_key, a.term "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a "
+	    + "where mta.annotation_key = a.annotation_key "
+	    + "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
+	    + "        'OMIM/Marker') "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end;
+
+	Map<String,Set<String>> allelePhenoTermMap = this.populateLookup(
+	    directTermsSQL, "marker_key", "term",
+	    "marker_key->direct MP/OMIM terms");
 		
-		// add the synonyms for all parents and MP and OMIM terms
-		String mpSynonymSQL="select at.marker_key, ti.synonym " + 
-				"from tmp_allele_term at join " + 
-				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
-				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join " + 
-				"	term_synonym ti on ti.term_key=anc_t.term_key " + 
-				"where at.marker_key > "+start+" and at.marker_key <= "+end+" "+
-				"UNION " + 
-				"select at.marker_key,ti.synonym " + 
-				"from tmp_allele_term at join " + 
-				"	term_synonym ti on ti.term_key=at.term_key "+
-				"where at.marker_key > "+start+" and at.marker_key <= "+end+" ";
-		allelePhenoTermMap = this.populateLookup(mpSynonymSQL,"marker_key","synonym","marker_key->alt IDs",allelePhenoTermMap);
+	// add synonyms for the annotated MP and OMIM terms
+	String synonymSQL = "select distinct mta.marker_key, s.synonym "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a, "
+	    + "    term t, "
+	    + "    term_synonym s "
+	    + "where mta.annotation_key = a.annotation_key "
+	    + "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
+	    + "        'OMIM/Marker') "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end
+	    + "    and a.term_id = t.primary_id "
+	    + "    and t.term_key = s.term_key ";
+
+	allelePhenoTermMap = this.populateLookup(synonymSQL, "marker_key",
+	    "synonym", "marker_key->MP/OMIM synonyms", allelePhenoTermMap);
 		
-		return allelePhenoTermMap;
+	// add ancestor terms for the annotated MP and OMIM terms
+	// (OMIM is not technically a DAG yet, but that day is approaching
+	// soon, so we'll work it in.)
+	String ancestorTermsSQL = "select distinct mta.marker_key, "
+	    + "    tas.ancestor_term "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a, "
+	    + "    term t, "
+	    + "    term_ancestor_simple tas "
+	    + "where mta.annotation_key = a.annotation_key "
+	    + "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
+	    + "        'OMIM/Marker') "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end
+	    + "    and a.term_id = t.primary_id "
+	    + "    and t.term_key = tas.term_key ";
+
+	allelePhenoTermMap = this.populateLookup(ancestorTermsSQL,
+	    "marker_key", "ancestor_term",
+	    "marker_key->ancestor MP/OMIM terms", allelePhenoTermMap);
+
+	// add ancestor synonyms for the annotated MP and OMIM terms
+	// (OMIM is not technically a DAG yet, but that day is approaching
+	// soon, so we'll work it in.)
+	String ancestorSynonymSQL = "select distinct mta.marker_key, "
+	    + "    s.synonym "
+	    + "from marker_to_annotation mta, "
+	    + "    annotation a, "
+	    + "    term t, "
+	    + "    term_ancestor_simple tas, "
+	    + "    term anc, "
+	    + "    term_synonym s "
+	    + "where mta.annotation_key = a.annotation_key "
+	    + "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
+	    + "        'OMIM/Marker') "
+	    + "    and mta.marker_key > " + start
+	    + "    and mta.marker_key <= " + end
+	    + "    and a.term_id = t.primary_id "
+	    + "    and t.term_key = tas.term_key "
+	    + "    and tas.ancestor_primary_id = anc.primary_id "
+	    + "    and anc.term_key = s.term_key";
+
+	allelePhenoTermMap = this.populateLookup(ancestorSynonymSQL,
+	    "marker_key", "synonym", "marker_key->ancestor MP/OMIM synonyms",
+	    allelePhenoTermMap);
+		
+	return allelePhenoTermMap;
     }
     
     
@@ -428,120 +599,6 @@ public class MarkerIndexerSQL extends Indexer
             }
         }
         return tempMap;
-    }
-    
-    /*
-     * creates: 
-     * 	tmp_allele_mp_term,
-     * 	tmp_allele_omim_term,
-     * 	tmp_allele_term,
-     * 	tmp_allele_note
-     *  tmp_marker_nomen
-     */
-    private void tempTables() throws Exception
-    {
-    	// create marker to phenotype/disease terms/IDs
-    	logger.info("creating temp table of marker to 'simple' genotypes");
-    	String simpleGenotypeQuery="select distinct marker_key,genotype_key " +
-    			"into temp tmp_marker_genotype " +
-    			"from hdp_annotation ha " +
-    			"where ha.genotype_type!='complex' ";
-    	this.ex.executeVoid(simpleGenotypeQuery);
-    	createTempIndex("tmp_marker_genotype","marker_key");
-    	createTempIndex("tmp_marker_genotype","genotype_key");
-    	
-    	logger.info("creating temp table of marker_key to mp abnormal term");
-    	String mpAbnormalQuery="select tmg.marker_key, mpt.term,mpt.term_id,mpt.mp_term_key " + 
-    			"into temp tmp_allele_mp_term "+
-    			"from tmp_marker_genotype tmg join "+
-	    			"mp_system ms on ms.genotype_key=tmg.genotype_key join " + 
-	    			"mp_term mpt on mpt.mp_system_key=ms.mp_system_key join " +
-	    			"mp_annot mpa on mpa.mp_term_key=mpt.mp_term_key " + 
-    			"where mpa.call=1 ";
-    	this.ex.executeVoid(mpAbnormalQuery);
-    	createTempIndex("tmp_allele_mp_term","marker_key");
-    	createTempIndex("tmp_allele_mp_term","term_id");
-    	createTempIndex("tmp_allele_mp_term","mp_term_key");
-    	logger.info("done creating temp table of marker_key to mp abnormal term");
-    	
-    	logger.info("creating temp table of marker_key to OMIM abnormal term");
-    	String omimAbnormalQuery="select tmg.marker_key,gd.term,gd.term_id " + 
-    			"into temp tmp_allele_omim_term "+
-				"from tmp_marker_genotype tmg join " +
-					"genotype_disease gd on gd.genotype_key=tmg.genotype_key "+
-				"where gd.is_not=0 ";
-    	this.ex.executeVoid(omimAbnormalQuery);
-    	createTempIndex("tmp_allele_omim_term","marker_key");
-    	createTempIndex("tmp_allele_omim_term","term_id");
-    	logger.info("done creating temp table of marker_key to OMIM abnormal term");
-    	    	
-    	// create allele to MP+OMIM term keys
-    	logger.info("creating temp table of marker_key to term_key");
-    	String alleleTermsQuery="select mpt.marker_key,t.term_key " +
-    			"into temp tmp_allele_term " + 
-				"from tmp_allele_mp_term mpt join " + 
-				"	term t on t.primary_id=mpt.term_id "+
-					"UNION " +
-				"select aot.marker_key,t.term_key " + 
-				"from tmp_allele_omim_term aot join " + 
-				"	term t on t.primary_id=aot.term_id ";
-    	this.ex.executeVoid(alleleTermsQuery);
-    	createTempIndex("tmp_allele_term","marker_key");
-    	logger.info("done creating temp table of marker_key to term_key");
-
-    	// create allele to mp notes
-    	logger.info("creating temp table of marker_key to mp annotation note");
-    	String alleleNotesQuery = "select distinct mpt.marker_key, replace(mpan.note,'Background Sensitivity: ','') note " + 
-    			"into temp tmp_allele_note "+
-    			"from tmp_allele_mp_term mpt join " + 
-    			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join " + 
-    			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
-    	this.ex.executeVoid(alleleNotesQuery);
-    	logger.info("adding General Allele notes to allele notes temp table");
-    	String generalNotesQuery = "insert into tmp_allele_note (marker_key,note) " +
-    			"select mta.marker_key, mn.note\r\n" + 
-    			"from marker_to_allele mta join " +
-    			"allele_note mn on mn.allele_key=mta.allele_key " +
-    			"where mn.note_type in ('General') ";
-    	this.ex.executeVoid(generalNotesQuery);
-    	logger.info("adding QTL text notes to allele notes temp table");
-    	String qtlNotesQuery = "insert into tmp_allele_note (marker_key,note) " +
-    			"select mqtl.marker_key, mqtl.note\r\n" + 
-    			"from marker_qtl_experiments mqtl join " +
-    			"	marker m on m.marker_key=mqtl.marker_key " + 
-    			"where m.marker_type='QTL' and " +
-    			"	mqtl.note_type='TEXT-QTL' ";
-    	this.ex.executeVoid(qtlNotesQuery);
-    	createTempIndex("tmp_allele_note","marker_key");
-    	logger.info("done creating temp table of marker_key to mp annotation note");
-    	
-    	// create marker to nomenclature
-    	logger.info("creating temp table of marker_key to nomenclature");
-    	String mrkNomenQuery = "select msn.marker_key, msn.term nomen, msn.term_type " +
-    			"into temp tmp_marker_nomen " +
-    			"from marker_searchable_nomenclature msn " +
-    			"where msn.term_type in ('human name','human synonym','human symbol'," +
-        				"'current symbol','current name','old symbol','synonym','related synonym','old name'," +
-        				"'rat symbol','rat synonym','cattle symbol','chicken symbol','dog symbol'," +
-        				"'rhesus macaque symbol','xenopus symbol','zebrafish symbol' ) ";
-    	this.ex.executeVoid(mrkNomenQuery);
-    	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
-    			"select mta.marker_key, a.symbol nomen, 'alleleSymbol' term_type " +
-    			"from marker_to_allele mta join " +
-    			"allele a on a.allele_key=mta.allele_key ";
-    	this.ex.executeVoid(mrkNomenQuery);
-    	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
-    			"select mta.marker_key, a.name nomen, 'alleleName' term_type " +
-    			"from marker_to_allele mta join " +
-    			"allele a on a.allele_key=mta.allele_key ";
-    	this.ex.executeVoid(mrkNomenQuery);
-//    	mrkNomenQuery = "insert into tmp_marker_nomen (marker_key,nomen,term_type) " +
-//    			"select mta.marker_key, syn.synonym nomen, 'alleleSynoynm' term_type " +
-//    			"from marker_to_allele mta join " +
-//    			"allele_synonym syn on syn.allele_key=mta.allele_key ";
-//    	this.ex.executeVoid(mrkNomenQuery);
-    	createTempIndex("tmp_marker_nomen","marker_key");
-    	logger.info("done creating temp table of tmp_marker_nomen marker_key to nomenclature");
     }
     
     protected MarkerTerm translateVocab(String term, String termId,String type,String vocab) 
