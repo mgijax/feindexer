@@ -346,7 +346,8 @@ public class MarkerIndexerSQL extends Indexer
 	    + "    allele a "
 	    + "where m.allele_key = a.allele_key "
 	    + "    and m.marker_key > " + start
-	    + "    and m.marker_key <= " + end;
+	    + "    and m.marker_key <= " + end
+	    + " order by m.marker_key, a.symbol";
 
 	populateNomenMap (alleleSymbolSQL, "marker_key", "symbol", "term_type",
 		"allele symbols", nomenMap);
