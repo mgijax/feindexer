@@ -391,7 +391,7 @@ public class MarkerIndexerSQL extends Indexer
 	    + "from marker m, "
 	    + "    marker_qtl_experiments q "
 	    + "where m.marker_key = q.marker_key "
-	    + "    and q.note_type = 'TEXT_QTL' "
+	    + "    and q.note_type = 'TEXT-QTL' "
 	    + "    and m.marker_type = 'QTL' "
 	    + "    and m.marker_key > " + start
 	    + "    and m.marker_key <= " + end;
