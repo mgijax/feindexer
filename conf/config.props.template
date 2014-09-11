@@ -1,5 +1,6 @@
 index.url.anatomyAC={BASE_URL}/anatomyAC/
 index.url.emapaAC={BASE_URL}/emapaAC/
+index.url.gxdEmapaAC={BASE_URL}/gxdEmapaAC/
 index.url.journalAC={BASE_URL}/journalsAC/
 index.url.reference={BASE_URL}/reference/
 index.url.authorsAC={BASE_URL}/authorsAC/
@@ -18,6 +19,7 @@ index.url.disease={BASE_URL}/disease/
 index.url.gxdLitIndex={BASE_URL}/gxdLitIndex/
 index.url.structureAC={BASE_URL}/structureAC/
 index.url.vocabTermAC={BASE_URL}/vocabTermAC/
+index.url.dagEdge={BASE_URL}/dagEdge/
 index.url.gxdResult={BASE_URL}/gxdResult/
 index.url.homology={BASE_URL}/homology/
 index.url.gxdImagePane={BASE_URL}/gxdImagePane/
