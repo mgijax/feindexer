@@ -329,9 +329,9 @@ public class MarkerIndexerSQL extends Indexer
 	    + "    'human name', 'human synonym', 'human symbol', "
 	    + "    'current symbol', 'current name', 'old symbol', "
 	    + "    'synonym', 'related synonym', 'old name', "
-	    + "    'rat symbol', 'rat synonym', "
+	    + "    'rat symbol', 'rat synonym', 'chimpanzee symbol', "
 	    + "    'cattle symbol', 'chicken symbol', 'dog symbol', "
-	    + "    'rhesus macaque symbol', 'xenopus symbol', "
+	    + "    'rhesus macaque symbol', 'western clawed frog symbol', "
 	    + "    'zebrafish symbol') "
     	    + " and marker_key > " + start
 	    + " and marker_key <= " + end;
