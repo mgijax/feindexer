@@ -12,17 +12,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /*
- * Refactored during MGI 5.x development. 
- * 
- * 
+ * Refactored during MGI 5.x development.
+ *
+ *
  * Possible Arguments:
  * 	all   - runs all indexers
  * 	cre,reference,journalsAC, ...etc   - specific index name will run that indexer
  *  maxThreads=10 or maxThreads=20... etc   - set max thread count for solr document writing
- *  
+ *
  *  -kstone
  */
-public class Main 
+public class Main
 {
 	public static Logger logger = LoggerFactory.getLogger("FEINDEXER Main");
 	public static List<Indexer> SPECIFIED_INDEXERS = new ArrayList<Indexer>();
@@ -30,12 +30,13 @@ public class Main
 	public static boolean RUN_ALL_INDEXERS=false;
 	static
 	{
-		/* 
-		 * All indexers must be added to this list in order to be run. 
+		/*
+		 * All indexers must be added to this list in order to be run.
 		 * The key is the name you would use to specify your indexer as a command argument
 		 * */
 		indexerMap.put("anatomyAC",new AnatomyAutoCompleteIndexerSQL());
 		indexerMap.put("emapaAC",new EmapaAutoCompleteIndexerSQL());
+		indexerMap.put("gxdEmapaAC",new GXDEmapaAutoCompleteIndexerSQL());
 		indexerMap.put("journalsAC",new JournalsAutoCompleteIndexerSQL());
 		indexerMap.put("reference", new RefIndexerSQL());
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
@@ -50,6 +51,7 @@ public class Main
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
 		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
 		indexerMap.put("structureAC", new StructureAutoCompleteIndexerSQL());
+		indexerMap.put("dagEdge", new DagEdgeIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
 		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
 		//indexerMap.put("homology", new HomologyIndexerSQL());
@@ -61,19 +63,19 @@ public class Main
 		indexerMap.put("diseasePortalAnnotation", new DiseasePortalAnnotationIndexerSQL());
 		indexerMap.put("interaction", new InteractionIndexerSQL());
 	}
-	
+
 	// other command args
 	public static int maxThreads = 10; // uses default unless set to > 0
-	
+
 	private static void parseCommandInput(String[] args)
     {
         Set<String> arguments = new HashSet<String>();
-        
+
         for (int i=0;i<args.length;i++)
         {
             arguments.add(args[i]);
         }
-        
+
         if(!arguments.isEmpty())
         {
         	RUN_ALL_INDEXERS = SPECIFIED_INDEXERS.size()==0 && arguments.contains("all");
@@ -97,11 +99,11 @@ public class Main
         	}
         }
     }
-	
-	public static void main(String[] args) 
+
+	public static void main(String[] args)
 	{
 		parseCommandInput(args);
-		
+
 		if(RUN_ALL_INDEXERS)
 		{
 			SPECIFIED_INDEXERS = new ArrayList<Indexer>();
@@ -114,15 +116,15 @@ public class Main
 				if(maxThreads>0) idx.setMaxThreads(maxThreads);
 			}
 		}
-		
+
 		if(SPECIFIED_INDEXERS==null || SPECIFIED_INDEXERS.size()==0)
 		{
 			exitWithMessage("There are no specified indexers to run. Exiting.");
 		}
-		
+
 		// track failed indexers for later reporting
 		List<Indexer> failedIndexers = new ArrayList<Indexer>();
-		
+
 		for(Indexer idx : SPECIFIED_INDEXERS)
 		{
 			logger.info("Preparing to run: "+idx.getClass());
@@ -140,7 +142,7 @@ public class Main
 				failedIndexers.add(idx);
 			}
 		}
-		
+
 		// return error if any indexers failed
 		if(failedIndexers.size()>0)
 		{
@@ -150,7 +152,7 @@ public class Main
 			exitWithMessage(errorMsg);
 		}
 	}
-	
+
 	private static void exitWithMessage(String errorMsg)
 	{ exitWithMessage(errorMsg,null); }
 	private static void exitWithMessage(String errorMsg,Exception ex)

@@ -32,6 +32,7 @@ STANDARD_INDEXES = [
 	('markerAnnotation', 2, 4),
 	('mpAnnotation', 2, 4),
 	('emapaAC', 2, 4),
+	('gxdEmapaAC', 2, 4),
 	('anatomyAC', 2, 4),
 	('authorsAC', 2, 4),
 	('journalsAC', 2, 4),

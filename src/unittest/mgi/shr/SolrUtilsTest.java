@@ -3,9 +3,8 @@ package unittest.mgi.shr;
 import java.util.Arrays;
 import java.util.List;
 
-import junit.framework.Assert;
-
 import org.jax.mgi.shr.SolrUtils;
+import org.junit.Assert;
 import org.junit.Test;
 
 public class SolrUtilsTest {
@@ -14,8 +13,8 @@ public class SolrUtilsTest {
 	public void testBoost() {
 		List<String> fieldList = Arrays.asList("1","2","3","4","5","6","7");
 		double maxBoost = 1200.0;
-		Assert.assertEquals((float)1200.0,SolrUtils.boost(fieldList,"1",maxBoost));
-		Assert.assertEquals((float)800.0,SolrUtils.boost(fieldList,"2",maxBoost));
+		Assert.assertEquals((float)1200.0,SolrUtils.boost(fieldList,"1",maxBoost),0.001);
+		Assert.assertEquals((float)800.0,SolrUtils.boost(fieldList,"2",maxBoost),0.001);
 		Assert.assertEquals(533,round(SolrUtils.boost(fieldList,"3",maxBoost)));
 		Assert.assertEquals(356,round(SolrUtils.boost(fieldList,"4",maxBoost)));
 	}
