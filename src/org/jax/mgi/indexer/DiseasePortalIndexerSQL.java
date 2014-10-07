@@ -1051,14 +1051,12 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"and gc1.hdp_genocluster_key=gc2.hdp_genocluster_key";
 		ex.executeVoid(hdpAnnotationCrossQuery);
 
-
-		hdpAnnotationCrossQuery = "insert into tmp_ha_cross " +
-				"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, ha2.hdp_annotation_key " +
-				"ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 into temp tmp_ha_cross " +
-				"from hdp_annotation ha1, hdp_annotation ha2 " +
-				"where ha1.term_id != ha2.term_id  and ha1.marker_key=ha2.marker_key and ha1.organism_key=2 and ha2.organism_key=2";
-		ex.executeVoid(hdpAnnotationCrossQuery);
-
+    	hdpAnnotationCrossQuery = "insert into tmp_ha_cross " +
+    	"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, ha2.hdp_annotation_key ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 " +
+    	"from hdp_annotation ha1, hdp_annotation ha2 " +
+    	"where ha1.term_id != ha2.term_id  and ha1.marker_key=ha2.marker_key and ha1.organism_key=2 and ha2.organism_key=2";
+    	ex.executeVoid(hdpAnnotationCrossQuery);
+		
 		//createTempIndex("tmp_ha_genocluster","vocab1");
 		//createTempIndex("tmp_ha_genocluster","vocab2");
 		logger.info("done creating temp table of hdp_annotation cross hdp_annotation via genocluster");
