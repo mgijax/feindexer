@@ -229,6 +229,30 @@ public class GXDResultIndexerSQL extends Indexer {
 		logger.info(" - gathered annotated terms for " + markerVocabMap.size()
 				+ " markers");
 
+		// add extra data for OMIM terms associated to human markers
+		// which are associated with mouse markers via homology
+
+		ResultSet rs2 = ex.executeProto(
+			SharedQueries.GXD_OMIM_HOMOLOGY_QUERY);
+		int i = 0;
+
+		while (rs2.next()) {
+			mkey = rs2.getString("marker_key");
+			termId = rs2.getString("term_id");
+
+			if (!markerVocabMap.containsKey(mkey)) {
+				markerVocabMap.put(mkey,
+					new ArrayList<String>());
+			}
+			if (!markerVocabMap.get(mkey).contains(termId)) {
+				markerVocabMap.get(mkey).add(termId);
+				i++;
+			}
+		}
+
+		logger.info(" - added " + i
+			+ " annotations to OMIM via homology");
+		
 		return markerVocabMap;
 	}
 
