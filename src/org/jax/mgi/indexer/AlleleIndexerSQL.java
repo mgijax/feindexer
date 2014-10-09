@@ -526,13 +526,17 @@ public class AlleleIndexerSQL extends Indexer
     	createTempIndex("tmp_allele_term","allele_key");
     	logger.info("done creating temp table of allele_key to term_key");
 
-    	// create allele to mp notes
+    	// create allele to mp notes (skip Normal notes and notes for
+	// annotations with "normal" qualifiers)
     	logger.info("creating temp table of allele_key to mp annotation note");
     	String alleleNotesQuery = "select distinct mpt.allele_key, replace(mpan.note,'Background Sensitivity: ','') note " + 
     			"into temp tmp_allele_note "+
     			"from tmp_allele_mp_term mpt join " + 
     			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join " + 
-    			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
+    			"	mp_annotation_note  mpan on (mpan.mp_reference_key=mpr.mp_reference_key " +
+			"	and mpan.note_type != 'Normal'" +
+			"	and mpan.has_normal_qualifier = 0)" +
+			" join mp_annot ma on (mpr.mp_annotation_key = ma.mp_annotation_key and ma.call = 1)";
     	this.ex.executeVoid(alleleNotesQuery);
     	logger.info("adding General Allele notes to allele notes temp table");
     	String generalNotesQuery = "insert into tmp_allele_note (allele_key,note) " +
