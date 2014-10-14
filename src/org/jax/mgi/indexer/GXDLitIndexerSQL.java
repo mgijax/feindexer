@@ -61,6 +61,16 @@ public class GXDLitIndexerSQL extends Indexer {
       logger.info(markerToTermIDAncestorsForGXDSQL);
       HashMap <String, HashSet <String>> termAncestorsToMarkersIDForGXD = makeHash(markerToTermIDAncestorsForGXDSQL, "primary_id", "ancestor_primary_id");
           
+      /* added to pick up OMIM IDs for mouse markers with human disease
+       * homologs
+       */
+      logger.info("Selecting all OMIM IDs via human homologs");
+      logger.info(SharedQueries.GXD_OMIM_HOMOLOGY_QUERY);
+      HashMap<String, HashSet<String>> humanOmimIDs = makeHash(
+	  SharedQueries.GXD_OMIM_HOMOLOGY_QUERY, "marker_key", "term_id");
+      logger.info("  --> found OMIM IDs for " + humanOmimIDs.size()
+	  + " markers");
+
     	logger.info("Gathering the expression index records");
     	
 	/* Each index record is a marker/reference pair that is identified
@@ -161,11 +171,13 @@ public class GXDLitIndexerSQL extends Indexer {
     			doc.addField(IndexConstants.MRK_KEY, rs_base.getString("marker_key"));    
     			doc.addField(IndexConstants.MRK_ID, rs_base.getString("marker_id"));    
     			
-				// add vocab term IDs and their ancestors
-				if (termToMarkersIDForGXD.containsKey(rs_base.getString("marker_key"))) 
-				{
-	    			Set<String> uniqueTermIDs = new HashSet<String>();
-	                for (String termID: termToMarkersIDForGXD.get(rs_base.getString("marker_key"))) {
+			// collects the various vocab term IDs we found
+    			Set<String> uniqueTermIDs = new HashSet<String>();
+
+			// add vocab term IDs and their ancestors
+			if (termToMarkersIDForGXD.containsKey(rs_base.getString("marker_key"))) 
+			{
+	                   for (String termID: termToMarkersIDForGXD.get(rs_base.getString("marker_key"))) {
 	                     uniqueTermIDs.add(termID);
 	                     if(termAncestorsToMarkersIDForGXD.containsKey(termID))
 	                     {
@@ -175,11 +187,19 @@ public class GXDLitIndexerSQL extends Indexer {
 	                     	}
 	                     }
 	                 }
-	                for(String uniqueTermID : uniqueTermIDs)
-	                {
-	                	doc.addField(IndexConstants.MRK_TERM_ID, uniqueTermID);
 	                }
-	             }
+
+		     // add OMIM terms associated via human disease homologs
+		     if (humanOmimIDs.containsKey(rs_base.getString("marker_key"))) {
+			for (String termID: humanOmimIDs.get(rs_base.getString("marker_key"))) {
+			    uniqueTermIDs.add(termID);
+			}
+		     }
+
+		     // add the IDs we've found to the document
+	             for(String uniqueTermID : uniqueTermIDs) {
+			 doc.addField(IndexConstants.MRK_TERM_ID, uniqueTermID);
+		     }
 
     			
     			// Get all the marker information for this tuple
