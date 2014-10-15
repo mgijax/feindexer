@@ -1105,9 +1105,17 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"			from hdp_annotation ha_mp, \n" + 
 				"				hdp_annotation ha_omim\n" + 
 				"			where ha_mp.genotype_key=ha_omim.genotype_key \n" + 
+				"				and (ha_mp.genotype_type!='complex' or ha_mp.genotype_type is null) \n" + 
+				"				and (ha_omim.genotype_type!='complex' or ha_omim.genotype_type is null) \n" + 
 				"				and ha_mp.vocab_name='Mammalian Phenotype' \n" + 
 				"				and ha_omim.vocab_name='OMIM'";
 		ex.executeVoid(mpToDiseaseQuery);
+		
+		
+		// TODO ha_mp.genotype_key=ha_omim.genotype_key
+		// Needs to be at the cluster level
+		// Not sure if the above still needs to be revisited? - oblod 10/15/2014
+		
 		createTempIndex("tmp_mp_to_disease","hdp_annotation_key");
 
 		// mp to mp ID mappings
