@@ -148,7 +148,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                                     tempString += " " + temp[j];
                                 }
                                 
-                                if (tempString != "") {
+                                if (!tempString.equals("")) {
                                     doc.addField(IndexConstants.REF_AUTHOR_SORT, tempString);
                                     
                                     isGenerated = "0";
