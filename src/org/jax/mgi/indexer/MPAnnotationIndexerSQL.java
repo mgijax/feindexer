@@ -67,6 +67,11 @@ public class MPAnnotationIndexerSQL extends Indexer {
 	    // term and marker when linking from the batch query).  There are
 	    // currently no exclusions for MP annotations as there are for
 	    // OMIM disease annotations, so that simplifies things.
+	    //
+	    // Also, in addition to the traditional marker-allele pairs, we
+	    // must now consider "mutation involves" and "expresses component"
+	    // relationships.  These are brought in by the second part of the
+	    // union.
 
 	    String genotypeMarkers = "select distinct ga.genotype_key, "
 		+ "  ma.marker_key "
@@ -77,7 +82,19 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		+ "where ga.genotype_key = ag.genotype_key "
 		+ "  and a.annotation_type = '" + annotationType + "' "
 		+ "  and a.annotation_key = ga.annotation_key "
-		+ "  and ag.allele_key = ma.allele_key";
+		+ "  and ag.allele_key = ma.allele_key "
+		+ "union "
+		+ "select distinct ga.genotype_key, ma.related_marker_key "
+		+ "from annotation a, "
+		+ "  genotype_to_annotation ga, "
+		+ "  allele_to_genotype ag, "
+		+ "  allele_related_marker ma "
+		+ "where ga.genotype_key = ag.genotype_key "
+		+ "  and a.annotation_type = '" + annotationType + "' "
+		+ "  and a.annotation_key = ga.annotation_key "
+		+ "  and ag.allele_key = ma.allele_key "
+		+ "  and ma.relationship_category in ('mutation_involves', "
+		+ "    'expresses_component')"; 
 
 	    HashMap<String, HashSet<String>> genotypeToMarkers = makeHash(
 		genotypeMarkers, "genotype_key", "marker_key");
