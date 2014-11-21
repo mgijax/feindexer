@@ -415,6 +415,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey);
 			doc.addField(DiseasePortalFields.TERM,term);
+			doc.addField(DiseasePortalFields.TERM_GROUP,term);
 			doc.addField(DiseasePortalFields.TERM_ID,termId);
 			doc.addField(DiseasePortalFields.TERM_ID_GROUP,termId);
 			doc.addField(DiseasePortalFields.TERM_TYPE,vocabName);
