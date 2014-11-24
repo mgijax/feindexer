@@ -427,7 +427,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			addAllFromLookup(doc,DiseasePortalFields.TERM_SYNONYM,termId,termSynonymMap);
 
 			docs.add(doc);
-			if (docs.size() >= 10000)  {
+			if (docs.size() >= 5000)  {
 				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}
@@ -538,7 +538,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				}
 			}
 			docs.add(doc);
-			if (docs.size() >= 10000)  {
+			if (docs.size() >= 5000)  {
 				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}
@@ -821,7 +821,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				}
 
 				docs.add(doc);
-				if (docs.size() >= 10000) {
+				if (docs.size() >= 5000) {
 					//logger.info("Adding a stack of the documents to Solr");
 					startTime();
 					writeDocs(docs);
