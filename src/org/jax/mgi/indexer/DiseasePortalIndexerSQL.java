@@ -179,6 +179,44 @@ public class DiseasePortalIndexerSQL extends Indexer {
 
 		// ------------- GRID CLUSTER RELATED LOOKUPS ------------
 
+		// look up the feature types for all mouse markers in a 
+		// homology cluster, and associate them with the gridcluster
+		// (to use for filtering query results in HMDC)
+		String featureTypeQuery =
+		    "select distinct gc.hdp_gridcluster_key, "
+		    + "  m.marker_subtype as feature_type "
+		    + "from hdp_gridcluster_marker gc, "
+		    + "  homology_cluster_organism_to_marker sm, "
+		    + "  homology_cluster_organism so, "
+		    + "  homology_cluster_organism oo, "
+		    + "  homology_cluster_organism_to_marker om, "
+		    + "  marker m "
+		    + "where gc.marker_key = sm.marker_key "
+		    + "  and sm.cluster_organism_key = so.cluster_organism_key "
+		    + "  and so.cluster_key = oo.cluster_key "
+		    + "  and oo.cluster_organism_key = om.cluster_organism_key "
+		    + "  and oo.organism = 'mouse' "
+		    + "  and om.marker_key = m.marker_key "
+		    + "  and m.marker_subtype is not null "
+		    + "union "
+		    + "select distinct gc.hdp_gridcluster_key, "
+		    + "  m.marker_subtype as feature_type "
+		    + "from hdp_gridcluster_marker gc, "
+		    + "  marker m "
+		    + "where gc.marker_key = m.marker_key "
+		    + "  and not exists (select 1 from "
+		    + "    homology_cluster_organism_to_marker sm "
+		    + "    where gc.marker_key = sm.marker_key) "
+		    + "  and m.marker_subtype is not null";
+
+		logger.info("building map of hdp_gridcluster_key "
+		    + "-> feature type");
+
+		Map<String,Set<String>> featureTypeMap = 
+		    populateLookupOrdered(featureTypeQuery,
+			"hdp_gridcluster_key", "feature_type",
+			"gridcluster keys to feature types");
+
 		// load homologene IDs
 		String homologeneIdQuery="select hcotm.marker_key, hc.primary_id homology_id "+
 				"from homology_cluster hc, "+
@@ -188,7 +226,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"and hco.cluster_organism_key=hcotm.cluster_organism_key ";
 
 		Map<Integer, String> homologeneIdMap = new HashMap<Integer,String>();
-		logger.info("builing map of marker key -> homologeneId");
+		logger.info("building map of marker key -> homologeneId");
 
 		rs = ex.executeProto(homologeneIdQuery);
 		while(rs.next()) {
@@ -489,6 +527,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			doc.addField(DiseasePortalFields.ORGANISM,organism);
 			doc.addField(DiseasePortalFields.MARKER_NAME,rs.getString("marker_name"));
 			doc.addField(DiseasePortalFields.MARKER_FEATURE_TYPE,rs.getString("feature_type"));
+			doc.addField(DiseasePortalFields.FILTERABLE_FEATURE_TYPES,rs.getString("feature_type"));
 			doc.addField(DiseasePortalFields.HOMOLOGENE_ID,homologyId);
 			doc.addField(DiseasePortalFields.LOCATION_DISPLAY,rs.getString("location_display"));
 			doc.addField(DiseasePortalFields.COORDINATE_DISPLAY,rs.getString("coordinate_display"));
@@ -665,6 +704,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 						doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
 						addAllFromLookup(doc,DiseasePortalFields.GRID_MOUSE_SYMBOLS,gridClusterKey.toString(),gridMouseSymbolsMap);
 						addAllFromLookup(doc,DiseasePortalFields.GRID_HUMAN_SYMBOLS,gridClusterKey.toString(),gridHumanSymbolsMap);
+						addAllFromLookup(doc,DiseasePortalFields.FILTERABLE_FEATURE_TYPES,gridClusterKey.toString(),featureTypeMap);
 
 						// add special grid sorts
 						int gridByMouseLocation = gridByMouseLocationMap.containsKey(gridClusterKey) ? gridByMouseLocationMap.get(gridClusterKey) : maxSort;
