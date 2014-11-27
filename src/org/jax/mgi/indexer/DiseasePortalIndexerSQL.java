@@ -181,7 +181,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 
 		// look up the feature types for all mouse markers in a 
 		// homology cluster, and associate them with the gridcluster
-		// (to use for filtering query results in HMDC)
+		// (to use for filtering query results in HMDC).  Also include
+		// mouse markers that are not part of a homology cluster.
 		String featureTypeQuery =
 		    "select distinct gc.hdp_gridcluster_key, "
 		    + "  m.marker_subtype as feature_type "
@@ -216,6 +217,35 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		    populateLookupOrdered(featureTypeQuery,
 			"hdp_gridcluster_key", "feature_type",
 			"gridcluster keys to feature types");
+
+		// We also need a lookup that maps from human markers to the
+		// feature types of the mouse markers in their respective
+		// homology classes.  This will help return (in the Genes tab)
+		// those human markers for a homology cluster where those
+		// markers have no annotations themselves.
+		String humanFeatureTypeQuery =
+		    "select distinct sm.marker_key as human_marker_key, "
+		    + "  m.marker_subtype as feature_type "
+		    + "from homology_cluster_organism_to_marker sm, "
+		    + "  homology_cluster_organism so, "
+		    + "  homology_cluster_organism oo, "
+		    + "  homology_cluster_organism_to_marker om, "
+		    + "  marker m "
+		    + "where so.organism = 'human' "
+		    + "  and sm.cluster_organism_key = so.cluster_organism_key "
+		    + "  and so.cluster_key = oo.cluster_key "
+		    + "  and oo.cluster_organism_key = om.cluster_organism_key "
+		    + "  and oo.organism = 'mouse' "
+		    + "  and om.marker_key = m.marker_key "
+		    + "  and m.marker_subtype is not null ";
+
+		logger.info("building map of human marker key "
+		    + "-> feature type");
+
+		Map<String,Set<String>> humanFeatureTypeMap = 
+		    populateLookupOrdered(humanFeatureTypeQuery,
+			"human_marker_key", "feature_type",
+			"human marker keys to feature types"); 
 
 		// load homologene IDs
 		String homologeneIdQuery="select hcotm.marker_key, hc.primary_id homology_id "+
@@ -527,7 +557,22 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			doc.addField(DiseasePortalFields.ORGANISM,organism);
 			doc.addField(DiseasePortalFields.MARKER_NAME,rs.getString("marker_name"));
 			doc.addField(DiseasePortalFields.MARKER_FEATURE_TYPE,rs.getString("feature_type"));
-			doc.addField(DiseasePortalFields.FILTERABLE_FEATURE_TYPES,rs.getString("feature_type"));
+
+			/* If we have a mouse marker with a feature type, then
+			 * make that filterable.  Otherwise, if the marker is
+			 * human, then add feature types for any mouse markers
+			 * in its homology cluster.
+			 */
+			if (rs.getString("feature_type") != null) {
+			    doc.addField(
+				DiseasePortalFields.FILTERABLE_FEATURE_TYPES,
+				rs.getString("feature_type"));
+			} else if ("human".equals(organism)) {
+			    addAllFromLookup(doc,
+				DiseasePortalFields.FILTERABLE_FEATURE_TYPES,
+				markerKey.toString(), humanFeatureTypeMap);
+			}
+
 			doc.addField(DiseasePortalFields.HOMOLOGENE_ID,homologyId);
 			doc.addField(DiseasePortalFields.LOCATION_DISPLAY,rs.getString("location_display"));
 			doc.addField(DiseasePortalFields.COORDINATE_DISPLAY,rs.getString("coordinate_display"));
