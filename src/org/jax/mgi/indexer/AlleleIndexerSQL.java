@@ -108,6 +108,10 @@ public class AlleleIndexerSQL extends Indexer
 	Map<String,Set<String>> mutationInvolvesMap = getMutationInvolvesMap(
 		startKey, endKey);
 
+	// expresses component markers
+	Map<String,Set<String>> expressesComponentMap =
+		getExpressesComponentMap(startKey, endKey);
+
     	// nomenclature
     	Map<String,Set<String>> mrkNomenMap = getMarkerNomenMap(startKey, endKey);
     	Map<String,Set<String>> allNomenMap = getAlleleNomenMap(startKey, endKey);
@@ -172,6 +176,14 @@ public class AlleleIndexerSQL extends Indexer
 		mutationInvolvesMap);
             this.addAllFromLookup(doc,IndexConstants.ALL_MI_MARKER_IDS,
 		allKeyString, mutationInvolvesMap);
+
+	    /* Add 'expresses component' markers:
+	     * 1. only to standard MRK_ID field so the allele will be returned
+	     *    for either its traditional marker ID or for any markers with
+	     *    an 'expresses component' relationship.
+	     */
+	    this.addAllFromLookup(doc, IndexConstants.MRK_ID, allKeyString,
+		expressesComponentMap);
 
             /*
              * Add allele fields
@@ -257,6 +269,10 @@ public class AlleleIndexerSQL extends Indexer
     /*
      * Lookup access functions
      */
+
+    /* maps from allele key to a set of marker IDs, where they are related
+     * through a 'mutation involves' relationship
+     */
     public Map<String,Set<String>> getMutationInvolvesMap(int start, int end)
 	    throws Exception
     {
@@ -269,6 +285,23 @@ public class AlleleIndexerSQL extends Indexer
 	return this.populateLookup(mutationInvolvesSQL, "allele_key",
 		"related_marker_id",
 		"allele_key->mutation involves markers");
+    }
+
+    /* maps from allele key to a set of marker IDs, where they are related
+     * through an 'expresses component' relationship
+     */
+    public Map<String,Set<String>> getExpressesComponentMap(int start, int end)
+	    throws Exception
+    {
+	String expressesComponentSQL = "select allele_key, related_marker_id "
+		+ "from allele_related_marker "
+		+ "where relationship_category = 'expresses_component' "
+		+ "  and allele_key > " + start
+		+ "  and allele_key <= " + end;
+
+	return this.populateLookup(expressesComponentSQL, "allele_key",
+		"related_marker_id",
+		"allele_key->expresses component markers");
     }
 
     public Map<String,Set<String>> getAlleleNotesMap(int start,int end) throws Exception
@@ -526,13 +559,17 @@ public class AlleleIndexerSQL extends Indexer
     	createTempIndex("tmp_allele_term","allele_key");
     	logger.info("done creating temp table of allele_key to term_key");
 
-    	// create allele to mp notes
+    	// create allele to mp notes (skip Normal notes and notes for
+	// annotations with "normal" qualifiers)
     	logger.info("creating temp table of allele_key to mp annotation note");
     	String alleleNotesQuery = "select distinct mpt.allele_key, replace(mpan.note,'Background Sensitivity: ','') note " + 
     			"into temp tmp_allele_note "+
     			"from tmp_allele_mp_term mpt join " + 
     			"	mp_reference mpr on mpr.mp_term_key=mpt.mp_term_key join " + 
-    			"	mp_annotation_note  mpan on mpan.mp_reference_key=mpr.mp_reference_key ";
+    			"	mp_annotation_note  mpan on (mpan.mp_reference_key=mpr.mp_reference_key " +
+			"	and mpan.note_type != 'Normal'" +
+			"	and mpan.has_normal_qualifier = 0)" +
+			" join mp_annot ma on (mpr.mp_annotation_key = ma.mp_annotation_key and ma.call = 1)";
     	this.ex.executeVoid(alleleNotesQuery);
     	logger.info("adding General Allele notes to allele notes temp table");
     	String generalNotesQuery = "insert into tmp_allele_note (allele_key,note) " +

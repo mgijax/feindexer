@@ -24,6 +24,29 @@ public class SharedQueries {
 	static String GXD_VOCAB_EXPRESSION_QUERY = GXD_VOCAB_QUERY+
 			"and exists(select 1 from expression_result_summary ers where mta.marker_key=ers.marker_key) ";
     
+	// get relationships to OMIM terms for mouse markers which are
+	// associated with human markers (via homology) where those human
+	// markers have OMIM annotations.
+	static String GXD_OMIM_HOMOLOGY_QUERY =
+		"select a.term_id, m.marker_key "
+		+ "from annotation a, "
+		+ "  marker_to_annotation mta, "
+		+ "  homology_cluster_organism_to_marker hm, "
+		+ "  homology_cluster_organism hco, "
+		+ "  homology_cluster hc, "
+		+ "  homology_cluster_organism mco, "
+		+ "  homology_cluster_organism_to_marker mm, "
+		+ "  marker m "
+		+ "where a.annotation_key = mta.annotation_key "
+		+ "  and a.annotation_type = 'OMIM/Human Marker' "
+		+ "  and mta.marker_key = hm.marker_key "
+		+ "  and hm.cluster_organism_key = hco.cluster_organism_key "
+		+ "  and hco.cluster_key = hc.cluster_key "
+		+ "  and hc.cluster_key = mco.cluster_key "
+		+ "  and mco.cluster_organism_key = mm.cluster_organism_key "
+		+ "  and mm.marker_key = m.marker_key "
+		+ "  and m.organism = 'mouse'";
+
 	// Gets all the ancestor IDs of each term. (To be combined with the above query)
 	static String GXD_VOCAB_ANCESTOR_QUERY = "select t.primary_id,ta.ancestor_primary_id "+
     		"from term t,term_ancestor_simple ta "+

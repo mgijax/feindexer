@@ -335,6 +335,7 @@ public abstract class Indexer {
     	
     	ResultSet rs = ex.executeProto(query);
     	
+	int rows = 0;
     	while (rs.next())
     	{
     		String uniqueField = rs.getString(uniqueFieldName);
@@ -344,9 +345,12 @@ public abstract class Indexer {
 					returnLookup.put(uniqueField, setClass.newInstance());
     		}
     		returnLookup.get(uniqueField).add(secondField);
+		rows++;
     	}
  
-    	logger.info("finished populating map of "+logText);
+    	logger.info("finished populating map of "+logText
+		+ " with " + rows + " rows for " + returnLookup.size()
+		+ " " + uniqueFieldName);
     	return returnLookup;
     }
     

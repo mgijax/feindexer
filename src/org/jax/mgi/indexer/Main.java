@@ -92,7 +92,13 @@ public class Main
         			SPECIFIED_INDEXERS.add(indexerMap.get(arg));
         			logger.info("adding user specified index: "+arg+" to list of indexers to run.");
         		}
-        		else
+        		else if("hmdc".equalsIgnoreCase(arg)) {
+				SPECIFIED_INDEXERS.add(
+				    indexerMap.get("diseasePortal"));
+				SPECIFIED_INDEXERS.add(
+				    indexerMap.get("diseasePortalAnnotation"));
+			}
+			else
         		{
         			logger.info("unknown indexer \""+arg+"\"");
         		}
