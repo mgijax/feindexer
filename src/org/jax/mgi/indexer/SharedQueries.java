@@ -43,6 +43,7 @@ public class SharedQueries {
 		+ "  and hm.cluster_organism_key = hco.cluster_organism_key "
 		+ "  and hco.cluster_key = hc.cluster_key "
 		+ "  and hc.cluster_key = mco.cluster_key "
+		+ "  and (hc.source like '%HGNC%' and hc.source like '%HomoloGene%') "
 		+ "  and mco.cluster_organism_key = mm.cluster_organism_key "
 		+ "  and mm.marker_key = m.marker_key "
 		+ "  and m.organism = 'mouse'";

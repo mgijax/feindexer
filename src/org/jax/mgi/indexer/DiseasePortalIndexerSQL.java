@@ -302,6 +302,31 @@ public class DiseasePortalIndexerSQL extends Indexer {
 
 		// ------------- MARKER RELATED LOOKUPS ------------
 
+		// get the HomoloGene or HGNC cluster key for each mouse or
+		// human marker.  Whichever one is preferred by the hybrid
+		// rules was already chosen by the hdp_annotation_gatherer
+		// in femover and is the one stored in the hdp_gridcluster
+		// table.
+		logger.info("getting homology cluster keys for markers");
+		String homologyQuery = "select m.marker_key, "
+			+ " m.hdp_gridcluster_key, g.source "
+			+ "from hdp_gridcluster g, hdp_gridcluster_marker m "
+			+ "where g.hdp_gridcluster_key = m.hdp_gridcluster_key "
+			+ " and source is not null";
+		Map<Integer,Integer> homologyMap = new HashMap<Integer,Integer>();
+		Map<Integer,String> homologySource = new HashMap<Integer,String>();
+
+		rs = ex.executeProto(homologyQuery);
+		while (rs.next()) {
+			homologyMap.put(rs.getInt("marker_key"),
+				rs.getInt("hdp_gridcluster_key"));
+			homologySource.put(rs.getInt("marker_key"),
+				rs.getString("source"));
+		}
+
+		logger.info("done getting homology cluster keys for "
+			+ homologyMap.size() + " markers");
+
 		// get IMSR count for each marker that has an allele
 		logger.info("building counts of IMSR to marker key");
 		String markerIMSRQuery = "select distinct on (m.marker_key) m.marker_key, aic.count_for_marker imsr_count \n" + 
@@ -314,18 +339,6 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			markerIMSRMap.put(rs.getInt("marker_key"),rs.getInt("imsr_count"));
 		}
 		logger.info("done building counts of IMSR to marker key");
-
-		// get count of disease relevant references
-		logger.info("building counts of disease relevant refs to marker key");
-		String diseaseRelevantMarkerQuery = "select marker_key, count(reference_key) ref_count " +
-				"from hdp_marker_to_reference " +
-				"group by marker_key ";
-		rs = ex.executeProto(diseaseRelevantMarkerQuery);
-		Map<Integer,Integer> markerDiseaseRefCountMap = new HashMap<Integer,Integer>();
-		while(rs.next()) {
-			markerDiseaseRefCountMap.put(rs.getInt("marker_key"),rs.getInt("ref_count"));
-		}
-		logger.info("done building counts of disease relevant refs to marker key");
 
 		// load MP headers(systems) associated with markers via hdp_annotation  (no complex genotypes)
 		String markerSystemQuery = "WITH "+
@@ -558,6 +571,23 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			doc.addField(DiseasePortalFields.MARKER_NAME,rs.getString("marker_name"));
 			doc.addField(DiseasePortalFields.MARKER_FEATURE_TYPE,rs.getString("feature_type"));
 
+			// lookup homology cluster key by marker key, so we
+			// can make a link to human markers' homology cluster
+			// pages.
+			if (homologyMap.containsKey(markerKey)) {
+				doc.addField(
+				    DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
+				    homologyMap.get(markerKey));
+			}
+
+			// add the source of the homology data (HomoloGene or
+			// HGNC), if available
+			if (homologySource.containsKey(markerKey)) {
+				doc.addField(
+					DiseasePortalFields.HOMOLOGY_SOURCE,
+					homologySource.get(markerKey));
+			}
+
 			/* If we have a mouse marker with a feature type, then
 			 * make that filterable.  Otherwise, if the marker is
 			 * human, then add feature types for any mouse markers
@@ -694,6 +724,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 					"msqn.by_marker_subtype, " +
 					"msqn.by_location, " +
 					"mc.reference_count, " +
+					"mc.disease_relevant_reference_count, " +
 					"gcm.hdp_gridcluster_key, " +
 					"gcg.hdp_genocluster_key, " +
 					"gsn.by_hdp_rules by_genocluster "+
@@ -740,9 +771,24 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				// unique document key
 				doc.addField(DiseasePortalFields.UNIQUE_KEY,uniqueKey.toString());
 
+				// replace grid cluster key from query with
+				// one from lookup by marker key
+				if (homologyMap.containsKey(markerKey)) {
+					gridClusterKey =
+						homologyMap.get(markerKey);
+				}
+
+				// add the source of the homology data
+				// (HomoloGene or HGNC), if available
+				if (homologySource.containsKey(markerKey)) {
+				    doc.addField(
+					DiseasePortalFields.HOMOLOGY_SOURCE,
+					homologySource.get(markerKey));
+				}
+
 				// --------- Grid cluster fields ---------------
-				// For grid clusters, we only include human annotations and super-simple mouse annotations (no allele->OMIM)
-				boolean isOnGrid = "human".equalsIgnoreCase(organism) || (!"complex".equalsIgnoreCase(genotypeType) && genoClusterKey!=null && genoClusterKey>0);
+				// For grid clusters, we only include human annotations and rolled-up mouse annotations (no allele->OMIM)
+				boolean isOnGrid = "human".equalsIgnoreCase(organism) || (genoClusterKey!=null && genoClusterKey>0);
 				
 				if(isOnGrid) {
 					if(gridClusterKey!=null && gridClusterKey>0) {
@@ -761,8 +807,19 @@ public class DiseasePortalIndexerSQL extends Indexer {
 						doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY,genoClusterKey);   
 						doc.addField(DiseasePortalFields.BY_GENOCLUSTER,rs.getInt("by_genocluster"));
 					}
-
 				}
+
+				// add the homology cluster key (distinct from
+				// the grid cluster key), so we can still make
+				// cluster links for markers which have no
+				// annotations on the grid.  (If we use the
+				// grid cluster key field, then it makes many
+				// marker symbols disappear because we start
+				// grouping in markers with no annotations.)
+
+				doc.addField(
+				    DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
+				    gridClusterKey);
 
 				// -------- Marker centric fields -------------
 
@@ -779,8 +836,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 					doc.addField(DiseasePortalFields.COORDINATE_DISPLAY,rs.getString("coordinate_display"));
 					doc.addField(DiseasePortalFields.BUILD_IDENTIFIER,rs.getString("build_identifier"));
 					doc.addField(DiseasePortalFields.MARKER_ALL_REF_COUNT,rs.getString("reference_count"));
-					int markerDiseaseRefCount = markerDiseaseRefCountMap.containsKey(markerKey) ? markerDiseaseRefCountMap.get(markerKey) : 0;
-					doc.addField(DiseasePortalFields.MARKER_DISEASE_REF_COUNT,markerDiseaseRefCount);
+					doc.addField(DiseasePortalFields.MARKER_DISEASE_REF_COUNT,rs.getString("disease_relevant_reference_count"));
 
 					Integer imsrCount = markerIMSRMap.containsKey(markerKey) ? markerIMSRMap.get(markerKey) : 0;
 					doc.addField(DiseasePortalFields.MARKER_IMSR_COUNT,imsrCount);

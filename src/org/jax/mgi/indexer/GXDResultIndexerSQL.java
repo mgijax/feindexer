@@ -32,6 +32,38 @@ public class GXDResultIndexerSQL extends Indexer {
 		super("index.url.gxdResult");
 	}
 
+	/* get a mapping from result keys (as Strings) to a List of Strings,
+	 * each of which is a high-level EMAPA term (a high-levevl ancestor of
+	 * the structure noted in the result
+	 */
+	private Map<String, List<String>> getAnatomicalSystemMap()
+		throws Exception {
+		logger.info ("building map of high-level EMAPA terms");
+
+		Map<String, List<String>> systemMap =
+			new HashMap<String, List<String>>();
+
+		String systemQuery = "select result_key, anatomical_system "
+			+ "from expression_result_anatomical_systems";
+
+		ResultSet rs = ex.executeProto(systemQuery);
+
+		while (rs.next()) {
+			String resultKey = rs.getString("result_key");
+			String system = rs.getString("anatomical_system");
+
+			if (!systemMap.containsKey(resultKey)) {
+				systemMap.put(resultKey,
+					new ArrayList<String>());
+			}
+			systemMap.get(resultKey).add(system);
+		}
+		logger.info(" - gathered EMAPA terms for "
+			+ systemMap.size() + " results");
+
+		return systemMap;
+	}
+
 	/*
 	 * get a mapping from marker keys (as Strings) to a List of Strings, each of
 	 * which is a synonym for the marker -- where those markers also have
@@ -383,6 +415,11 @@ public class GXDResultIndexerSQL extends Indexer {
 		// first get a pull a bunch of mappings into memory, to make later
 		// processing easier
 
+		// mapping from result key to List of high-level EMAPA
+		// structures for each result
+		Map<String, List<String>> systemMap =
+			getAnatomicalSystemMap();
+
 		// mapping from marker key to List of synonyms for each marker
 		Map<String, List<String>> markerNomenMap = getMarkerNomenMap();
 
@@ -458,7 +495,7 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  ers.structure_key, " + "  ers.theiler_stage, "
 					+ "  ers.is_expressed, " + "  ers.has_image, "
 					+ "  ers.structure_printname, "
-					+ "  ers.age_abbreviation, " + "  ers.anatomical_system, "
+					+ "  ers.age_abbreviation, " 
 					+ "  ers.jnum_id, " + "  ers.detection_level, "
 					+ "  ers.marker_symbol, " + "  ers.assay_id, "
 					+ "  ers.age_min, " + "  ers.age_max, " + "  ers.pattern, "
@@ -473,7 +510,6 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  msqn.by_symbol, " + "  msqn.by_location, "
 					+ "  ersn.by_assay_type r_by_assay_type, "
 					+ "  ersn.by_gene_symbol r_by_gene_symbol, "
-					+ "  ersn.by_anatomical_system r_by_anatomical_system, "
 					+ "  ersn.by_age r_by_age, "
 					+ "  ersn.by_expressed r_by_expressed, "
 					+ "  ersn.by_structure r_by_structure, "
@@ -535,7 +571,6 @@ public class GXDResultIndexerSQL extends Indexer {
 				String mgd_structure_key = rs.getString("mgd_structure_key");
 				String age = rs.getString("age_abbreviation");
 				String assay_id = rs.getString("assay_id");
-				String anatomical_system = rs.getString("anatomical_system");
 				String jnum = rs.getString("jnum_id");
 				String mini_citation = rs.getString("mini_citation");
 				String genotype = rs.getString("genotype");
@@ -563,8 +598,6 @@ public class GXDResultIndexerSQL extends Indexer {
 				// result sorts
 				String r_by_assay_type = rs.getString("r_by_assay_type");
 				String r_by_gene_symbol = rs.getString("r_by_gene_symbol");
-				String r_by_anatomical_system = rs
-						.getString("r_by_anatomical_system");
 				String r_by_age = rs.getString("r_by_age");
 				String r_by_structure = rs.getString("r_by_structure");
 				String r_by_expressed = rs.getString("r_by_expressed");
@@ -664,13 +697,18 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.JNUM, jnum);
 				doc.addField(GxdResultFields.PUBMED_ID,
 						rs.getString("pubmed_id"));
-				doc.addField(GxdResultFields.ANATOMICAL_SYSTEM,
-						anatomical_system);
 				doc.addField(GxdResultFields.SHORT_CITATION, mini_citation);
 				doc.addField(GxdResultFields.GENOTYPE, genotype);
 				doc.addField(GxdResultFields.PATTERN, rs.getString("pattern"));
 
 				// multi values
+
+				if (systemMap.containsKey(result_key)) {
+					for (String system : systemMap.get(result_key)) {
+						doc.addField(GxdResultFields.ANATOMICAL_SYSTEM, system);
+					}
+				}
+
 				if (markerNomenMap.containsKey(markerKey)) {
 					for (String nomen : markerNomenMap.get(markerKey)) {
 						doc.addField(GxdResultFields.NOMENCLATURE, nomen);
@@ -802,8 +840,6 @@ public class GXDResultIndexerSQL extends Indexer {
 				// result sorts
 				doc.addField(GxdResultFields.R_BY_ASSAY_TYPE, r_by_assay_type);
 				doc.addField(GxdResultFields.R_BY_MRK_SYMBOL, r_by_gene_symbol);
-				doc.addField(GxdResultFields.R_BY_ANATOMICAL_SYSTEM,
-						r_by_anatomical_system);
 				doc.addField(GxdResultFields.R_BY_AGE, r_by_age);
 				doc.addField(GxdResultFields.R_BY_STRUCTURE, r_by_structure);
 				doc.addField(GxdResultFields.R_BY_EXPRESSED, r_by_expressed);
