@@ -43,14 +43,16 @@ public class GXDResultIndexerSQL extends Indexer {
 		Map<String, List<String>> systemMap =
 			new HashMap<String, List<String>>();
 
-		String systemQuery = "select result_key, anatomical_system "
+		String systemQuery = "select result_key, anatomical_system, "
+			+ "emapa_id "
 			+ "from expression_result_anatomical_systems";
 
 		ResultSet rs = ex.executeProto(systemQuery);
 
 		while (rs.next()) {
 			String resultKey = rs.getString("result_key");
-			String system = rs.getString("anatomical_system");
+			String system = rs.getString("anatomical_system")
+				+ "_" + rs.getString("emapa_id");
 
 			if (!systemMap.containsKey(resultKey)) {
 				systemMap.put(resultKey,
