@@ -73,6 +73,10 @@ public class SharedQueries {
 	// EMAPS terms, also gets their corresponding EMAPA terms and the
 	// ancestors of those terms.
 	static String GXD_EMAP_ANCESTOR_QUERY =
+
+		// Get the ancestors of each EMAPA and EMAPS term, staying
+		// within their own vocabularies.
+
 		"select ta.ancestor_primary_id ancestor_id, "+
 		    "t.primary_id structure_id, "+
 		    "t.term_key structure_term_key, "+
@@ -85,23 +89,32 @@ public class SharedQueries {
 		    "and t.vocab_name in ('EMAPA', 'EMAPS') " +
 		    "and ta.ancestor_primary_id = ancestor_join.primary_id "+
 		    "and tae.term_key = ancestor_join.term_key " +
+
+		// for each EMAPS term, include the EMAPA terms that correspond
+		// to its EMAPS ancestors.  (We trace ancestry by EMAPS to
+		// ensure that we only follow valid stage-aware paths, then
+		// make the jump over to EMAPA.)
+
 		"union " +
-		"select anc.ancestor_primary_id, " +
+		"select emapa.primary_id, " +
 		    "emaps.primary_id, " +
 		    "emaps.term_key, " +
-		    "anc.ancestor_term_key " +
+		    "emapa.term_key " +
 		"from term emaps, " +
+		    "term_ancestor anc, " +
 		    "term_emap te, " +
 		    "term emapa, " +
-		    "term_ancestor anc, " +
 		    "term_emap ae " +
 		"where emaps.vocab_name = 'EMAPS' " +
-		    "and emaps.term_key = te.term_key " +
+		    "and emaps.term_key = anc.term_key " +
+		    "and anc.ancestor_term_key = te.term_key " +
 		    "and te.emapa_term_key = emapa.term_key " +
-		    "and emapa.term_key = anc.term_key " +
-		    "and anc.ancestor_term_key = ae.term_key " +
+		    "and te.emapa_term_key = ae.term_key " +
 		    "and te.stage >= ae.start_stage " +
 		    "and te.stage <= ae.end_stage " +
+
+		// include EMAPA term corresponding to each EMAPS term
+
 		"union " +
 		"select emapa.primary_id, " +
 		    "emaps.primary_id, " +
