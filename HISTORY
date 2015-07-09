@@ -1,3 +1,8 @@
+TAG: feindexer-5-2-2-4
+DATE: 07/09/2015
+STAFF: jsb
+CHANGES: fixed reference indexer so we do not send an empty batch of docs to the server (which causes a "content stream empty" exception)
+
 TAG: feindexer-5-2-2-3
 DATE: 06/29/2015
 STAFF: jsb
