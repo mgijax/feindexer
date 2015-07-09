@@ -424,7 +424,9 @@ public class RefIndexerSQL extends Indexer {
                 	server.commit();
                 }
             }
-            server.add(docs);
+	    if (docs.size() > 0) {
+            	server.add(docs);
+	    }
             server.commit();
     }
     
