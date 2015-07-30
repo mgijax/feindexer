@@ -25,7 +25,7 @@ import org.slf4j.LoggerFactory;
 public class Main
 {
 	public static Logger logger = LoggerFactory.getLogger("FEINDEXER Main");
-	public static List<Indexer> SPECIFIED_INDEXERS = new ArrayList<Indexer>();
+	public static List<String> SPECIFIED_INDEXERS = new ArrayList<String>();
 	public static Map<String,Indexer> indexerMap = new HashMap<String,Indexer>();
 	public static boolean RUN_ALL_INDEXERS=false;
 	static
@@ -70,16 +70,11 @@ public class Main
 	private static void parseCommandInput(String[] args)
     {
         Set<String> arguments = new HashSet<String>();
-
-        for (int i=0;i<args.length;i++)
-        {
-            arguments.add(args[i]);
-        }
-
+        for (int i=0;i<args.length;i++){ arguments.add(args[i]);}
         if(!arguments.isEmpty())
         {
         	RUN_ALL_INDEXERS = SPECIFIED_INDEXERS.size()==0 && arguments.contains("all");
-            //start processing commands
+               //start processing commands
         	for(String arg : arguments)
         	{
         		if(arg.contains("maxThreads="))
@@ -89,14 +84,12 @@ public class Main
         		}
         		else if(indexerMap.containsKey(arg))
         		{
-        			SPECIFIED_INDEXERS.add(indexerMap.get(arg));
+        			SPECIFIED_INDEXERS.add(arg);
         			logger.info("adding user specified index: "+arg+" to list of indexers to run.");
         		}
         		else if("hmdc".equalsIgnoreCase(arg)) {
-				SPECIFIED_INDEXERS.add(
-				    indexerMap.get("diseasePortal"));
-				SPECIFIED_INDEXERS.add(
-				    indexerMap.get("diseasePortalAnnotation"));
+				SPECIFIED_INDEXERS.add("diseasePortal");
+				SPECIFIED_INDEXERS.add("diseasePortalAnnotation");
 			}
 			else
         		{
@@ -109,30 +102,33 @@ public class Main
 	public static void main(String[] args)
 	{
 		parseCommandInput(args);
-
+                /*
+                * Generate list of indexes to run from program specified arguments
+                */
 		if(RUN_ALL_INDEXERS)
 		{
-			SPECIFIED_INDEXERS = new ArrayList<Indexer>();
+			SPECIFIED_INDEXERS = new ArrayList<String>();
 			// default is to run all indexers
 			logger.info("\"all\" option was selected. Beginning run of all indexers");
-			for(Indexer idx : indexerMap.values())
+			for(String idxKey : indexerMap.keySet())
 			{
-				SPECIFIED_INDEXERS.add(idx);
+                                Indexer idx = indexerMap.get(idxKey);
+				SPECIFIED_INDEXERS.add(idxKey);
 				// change maxThreads default if specified by user
 				if(maxThreads>0) idx.setMaxThreads(maxThreads);
 			}
 		}
-
 		if(SPECIFIED_INDEXERS==null || SPECIFIED_INDEXERS.size()==0)
 		{
-			exitWithMessage("There are no specified indexers to run. Exiting.");
+		       exitWriteMessage("There are no specified indexers to run. Exiting.");
 		}
 
 		// track failed indexers for later reporting
-		List<Indexer> failedIndexers = new ArrayList<Indexer>();
+		List<String> failedIndexers = new ArrayList<String>();
 
-		for(Indexer idx : SPECIFIED_INDEXERS)
+		for(String idxKey : SPECIFIED_INDEXERS)
 		{
+                        Indexer idx = indexerMap.get(idxKey);
 			logger.info("Preparing to run: "+idx.getClass());
 			try{
 				idx.setupConnection();
@@ -141,24 +137,26 @@ public class Main
 			}
 			catch (Exception e)
 			{
-				exitWithMessage("Indexer: "+idx+" failed.",e);
+                                logger.error("Indexer: "+idxKey+" failed.",e);
 			}
 			if(idx.hasFailedThreads())
 			{
-				failedIndexers.add(idx);
+				failedIndexers.add(idxKey);
 			}
 		}
 
 		// return error if any indexers failed
 		if(failedIndexers.size()>0)
 		{
-			String errorMsg = "The following indexers returned errors or may have incomplete data [" +
-					StringUtils.join(failedIndexers,",")+"] and may need to be rerun." +
+			String errorMsg = "Failed or Incomplete Indexes: " + StringUtils.join(failedIndexers,",")+
 					"\n Please view the above logs for more details.";
-			exitWithMessage(errorMsg);
-		}
-	}
+                        exitWriteMessage(errorMsg);
 
+		}
+                else{
+                    logger.info("Completed run of the following indexes:"+StringUtils.join(SPECIFIED_INDEXERS,","));
+                 }
+	}
 	private static void exitWithMessage(String errorMsg)
 	{ exitWithMessage(errorMsg,null); }
 	private static void exitWithMessage(String errorMsg,Exception ex)
