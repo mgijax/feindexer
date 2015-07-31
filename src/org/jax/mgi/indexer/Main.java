@@ -120,7 +120,7 @@ public class Main
 		}
 		if(SPECIFIED_INDEXERS==null || SPECIFIED_INDEXERS.size()==0)
 		{
-		       exitWriteMessage("There are no specified indexers to run. Exiting.");
+		       exitWithMessage("There are no specified indexers to run. Exiting.");
 		}
 
 		// track failed indexers for later reporting
@@ -150,7 +150,7 @@ public class Main
 		{
 			String errorMsg = "Failed or Incomplete Indexes: " + StringUtils.join(failedIndexers,",")+
 					"\n Please view the above logs for more details.";
-                        exitWriteMessage(errorMsg);
+                        exitWithMessage(errorMsg);
 
 		}
                 else{
