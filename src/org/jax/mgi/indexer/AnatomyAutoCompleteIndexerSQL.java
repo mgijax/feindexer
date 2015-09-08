@@ -43,7 +43,6 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 		+ " and t.vocab_name = 'EMAPA' "
 		+ " and t.is_obsolete = 0";
 
-            System.out.println(synonymSQL);
             HashMap <String, HashSet <String>> structureToSynonyms =
 		makeHash(synonymSQL, "term_key", "synonym");
             

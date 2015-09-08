@@ -29,142 +29,137 @@ import org.jax.mgi.indexer.Indexer;
 
 public class SQLExecutor {
 
-    //private Logger logger = LoggerFactory.getLogger(this.getClass());
-    public Properties props = new Properties();
-    protected Connection conMGD = null;
-    private String user;
-    private String password;
-    private String mgdJDBCUrl;
-    
-    private Date start;
-    private Date end;
-        
-    
-    /**
-     * The default constructor pulls in connection information from the property files.
-     * 
-     * @param config
-     */
-    
-    public SQLExecutor () {
-        try {
-            
-        InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.props");
-        try {
-            props.load(in);
-        } catch (IOException e1) {
-            e1.printStackTrace();
-        }
-        
-        Class.forName(props.getProperty("database.JDBC.driver"));
-        user = props.getProperty("mgd.user");
-        password = props.getProperty("mgd.password");
-        mgdJDBCUrl = props.getProperty("mgd.JDBC.url");
-        }
-        catch (Exception e) {e.printStackTrace();}
-    }
-    
-    /**
-     * Sets up the connection to the MGD Database.
-     * @throws SQLException
-     */
-    
-    private void getMGDConnection() throws SQLException {
-        conMGD = DriverManager.getConnection(mgdJDBCUrl, user, password);
-    }
-    
-    /**
-     * Clean up the connections to the database, if they have been initialized.
-     * @throws SQLException
-     */
-    
-    public void cleanup() throws SQLException {
-        if (conMGD != null) {
-            conMGD.close();
-        }
-    }
-    
-    /**
-     * Execute a statement against MGD (where that statement has no rows
-     * returned), setting up the connection if needed.
-     * @param query
-     */
-    public void executeUpdate (String cmd) {
-        
-        try {
-            if (conMGD == null) {
-                getMGDConnection();
-            }
-            
-            java.sql.Statement stmt = conMGD.createStatement();
-            start = new Date();
-            stmt.executeUpdate(cmd);
-            end = new Date();
-            return;
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
-            return;
-        }
-    }
-    /*
-     * execute any SQL that does not return a result
-     */
-    public void executeVoid(String sql)
-    {
-    	 try 
-    	 {
-             if (conMGD == null)  getMGDConnection();
+	//private Logger logger = LoggerFactory.getLogger(this.getClass());
+	public Properties props = new Properties();
+	protected Connection conMGD = null;
+	private String user;
+	private String password;
+	private String mgdJDBCUrl;
 
-             java.sql.Statement stmt = conMGD.createStatement();
+	private Date start;
+	private Date end;
 
-             stmt.execute(sql);
 
-         } catch (Exception e) {
-             e.printStackTrace();
-             System.exit(1);
-         }
-    }
-        
-    /**
-     * Execute a query against MGD, setting up the connection if needed.
-     * @param query
-     * @return
-     */
-    
-    public ResultSet executeProto (String query) {
-        
-        ResultSet set;
-        
-        try {
-            if (conMGD == null) {
-                getMGDConnection();
-            }
-            
-            java.sql.Statement stmt = conMGD.createStatement();
-            start = new Date();
-            set = stmt.executeQuery(query);
-            end = new Date();
-            return set;
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(1);
-            return null;
-        }
-    }
-        
-    /**
-     * Return the timing of the last query.
-     * @return
-     */
-    
-    public long getTiming() {
-        return end.getTime() - start.getTime();
-    }
+	/**
+	 * The default constructor pulls in connection information from the property files.
+	 * 
+	 * @param config
+	 */
+
+	public SQLExecutor () {
+		try {
+
+			InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.props");
+			try {
+				props.load(in);
+			} catch (IOException e1) {
+				e1.printStackTrace();
+			}
+
+			Class.forName(props.getProperty("database.JDBC.driver"));
+			user = props.getProperty("mgd.user");
+			password = props.getProperty("mgd.password");
+			mgdJDBCUrl = props.getProperty("mgd.JDBC.url");
+		}
+		catch (Exception e) {e.printStackTrace();}
+	}
+
+	/**
+	 * Sets up the connection to the MGD Database.
+	 * @throws SQLException
+	 */
+
+	private void getMGDConnection() throws SQLException {
+		conMGD = DriverManager.getConnection(mgdJDBCUrl, user, password);
+	}
+
+	/**
+	 * Clean up the connections to the database, if they have been initialized.
+	 * @throws SQLException
+	 */
+
+	public void cleanup() throws SQLException {
+		if (conMGD != null) {
+			conMGD.close();
+		}
+	}
+
+	/**
+	 * Execute a statement against MGD (where that statement has no rows
+	 * returned), setting up the connection if needed.
+	 * @param query
+	 */
+	public void executeUpdate (String cmd) {
+
+		try {
+			if (conMGD == null) {
+				getMGDConnection();
+			}
+
+			java.sql.Statement stmt = conMGD.createStatement();
+			start = new Date();
+			stmt.executeUpdate(cmd);
+			end = new Date();
+			return;
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+			return;
+		}
+	}
+	/*
+	 * execute any SQL that does not return a result
+	 */
+	public void executeVoid(String sql) {
+		try {
+			if (conMGD == null)  getMGDConnection();
+			java.sql.Statement stmt = conMGD.createStatement();
+			stmt.execute(sql);
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+		}
+	}
+
+	/**
+	 * Execute a query against MGD, setting up the connection if needed.
+	 * @param query
+	 * @return
+	 */
+
+	public ResultSet executeProto (String query) {
+
+		ResultSet set;
+
+		try {
+			if (conMGD == null) {
+				getMGDConnection();
+			}
+
+			java.sql.Statement stmt = conMGD.createStatement();
+			start = new Date();
+			set = stmt.executeQuery(query);
+			end = new Date();
+			return set;
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+			return null;
+		}
+	}
+
+	/**
+	 * Return the timing of the last query.
+	 * @return
+	 */
+
+	public long getTiming() {
+		return end.getTime() - start.getTime();
+	}
 
 	@Override
 	public String toString() {
 		return "SQLExecutor[user="+user+",password="+password+",url="+mgdJDBCUrl+"]";
 	}
-    
+
 }

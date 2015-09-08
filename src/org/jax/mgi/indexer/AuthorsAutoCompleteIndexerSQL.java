@@ -140,7 +140,6 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
                             String tempString = "";
                             Boolean first = Boolean.FALSE;
                             for (int j = 0; j < temp.length - 1 && j < 4; j++) {
-                                //System.out.println("getting here");
                                 if (j == 0) {
                                     tempString += temp[j];
                                 }

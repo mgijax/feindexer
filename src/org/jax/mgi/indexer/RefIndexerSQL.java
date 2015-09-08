@@ -51,6 +51,44 @@ public class RefIndexerSQL extends Indexer {
     	Map<String,Set<String>> diseaseRelevantRefMap = populateLookup(diseaseRelevantRefQuery,"reference_key","disease_id",
     				"disease IDs to references (for linking from disease portal)");
     	
+	// populate lookup from reference key to set of marker IDs which have
+	// GO annotations from that reference
+	String goMarkerSQL = "select distinct m.primary_id, r.reference_key "
+		+ "from marker_to_annotation mta, "
+		+ "    annotation a, "
+		+ "    annotation_reference r, "
+		+ "    marker m "
+		+ "where mta.annotation_key = a.annotation_key "
+		+ "    and a.annotation_key = r.annotation_key "
+		+ "    and mta.marker_key = m.marker_key "
+		+ "    and a.evidence_code != 'ND' "
+		+ "    and m.organism = 'mouse' "
+		+ "    and a.vocab_name = 'GO' ";		
+	Map<String, Set<String>> goMarkerMap = populateLookup(goMarkerSQL,
+		"reference_key", "primary_id", "GO/Marker annotations");
+
+	// populate lookup from reference key to set of marker IDs which have
+	// alleles associated with that reference
+	String phenoMarkerSQL = "with pairs as ("
+		+ "select marker_key, allele_key "
+		+ "from marker_to_allele "
+		+ "union "
+		+ "select related_marker_key, allele_key "
+		+ "from allele_related_marker "
+		+ "where relationship_category in "
+		+ "  ('mutation_involves', 'expresses_component')"
+		+ ") "
+		+ "select distinct m.primary_id, r.reference_key "
+		+ "from marker m, pairs mta, allele a, "
+		+ "  allele_to_reference atr, reference r "
+		+ "where m.marker_key = mta.marker_key "
+		+ "  and mta.allele_key = a.allele_key "
+		+ "  and a.is_wild_type = 0 "
+		+ "  and a.allele_key = atr.allele_key "
+		+ "  and atr.reference_key = r.reference_key ";
+	Map<String,Set<String>> phenoMarkerMap = populateLookup(phenoMarkerSQL,
+		"reference_key", "primary_id", "MP/Marker associations");
+
             // How many references are there total?
             ResultSet rs_tmp = ex.executeProto("select max(reference_Key) as maxRefKey from reference");
             rs_tmp.next();
@@ -117,7 +155,7 @@ public class RefIndexerSQL extends Indexer {
             String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title," +
                 " r.journal, r.vol, r.issue, ra.abstract," +
                 " rc.marker_count, rc.probe_count, rc.mapping_expt_count, rc.gxd_index_count, rc.gxd_result_count," +
-                " rc.gxd_structure_count, rc.gxd_assay_count, rc.allele_count, rc.sequence_count, rc.go_annotation_count " +
+                " rc.gxd_structure_count, rc.gxd_assay_count, rc.allele_count, rc.sequence_count, rc.go_annotation_count, r.reference_group " +
                 "from reference as r " +
                 "inner join reference_abstract ra on r.reference_key = ra.reference_key inner join reference_counts as rc on r.reference_key = rc.reference_key";
             logger.info(referenceSQL);
@@ -139,6 +177,7 @@ public class RefIndexerSQL extends Indexer {
                 
                 doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
                 doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
+                doc.addField(IndexConstants.REF_GROUPING, rs_overall.getString("reference_group"));
                 
                 String refKey = rs_overall.getString("reference_key");
                 doc.addField(IndexConstants.REF_KEY, refKey);
@@ -147,6 +186,14 @@ public class RefIndexerSQL extends Indexer {
                 addAllFromLookup(doc,IndexConstants.REF_DISEASE_RELEVANT_MARKER_ID,refKey,diseaseRelevantMarkerMap);
                 addAllFromLookup(doc,IndexConstants.REF_DISEASE_ID,refKey,diseaseRelevantRefMap);
 
+		// add all marker IDs where this reference has GO data
+		addAllFromLookup(doc, IndexConstants.REF_GO_MARKER_ID, refKey,
+		    goMarkerMap); 
+                
+		// add all marker IDs where this reference is associated with
+		// alleles of the marker
+		addAllFromLookup(doc, IndexConstants.REF_PHENO_MARKER_ID, refKey,
+		    phenoMarkerMap); 
                 
                 doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
                 

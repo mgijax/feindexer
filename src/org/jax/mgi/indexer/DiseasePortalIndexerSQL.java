@@ -537,7 +537,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"msqn.by_symbol, " +
 				"msqn.by_marker_subtype, " +
 				"msqn.by_location, " +
-				"mc.reference_count "+
+				"mc.reference_count, "+
+				"mc.disease_relevant_reference_count " +
 				"from marker m, "+
 				"marker_sequence_num msqn, " +
 				"marker_counts mc " +
@@ -608,6 +609,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			doc.addField(DiseasePortalFields.COORDINATE_DISPLAY,rs.getString("coordinate_display"));
 			doc.addField(DiseasePortalFields.BUILD_IDENTIFIER,rs.getString("build_identifier"));
 			doc.addField(DiseasePortalFields.MARKER_ALL_REF_COUNT,rs.getString("reference_count"));
+			doc.addField(DiseasePortalFields.MARKER_DISEASE_REF_COUNT,rs.getString("disease_relevant_reference_count"));
 			doc.addField(DiseasePortalFields.MARKER_IMSR_COUNT,imsrCount);
 
 			// ----------- marker sorts -------------

@@ -43,7 +43,6 @@ public class CreIndexerSQL extends Indexer {
             
             logger.info("Selecting all allele systems relationships");
             String allToSystemSQL = "select allele_key, system from recombinase_allele_system where system != '' order by allele_key ";
-            System.out.println(allToSystemSQL);
             HashMap <String, HashSet <String>> allToSystems = makeHash(allToSystemSQL, "allele_key", "system");
 
             // build maps to handle structure queries

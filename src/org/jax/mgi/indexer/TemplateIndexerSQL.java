@@ -32,7 +32,6 @@ public class TemplateIndexerSQL extends Indexer {
             ResultSet rs_tmp = ex.executeProto("select max(referenceKey) as maxRefKey from reference");
             rs_tmp.next();
             
-            System.out.println("Max Ref Number: " + rs_tmp.getString("maxRefKey") + " Timing: "+ ex.getTiming());
             String start = "0";
             String end = rs_tmp.getString("maxRefKey");
             
@@ -41,7 +40,6 @@ public class TemplateIndexerSQL extends Indexer {
             
             logger.info("Seleceting all marker references");
             String markerToRefSQL = "select referenceKey, markerKey from markerToReference where referenceKey > " + start + " and referenceKey <= "+ end;
-            System.out.println(markerToRefSQL);
             HashMap <String, HashSet <String>> refToMarkers = makeHash(markerToRefSQL, "referenceKey", "markerKey");
 
             

@@ -29,7 +29,6 @@ public class MPAnnotationIndexerSQL extends Indexer {
         ResultSet rs_tmp = ex.executeProto("select max(annotation_key) as maxAnnotKey from annotation where annotation_type = '" + annotationType + "'");
         rs_tmp.next();
         Integer maxAnnotKey = rs_tmp.getInt("maxAnnotKey");
-        System.out.println("Max Genotype annotation_key: " +  maxAnnotKey + " Timing: "+ ex.getTiming());
 
 	    String tmpAnnotations = "select a.annotation_key, "
 		+ "  ga.genotype_key, "

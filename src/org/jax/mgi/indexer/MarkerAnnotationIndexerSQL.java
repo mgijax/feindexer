@@ -3,6 +3,7 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -33,9 +34,6 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 		ResultSet rs_tmp = ex.executeProto("select max(annotation_key) as maxAnnotKey from annotation");
 		rs_tmp.next();
 
-		System.out.println("Max Term Number: " + rs_tmp.getString("maxAnnotKey") + " Timing: "+ ex.getTiming());
-
-
 		// get the references for each annotation
 
 		logger.info("Finding references for annotations");
@@ -46,14 +44,29 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 		logger.info("Found refs for " + annotToRefs.size() + " annotations");
 
+		// get the set of slimgrid header terms for each term used in
+		// an annotation
+
+		logger.info("Getting slimgrid header terms.");
+		String cmd = "select tth.term_key, h.abbreviation as header_term "
+		    + "from term_to_header tth, term h "
+		    + "where tth.header_term_key = h.term_key";
+
+		HashMap<String, HashSet<String>> termToHeaders = makeHash(cmd,
+		    "term_key", "header_term");
+
+		logger.info("Found header terms for " + termToHeaders.size()
+		    + " terms");
+
 		// Setup the main query here
 
 		logger.info("Getting all marker annotations.");
 		ResultSet rs_overall = ex.executeProto("select a.annotation_key, a.vocab_name, a.term, a.evidence_code, a.evidence_term, " +
-				"a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term, asn.by_object_dag_term " +
+				"a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term, asn.by_object_dag_term, gec.evidence_category, a.term_key " +
 				"from annotation as a " +
 				"join marker_to_annotation as mta on a.annotation_key = mta.annotation_key " +
 				"join annotation_sequence_num as asn on a.annotation_key = asn.annotation_key " +
+				"join go_evidence_category as gec on a.evidence_code = gec.evidence_code " +
 				"where a.object_type = 'Marker'");
 
 		rs_overall.next();
@@ -81,6 +94,12 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.VOC_BY_DAG_TERM, rs_overall.getString("by_vocab_dag_term"));
 			doc.addField(IndexConstants.BY_MRK_DAG_TERM, rs_overall.getString("by_object_dag_term"));
 
+			String category = rs_overall.getString(
+			    "evidence_category");
+
+			doc.addField(IndexConstants.EVIDENCE_CATEGORY, 
+			    category);
+
 			String qualifier = rs_overall.getString("qualifier");
 			if (qualifier == null) {
 				qualifier = "";
@@ -95,6 +114,14 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 				for (String refsKey: annotToRefs.get(annotKey)) {
 					doc.addField(IndexConstants.REF_KEY, refsKey);
 				}
+			}
+
+			// include header terms where available
+			String termKey = rs_overall.getString("term_key");
+			if (termToHeaders.containsKey(termKey)) {
+			    for (String header: termToHeaders.get(termKey)) {
+				doc.addField(IndexConstants.SLIM_TERM, header);
+			    }
 			}
 
 			// not sure why this is here or what it's doing; suspect it's

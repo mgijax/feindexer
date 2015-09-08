@@ -32,8 +32,6 @@ public class InteractionIndexerSQL extends Indexer {
 
 		int maxKey = rs_tmp.getInt("maxRegKey");
 
-		System.out.println("max(mi_key): " + maxKey + " Timing: " + ex.getTiming());
-
 		// SQL to gather the properties we need to recognize for
 		// 'interacts_with' relationships:  score, mature transcript, and
 		// notes.

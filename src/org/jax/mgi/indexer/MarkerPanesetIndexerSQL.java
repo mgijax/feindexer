@@ -31,7 +31,6 @@ public class MarkerPanesetIndexerSQL extends Indexer {
             logger.info("Seleceting all imagepanet set for markers");
             String imagesToMrkSQL = "select distinct marker_key, paneset_key " + 
             	" from expression_imagepane_set order by paneset_key";
-            System.out.println(imagesToMrkSQL);
             HashMap <String, HashSet <String>> imagesToMarkers = makeHash(imagesToMrkSQL, "paneset_key", "marker_key");
   	
             
