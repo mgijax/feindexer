@@ -1,0 +1,412 @@
+#!/bin/sh
+
+# (Re)populate one or more Solr indexes for the fewi.  If processing more than
+# one index, subprocesses are used to build multiple indexes in parallel.  We
+# use adaptive scheduling, where the runtimes of the indexers in previous runs
+# is used to optimize their scheduling for the current run.
+
+USAGE="Usage: buildIndexes [ all | list | one or more index names ]
+	all : build all indexes, using parallelization as appropriate
+	list : show a list of indexes we can build
+
+	You can specify one or more indexes to build, and the script will
+	build just those ones, using parallelization as appropriate.
+
+	If no arguments are submitted, 'list' is assumed.
+"
+
+###------------------------###
+###--- Global Variables ---###
+###------------------------###
+
+# list of indexers to execute -- filled in by processCommandLine()
+INDEXERS=
+
+# directory for temp files
+TMP=/tmp/
+
+# overall start time (in seconds)
+OVERALL_START=`date +%s`
+
+# cumulative total of indexers run so far (total number of seconds when added
+# up, as if run sequentially)
+SEQUENTIAL_TIME=0
+
+# number of indexers to run sequentially
+SUBPROC_COUNT=3
+#SUBPROC_COUNT=2
+
+# number of seconds to wait before checking for finished indexers on each
+# interation
+DELAY=3
+
+# PID of the current process
+MY_PID=$$
+
+# file with info on currently running indexers
+RUNNING_FILE=${TMP}feindexer.${MY_PID}.running
+
+# file with info on currently running indexers
+SUCCESS_FILE=${TMP}feindexer.${MY_PID}.success
+
+# file with info on currently running indexers
+FAILED_FILE=${TMP}feindexer.${MY_PID}.failure
+
+# have any indexers successful yet?  (1 = yes, 0 = no)
+ANY_SUCCESSFUL=0
+
+# have any indexers failed yet?  (1 = yes, 0 = no)
+ANY_FAILED=0
+
+# log filename
+#LOG=./buildIndexes.log
+LOG=
+
+###-----------------###
+###--- Functions ---###
+###-----------------###
+
+# get the current time (measured in seconds since the epoch), written to
+# stdout
+timeInSeconds() {
+	CURRENT_TIME=`date +%s`
+	echo ${CURRENT_TIME}
+}
+
+# elapsed time (in seconds) since the start of the script
+elapsedTime() {
+	NOW=`timeInSeconds`
+	echo `expr ${NOW} - ${OVERALL_START}`
+}
+
+# write the message passed in via parameter $1 to the $LOG file
+log() {
+	if [ "${LOG}" != "" ]; then
+		echo `elapsedTime` "$1" >> ${LOG}
+	fi
+}
+
+# preliminary, initialization stuff
+initialize() {
+	if [ "${LOG}" != "" ]; then
+		rm ${LOG}
+		touch ${LOG}
+	fi
+
+	log "Finished initialize()"
+}
+
+# go through the command-line options, look for and report errors, and 
+# initialize the global list of INDEXES
+processCommandLine() {
+	# assume we're going to loop over several indexers
+	FLAG=loop
+
+	# if we need to just list the indexers, update our FLAG
+	if [ $# = 0 ]; then
+		log "Default run -- no parameters"
+		FLAG=list
+
+	elif [ "$1" = "list" ]; then
+		log "Received parameter 'list'"
+		FLAG=list
+
+	# if we know we're going to loop over all indexers, update the FLAG
+	elif [ "$1" = "all" ]; then
+		FLAG=all
+		log "Received parameter 'all'"
+		INDEXERS=`./buildIndex list`
+
+	# otherwise the user specified one or more indexes; see if there are
+	# any invalid ones in the list and exit with an error message if so
+	else
+		INDEXERS=$@
+		ALL_INDEXERS=`./buildIndex list`
+
+		NOT_FOUND=
+
+		for i in $INDEXERS
+		do
+			FOUND=0
+			for j in $ALL_INDEXERS
+			do
+				if [ "${i}" = "${j}" ]; then
+					FOUND=1
+					break
+				fi
+			done
+
+			if [ $FOUND = 0 ]; then
+				NOT_FOUND="${NOT_FOUND} ${i}"
+			fi
+		done
+
+		if [ "${NOT_FOUND}" != "" ]; then
+			log "Unknown index(es): ${NOT_FOUND}"
+			echo "Unknown index(es): ${NOT_FOUND}"
+			exit 1
+		fi
+	fi
+
+	# if we just need to list the possible indexes, then do it and exit
+	if [ "${FLAG}" = "list" ]; then
+		log "Printing list of valid indexes"
+		./buildIndex list
+		exit 0
+	fi
+
+	log "Finished processCommandLine() with indexers: ${INDEXERS}"
+}
+
+# sort the global list of INDEXERS so that the longest running ones appear
+# first, when we have previous performance data available.  This allows us to
+# fairly efficiently work through them in parallel.  (longest running ones get
+# started first, and as one finishes, the next in line is ready to take its
+# place)
+sortIndexers() {
+	# We'll be using a temporary file for scheduling; it will contain two
+	# columns -- the number of seconds for the previous run of a
+	# particular indexer, and the name of that indexer.
+
+	SCHEDULE=${TMP}feindexer.$$.schedule
+
+	# if that filename is already hanging around, get rid of it
+
+	if [ -r ${SCHEDULE} ]; then
+		rm ${SCHEDULE}
+	fi
+
+	# now add a line for each indexer, including a previous runtime when
+	# available
+
+	for i in $INDEXERS
+	do
+		if [ -r ${TMP}feindexer.${i}.timing ]; then
+			TIME=`cat ${TMP}feindexer.${i}.timing`
+		else
+			# previously untimed ones go the end
+			TIME=99999999
+		fi
+		echo "${TIME} ${i}" >> $SCHEDULE
+	done
+
+	sort -r -n ${SCHEDULE} > ${SCHEDULE}.final
+	INDEXERS=`cat ${SCHEDULE}.final | awk '{print $2}'`
+
+	rm ${SCHEDULE}
+	rm ${SCHEDULE}.final
+	log "Finished sortIndexers() with indexers: ${INDEXERS}"
+}
+
+# run a single indexer, logging its start time, and writing its PID to stdout
+runIndexer() {
+	log "Starting $1..."
+	(
+	./buildIndex $1 > ${TMP}feindexer.${MY_PID}.${1}.out 2>&1 &
+	wait $!
+	echo $? > ${TMP}feindexer.${MY_PID}.${1}.exitCode
+	) > /dev/null 2>&1 &
+
+	SUB_PID=$!
+
+	SUB_START=`timeInSeconds`
+
+	echo "${1}:${SUB_PID}:${SUB_START}" >> ${RUNNING_FILE}
+	SUB_ELAPSED=`expr ${SUB_START} - ${OVERALL_START}`
+	log "Started $1 as ${SUB_PID} at ${SUB_ELAPSED}"
+	echo ${SUB_PID}
+}
+
+# Determines if the process with the given PID is still running; writes 1 if
+# yes, 0 if no.  Assumes that the input parameter is an integer PID.
+isRunning() {
+	echo `ps -p $1 | grep -v TTY | wc -l`
+}
+
+# Write the exit code that was returned by the process with the given PID.
+# Assumes that the process was running at one point and has not yet been
+# waited for.  Assumes that the input parameter is an integer PID.
+getExitCode() {
+	INFO=`grep ":$1:" ${RUNNING_FILE}`
+	INDEXER=`echo "${INFO}" | sed 's/:/ /g' | awk '{print $1}'`
+
+	EC=`cat ${TMP}feindexer.${MY_PID}.${INDEXER}.exitCode`
+	rm ${TMP}feindexer.${MY_PID}.${INDEXER}.exitCode
+	log "Received exit code ${EC} for PID $1"
+	echo ${EC}
+}
+
+# close out the run of the PID given as input parameter $1, with success (0)
+# or failure (non-zero) indictated by parameter $2
+closeIndexer() {
+	INFO=`grep ":$1:" ${RUNNING_FILE}`
+	grep -v ":$1:" ${RUNNING_FILE} > ${RUNNING_FILE}.tmp
+	mv ${RUNNING_FILE}.tmp ${RUNNING_FILE}
+
+	INDEXER=`echo "${INFO}" | sed 's/:/ /g' | awk '{print $1}'`
+	IND_START=`echo "${INFO}" | sed 's/:/ /g' | awk '{print $3}'`
+	IND_END=`timeInSeconds`
+
+	ELAPSED=`expr ${IND_END} - ${IND_START}`
+
+	if [ "$2" = "0" ]; then
+		echo ${ELAPSED} > ${TMP}feindexer.${INDEXER}.timing
+		echo "${INDEXER} succeeded in ${ELAPSED} seconds" >> ${SUCCESS_FILE}
+		ANY_SUCCESSFUL=1
+		log "Added line to ${SUCCESS_FILE} for ${INDEXER}"
+	else
+		echo "${INDEXER} failed in ${ELAPSED} seconds" >> ${FAILED_FILE}
+		ANY_FAILED=1
+		log "Added line to ${FAILED_FILE} for ${INDEXER}"
+	fi
+}
+
+# run through the indexers specified in the global INDEXERS, executed in
+# parallel (executing SUBPROC_COUNT at once)
+runIndexers() {
+	# list of failed indexers
+	FAILED=
+
+	# list of PIDs currently running
+	RUNNING_PIDS=
+
+	# go through indexers, starting one of them at a time (once there's a
+	# free slot available)
+
+	for i in ${INDEXERS}
+	do
+		log "Waiting to start ${i}"
+
+		# has the current indexer ($i) been started yet?
+		STARTED=false
+
+		# as long as we haven't started up the current indexer ($i),
+		# that's the next one to start...
+
+		while [ "${STARTED}" = "false" ]; do
+			RUNNING_COUNT=0
+			NEW_PID_LIST=
+
+			# go through the list of currently running PIDs and
+			# look to see if any have finished
+
+			if [ "${RUNNING_PIDS}" != "" ]; then
+				for pid in ${RUNNING_PIDS}
+				do
+					ACTIVE=`isRunning ${pid}`
+					if [ "${ACTIVE}" = "1" ]; then
+						# still running
+						NEW_PID_LIST="${pid} ${NEW_PID_LIST}"
+						RUNNING_COUNT=`expr ${RUNNING_COUNT} + 1`
+					else
+						# finished - close it out
+						EC=`getExitCode ${pid}`
+						closeIndexer ${pid} ${EC}
+					fi
+				done
+			fi
+
+			# if we are below our limit on running indexers, then
+			# start up the current one ($i)
+
+			if [ ${RUNNING_COUNT} -lt ${SUBPROC_COUNT} ]; then
+				NEW_PID=`runIndexer $i`
+				AMPM=`uptime | awk '{print $1}'`
+				echo "Started ${i} as PID ${NEW_PID} at ${AMPM}"
+				STARTED=true
+				RUNNING_COUNT=`expr ${RUNNING_COUNT} + 1`
+				NEW_PID_LIST="${NEW_PID} ${NEW_PID_LIST}"
+			fi
+
+			# take a break before checking again
+
+			RUNNING_PIDS=${NEW_PID_LIST}
+			sleep ${DELAY}
+		done
+	done
+
+	log "All indexers have been started"
+
+	# Now we need to wait for the final indexers to finish.
+
+	while [ "${RUNNING_PIDS}" != "" ]; do
+		NEW_PID_LIST=
+
+		for pid in ${RUNNING_PIDS}
+		do
+			ACTIVE=`isRunning ${pid}`
+			if [ "${ACTIVE}" = "1" ]; then
+				NEW_PID_LIST="${pid} ${NEW_PID_LIST}"
+			else
+				EC=`getExitCode ${pid}`
+				closeIndexer ${pid} ${EC}
+			fi
+		done
+
+		RUNNING_PIDS=${NEW_PID_LIST}
+		if [ "${RUNNING_PIDS}" != "" ]; then
+			sleep ${DELAY}
+		fi
+	done 
+
+	log "All indexers have finished"
+
+	# finally, clean up after ourselves
+
+	rm ${RUNNING_FILE}
+}
+
+# report logs and summary info to stdout, informing the user of the success or
+# failure of the indexers
+report() {
+
+	# include and then remove the logs
+
+	for logfile in `ls ${TMP}feindexer.${MY_PID}.*.out`
+	do
+		echo "---- start ${logfile} ---------------------------"
+		cat ${logfile}
+		echo "---- stop ${logfile} ----------------------------"
+		rm ${logfile}
+	done
+
+	if [ "${ANY_SUCCESSFUL}" = "1" ]; then
+		echo "---- successful indexers --------------------"
+		cat ${SUCCESS_FILE}
+		rm ${SUCCESS_FILE}
+	fi
+
+	if [ "${ANY_FAILED}" = "1" ]; then
+		echo "---- failed indexers ------------------------"
+		cat ${FAILED_FILE}
+		rm ${FAILED_FILE}
+	fi
+
+	# overall end time (in seconds)
+	OVERALL_END=`date +%s`
+
+	# elapsed time (in seconds)
+	ELAPSED=`expr ${OVERALL_END} - ${OVERALL_START}`
+
+	echo "---- feindexer run finished in ${ELAPSED} seconds ----"
+
+	log "Finished report()"
+}
+
+###--------------------###
+###--- Main Program ---###
+###--------------------###
+
+initialize
+processCommandLine $@
+sortIndexers
+runIndexers
+report
+
+if [ "${ANY_FAILED}" = "0" ]; then
+	echo "Successfully completed"
+	exit 0
+else
+	echo "Some indexers failed (see above)"
+	exit 1
+fi
