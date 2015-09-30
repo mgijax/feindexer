@@ -1,3 +1,10 @@
+TAG: feindexer-6-0-1-2
+DATE: 09/30/2015
+STAFF: jsb
+CHANGES: 
+1) added 'list' option for Main.java to show available indexers
+2) added buildIndexes script to restore ability to run in parallel
+
 TAG: feindexer-6-0-1-1
 DATE: 09/22/2015
 STAFF: oblod
