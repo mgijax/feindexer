@@ -1,6 +1,8 @@
 package org.jax.mgi.indexer;
 
+import java.util.Collections;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -28,6 +30,8 @@ public class Main
 	public static List<String> SPECIFIED_INDEXERS = new ArrayList<String>();
 	public static Map<String,Indexer> indexerMap = new HashMap<String,Indexer>();
 	public static boolean RUN_ALL_INDEXERS=false;
+	public static boolean ONLY_LIST=false;
+
 	static
 	{
 		/*
@@ -67,6 +71,17 @@ public class Main
 	// other command args
 	public static int maxThreads = 10; // uses default unless set to > 0
 
+	private static List<String> getIndexers() {
+		Iterator<String> it = indexerMap.keySet().iterator();
+		List<String> indexes = new ArrayList<String>();
+
+		while (it.hasNext()) {
+			indexes.add(it.next());
+		}
+		Collections.sort(indexes);
+		return indexes;
+	}
+
 	private static void parseCommandInput(String[] args)
     {
         Set<String> arguments = new HashSet<String>();
@@ -90,6 +105,14 @@ public class Main
         		else if("hmdc".equalsIgnoreCase(arg)) {
 				SPECIFIED_INDEXERS.add("diseasePortal");
 				SPECIFIED_INDEXERS.add("diseasePortalAnnotation");
+			}
+			else if ("list".equalsIgnoreCase(arg)) {
+				// only show the list of possible indexers,
+				// one per line, then exit
+				ONLY_LIST = true;
+				for (String s : getIndexers()) {
+					System.out.println(s);
+				}
 			}
 			else
         		{
@@ -117,6 +140,9 @@ public class Main
 				// change maxThreads default if specified by user
 				if(maxThreads>0) idx.setMaxThreads(maxThreads);
 			}
+		}
+		if (ONLY_LIST) {
+			System.exit(0);
 		}
 		if(SPECIFIED_INDEXERS==null || SPECIFIED_INDEXERS.size()==0)
 		{
