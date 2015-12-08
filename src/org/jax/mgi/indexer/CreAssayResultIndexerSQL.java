@@ -431,23 +431,28 @@ public class CreAssayResultIndexerSQL extends Indexer {
      */
     private Map<String, AlleleSystems> queryAlleleSystemsMap(int startResultKey, int endResultKey) throws SQLException {
     	
-    	String query = "select aus.allele_key, "
+    	String query = "with batch_alleles as ( "
+    			+ 	"select distinct allele_key from "
+    			+ 	"recombinase_allele_system ras "
+    			+ 	"join recombinase_assay_result rar on "
+    			+ 		"rar.allele_system_key = ras.allele_system_key "
+    				// filter out only alleles that apply to this batch of assay results
+    			+ 	"where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " "
+    			+ ")"
+    			+ "select aus.allele_key, "
     			+ "aus.system, "
     			+ "false as detected "
     			+ "from allele_recombinase_unaffected_system aus "
-    			+ "join recombinase_assay_result rar on "
-    			+ 	"rar.allele_system_key = aus.allele_system_key "
-    			// filter for this batch of assay results
-    			+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " "
+    			+ "join batch_alleles ba on "
+    			+ 	"ba.allele_key = aus.allele_key "
     			+ "UNION "
     			+ "select aas.allele_key, "
     			+ "aas.system, "
     			+ "true as detected "
     			+ "from allele_recombinase_affected_system aas "
-    			+ "join recombinase_assay_result rar on "
-    			+ 	"rar.allele_system_key = aas.allele_system_key "
-    			// filter for this batch of assay results
-    			+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " ";
+    			+ "join batch_alleles ba on "
+    			+ 	"ba.allele_key = aas.allele_key "
+    			;
     	
     	Map<String, AlleleSystems> alleleSystemsMap = new HashMap<String, AlleleSystems>();
     	
