@@ -38,8 +38,6 @@ STANDARD_INDEXES = [
 	('journalsAC', 2, 4),
 	('structureAC', 2, 4),
 	('vocabTermAC', 2, 4),
-	('cre', 2, 4),
-	('creAlleleSystem', 2, 4),
 	('creAssayResult', 2, 4),
 	('markerPanesetImage', 2, 4),
 	('image', 2, 4),

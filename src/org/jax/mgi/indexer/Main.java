@@ -1,8 +1,7 @@
 package org.jax.mgi.indexer;
 
-import java.util.Collections;
 import java.util.ArrayList;
-import java.util.Iterator;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -40,26 +39,21 @@ public class Main
 		 * */
 		indexerMap.put("anatomyAC",new AnatomyAutoCompleteIndexerSQL());
 		indexerMap.put("emapaAC",new EmapaAutoCompleteIndexerSQL());
+		indexerMap.put("driverAC",new DriverAutoCompleteIndexerSQL());
 		indexerMap.put("gxdEmapaAC",new GXDEmapaAutoCompleteIndexerSQL());
 		indexerMap.put("journalsAC",new JournalsAutoCompleteIndexerSQL());
 		indexerMap.put("reference", new RefIndexerSQL());
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
-		//indexerMap.put("sequence", new SequenceIndexerSQL());
-		indexerMap.put("cre", new CreIndexerSQL());
 		indexerMap.put("marker", new MarkerIndexerSQL());
 		indexerMap.put("markerPanesetImage", new MarkerPanesetIndexerSQL());
 		indexerMap.put("image", new ImageIndexerSQL());
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
-		indexerMap.put("creAlleleSystem", new CreAlleleSystemIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
 		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
-		indexerMap.put("structureAC", new StructureAutoCompleteIndexerSQL());
 		indexerMap.put("dagEdge", new DagEdgeIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
 		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
-		//indexerMap.put("homology", new HomologyIndexerSQL());
-		//indexerMap.put("disease", new DiseaseIndexerSQL());
 		indexerMap.put("gxdImagePane", new GXDImagePaneIndexerSQL());
 		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
 		indexerMap.put("mpAnnotation", new MPAnnotationIndexerSQL());
@@ -72,11 +66,10 @@ public class Main
 	public static int maxThreads = 10; // uses default unless set to > 0
 
 	private static List<String> getIndexers() {
-		Iterator<String> it = indexerMap.keySet().iterator();
 		List<String> indexes = new ArrayList<String>();
 
-		while (it.hasNext()) {
-			indexes.add(it.next());
+		for(String indexName : indexerMap.keySet()) {
+			indexes.add(indexName);
 		}
 		Collections.sort(indexes);
 		return indexes;
