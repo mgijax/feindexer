@@ -308,6 +308,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		// in femover and is the one stored in the hdp_gridcluster
 		// table.
 		logger.info("getting homology cluster keys for markers");
+		
 		String homologyQuery = "select m.marker_key, "
 			+ " m.hdp_gridcluster_key, g.source "
 			+ "from hdp_gridcluster g, hdp_gridcluster_marker m "
@@ -324,8 +325,46 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				rs.getString("source"));
 		}
 
-		logger.info("done getting homology cluster keys for "
+		logger.info("done getting homology sources for "
 			+ homologyMap.size() + " markers");
+
+		/* Some human genes were missing links to their homology 
+		 * cluster, so we're broadening the net used to collect the
+		 * homology keys.
+		 */
+		String allHomologyQuery =
+			"with hybrid as ( "
+			+ "select hyb_m.marker_key, hyb_c.cluster_key, case "
+			+ " when hyb_c.secondary_source = 'HomoloGene and HGNC' then 'HomoloGene' "
+			+ " else hyb_c.secondary_source end as source "
+			+ "from homology_cluster hyb_c, "
+			+ " homology_cluster_organism hyb_o, "
+			+ " homology_cluster_organism_to_marker hyb_m "
+			+ "where hyb_c.source = 'HomoloGene and HGNC' "
+			+ " and hyb_c.cluster_key = hyb_o.cluster_key "
+			+ " and hyb_o.cluster_organism_key = hyb_m.cluster_organism_key "
+			+ " and hyb_o.organism in ('human', 'mouse')"
+			+ ") "
+			+ "select m.marker_key, c.cluster_key, c.source "
+			+ "from hybrid h, homology_cluster c, homology_cluster_organism o, "
+			+ " homology_cluster_organism_to_marker m "
+			+ "where c.source = h.source "
+			+ " and h.marker_key = m.marker_key "
+			+ " and c.cluster_key = o.cluster_key "
+			+ " and o.cluster_organism_key = m.cluster_organism_key";
+
+		Map<Integer,Integer> allHomologyMap = new HashMap<Integer,Integer>();
+		Map<Integer,String> allHomologySource = new HashMap<Integer,String>();
+		rs = ex.executeProto(allHomologyQuery);
+		while (rs.next()) {
+			allHomologyMap.put(rs.getInt("marker_key"),
+				rs.getInt("cluster_key"));
+			allHomologySource.put(rs.getInt("marker_key"),
+				rs.getString("source"));
+		}
+
+		logger.info("done getting homology cluster keys for all "
+			+ allHomologyMap.size() + " markers");
 
 		// get IMSR count for each marker that has an allele
 		logger.info("building counts of IMSR to marker key");
@@ -575,18 +614,18 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			// lookup homology cluster key by marker key, so we
 			// can make a link to human markers' homology cluster
 			// pages.
-			if (homologyMap.containsKey(markerKey)) {
+			if (allHomologyMap.containsKey(markerKey)) {
 				doc.addField(
 				    DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
-				    homologyMap.get(markerKey));
+				    allHomologyMap.get(markerKey));
 			}
 
 			// add the source of the homology data (HomoloGene or
 			// HGNC), if available
-			if (homologySource.containsKey(markerKey)) {
+			if (allHomologySource.containsKey(markerKey)) {
 				doc.addField(
 					DiseasePortalFields.HOMOLOGY_SOURCE,
-					homologySource.get(markerKey));
+					allHomologySource.get(markerKey));
 			}
 
 			/* If we have a mouse marker with a feature type, then
