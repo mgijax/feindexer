@@ -1,8 +1,13 @@
+TAG: feindexer-tr11937-BP
+DATE: 12/15/2015
+STAFF: jsb
+CHANGES:
+1) (retroactive) branch point before scrum-dog's merge to trunk
+
 TAG: feindexer-6-0-2-1, feindexer-6-0-2-2
 DATE: 12/08/2015
 STAFF: kstone
 1) merged tr12070
-
 
 TAG: feindexer-6-0-1-2
 DATE: 09/30/2015

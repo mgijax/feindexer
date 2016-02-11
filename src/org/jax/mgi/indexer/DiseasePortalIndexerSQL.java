@@ -59,6 +59,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		while(rs.next()) {
 			diseaseRefCountMap.put(rs.getString("disease_id"),rs.getInt("ref_count"));
 		}
+		rs.close();
 		logger.info("done building counts of disease relevant refs to disease ID");
 
 		// create map to sort MP Headers
@@ -70,6 +71,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		while(rs.next()) {
 			mpHeaderSortMap.put(rs.getString("header"),++headerCount);
 		}
+		rs.close();
 		// put normal phenotype header last
 		if(mpHeaderSortMap.containsKey(NORMAL_PHENOTYPE)) mpHeaderSortMap.put(NORMAL_PHENOTYPE,++headerCount); 
 
@@ -86,6 +88,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		while(rs.next()) {
 			termsToSort.add(rs.getString("term"));
 		}
+		rs.close();
+
 		//sort the terms using smart alpha
 		Collections.sort(termsToSort,new SmartAlphaComparator());
 		for(int i=0;i<termsToSort.size();i++) {
@@ -146,7 +150,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"and h.organism_key = 1 " +
 				"and h.marker_key = m.marker_key " +
 				"and (h.genotype_type!='complex' or h.genotype_type is null) " +
-				"order by term_id ";
+				"order by h.term_id, m.symbol ";
 		Map<String,Set<String>> diseaseMouseSymbolMap = populateLookupOrdered(diseaseMouseSymbolQuery,"term_id","symbol", "diseaes (OMIM) ids to mouse symbol");
 
 		// load human symbols associated with a disease via tmp_hdp_annotation_nn  (no complex genotypes)
@@ -156,7 +160,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"and h.organism_key = 2 " +
 				"and h.marker_key = m.marker_key " +
 				"and (h.genotype_type!='complex' or h.genotype_type is null) " +
-				"order by term_id ";
+				"order by h.term_id, m.symbol ";
 		Map<String,Set<String>> diseaseHumanSymbolMap = populateLookupOrdered(diseaseHumanSymbolQuery,"term_id","symbol", "diseaes (OMIM) ids to human symbol");
 
 		// load the disease model counts for each disease
@@ -175,6 +179,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			Integer diseaseModelCount = rs.getInt("diseaseModelCount");
 			diseaseModelMap.put(termId,diseaseModelCount);
 		}
+		rs.close();
 		logger.info("done builing map of disease model count -> OMIM ID");
 
 		// ------------- GRID CLUSTER RELATED LOOKUPS ------------
@@ -264,6 +269,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			String homologeneId = rs.getString("homology_id");
 			homologeneIdMap.put(markerKey,homologeneId);
 		}
+		rs.close();
 		logger.info("done builing map of marker key -> homologeneId");
 
 		String gridMouseSymbolsQuery = "select gcm.hdp_gridcluster_key, " +
@@ -298,6 +304,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			else gridByHumanLocationMap.put(rs.getInt("hdp_gridcluster_key"),rs.getInt("min_location"));
 
 		}
+		rs.close();
 		logger.info("done builing map of grid cluster key -> human/mouse location sorts");
 
 		// ------------- MARKER RELATED LOOKUPS ------------
@@ -324,6 +331,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			homologySource.put(rs.getInt("marker_key"),
 				rs.getString("source"));
 		}
+		rs.close();
 
 		logger.info("done getting homology sources for "
 			+ homologyMap.size() + " markers");
@@ -362,6 +370,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			allHomologySource.put(rs.getInt("marker_key"),
 				rs.getString("source"));
 		}
+		rs.close();
 
 		logger.info("done getting homology cluster keys for all "
 			+ allHomologyMap.size() + " markers");
@@ -377,6 +386,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		while(rs.next()) {
 			markerIMSRMap.put(rs.getInt("marker_key"),rs.getInt("imsr_count"));
 		}
+		rs.close();
 		logger.info("done building counts of IMSR to marker key");
 
 		// load MP headers(systems) associated with markers via hdp_annotation  (no complex genotypes)
@@ -452,6 +462,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				markerLocationMap.get(markerKey).add(spatialString);
 			}
 		}
+		rs.close();
 		logger.info("done building map of marker locations to marker keys");
 
 		// load marker homology information
@@ -510,6 +521,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				orthologLocationMap.get(humanMarkerKey).addAll(markerLocationMap.get(mouseMarkerKey));
 			}
 		}
+		rs.close();
 		logger.info("done building map of marker locations to ortholog marker keys");
 
 
@@ -554,6 +566,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		}
 		if (!docs.isEmpty())  server.add(docs);
 		server.commit();
+		rs.close();
 
 		logger.info("done loading disease terms without annotations");
 
@@ -700,6 +713,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		}
 		if (!docs.isEmpty())  server.add(docs);
 		server.commit();
+		rs.close();
 
 		logger.info("done loading markers without annotations");
 
