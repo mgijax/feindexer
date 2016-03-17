@@ -156,7 +156,8 @@ public class Main
 			}
 			catch (Exception e)
 			{
-                                logger.error("Indexer: "+idxKey+" failed.",e);
+                logger.error("Indexer: "+idxKey+" failed.",e);
+                failedIndexers.add(idxKey);
 			}
 			if(idx.hasFailedThreads())
 			{
