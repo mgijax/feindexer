@@ -110,7 +110,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
                     + "ras.allele_key, "
                     + "a.driver, "
                     + "a.inducible_note, "
-                    + "ras.system_key, "
                     + "rarsn.by_structure, "
                     + "rarsn.by_age, "
                     + "rarsn.by_level, "
