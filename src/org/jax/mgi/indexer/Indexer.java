@@ -379,9 +379,25 @@ public abstract class Indexer {
 		dupTracker = new HashMap<String,Set<String>>();
 	}
 
-	private int indexCounter=0;
+	// fill rows into a temp table using the given 'cmd'.  (may also create the table, depending
+	// on the SQL)
+	protected void fillTempTable(String cmd) {
+		ex.executeVoid(cmd);
+		logger.debug("  - populated table in " + ex.getTimestamp());
+	}
+
+	private int indexCounter=0;		// counter of indexes created so far (for unique naming)
+
+	// create an index on the given column in the given table
 	protected void createTempIndex(String tableName,String column) {
 		indexCounter += 1;
 		this.ex.executeVoid("create index tmp_idx"+indexCounter+" on "+tableName+" ("+column+")");
+		logger.debug("  - created index tmp_idx" + indexCounter + " in " + ex.getTimestamp());
+	}
+	
+	// run 'analyze' on the given table
+	protected void analyze(String tableName) {
+		this.ex.executeVoid("analyze " + tableName);
+		logger.debug("  - analyzed " + tableName + " in " + ex.getTimestamp());
 	}
 }

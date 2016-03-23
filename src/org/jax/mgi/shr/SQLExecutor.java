@@ -114,7 +114,9 @@ public class SQLExecutor {
 		try {
 			if (conMGD == null)  getMGDConnection();
 			java.sql.Statement stmt = conMGD.createStatement();
+			start = new Date();
 			stmt.execute(sql);
+			end = new Date();
 		} catch (Exception e) {
 			e.printStackTrace();
 			System.exit(1);
@@ -155,6 +157,13 @@ public class SQLExecutor {
 
 	public long getTiming() {
 		return end.getTime() - start.getTime();
+	}
+
+	/* returns a formatted timestamp as a string, showing the last query's
+	 * execution time in ms.  format:  "(n ms)"
+	 */
+	public String getTimestamp() {
+		return getTiming() + " ms";
 	}
 
 	@Override
