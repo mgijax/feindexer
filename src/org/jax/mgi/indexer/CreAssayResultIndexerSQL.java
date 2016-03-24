@@ -385,7 +385,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	        + 	"recombinase_allele_system ras join "
 	        + 	"recombinase_assay_result rar on "
 	        + 		"rar.allele_system_key = ras.allele_system_key "
-	        + 	"where ras._allele_key = a._allele_key and "
+	        + 	"where ras.allele_key = a.allele_key and "
 	        +   "rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
 	        + ")";
     	
