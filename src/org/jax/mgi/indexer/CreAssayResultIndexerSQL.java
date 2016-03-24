@@ -171,8 +171,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				+ "a.inducible_note "
 				+ "from allele a "
 				+ "where a.driver is not null "
-				+ "and not exists (select 1 from recombinase_allele_system ars "
-				+ 	"where ars.allele_key = a.allele_key "
+				+ "and not exists (select 1 from recombinase_allele_system ras "
+				+ 	"where ras.allele_key = a.allele_key "
 				+ ") ";
 		
 		ResultSet rs = ex.executeProto(alleleQuery);
@@ -374,11 +374,11 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	        + "aic.strain_count "  
 	        + "from allele as a "
 	        + "join allele_sequence_num as asn "
-	        +	"on ars.allele_key = asn.allele_key  "
+	        +	"on a.allele_key = asn.allele_key  "
 	        + "join allele_counts as ac "
-	        +	"on ars.allele_key = ac.allele_key "
+	        +	"on a.allele_key = ac.allele_key "
 	        + "join allele_imsr_counts as aic "
-	        +	"on ars.allele_key = aic.allele_key  "
+	        +	"on a.allele_key = aic.allele_key  "
 	        
 	        	// Filter by this result_key batch
 	        + "where exists (select 1 from "
