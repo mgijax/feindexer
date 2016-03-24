@@ -213,8 +213,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
                 doc.addField(CreFields.ALL_REFERENCE_COUNT_SORT, alleleSorts.referenceCount);
                 doc.addField(CreFields.ALL_TYPE_SORT, alleleSorts.byAlleleType);
                 doc.addField(CreFields.ALL_SYMBOL_SORT, alleleSorts.bySymbol);
-                doc.addField(CreFields.NOT_DETECTED_COUNT, alleleSorts.notDetectedCount);
-                doc.addField(CreFields.DETECTED_COUNT, alleleSorts.detectedCount);  
         		doc.addField(CreFields.DRIVER_SORT, alleleSorts.byDriver);
     		}
             doc.addField(CreFields.DRIVER, rs.getString("driver"));
@@ -344,8 +342,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
     private Map<String, AlleleSorts> queryNoDataAlleleSortsMap() throws SQLException {
     	
     	String query = "select a.allele_key, "
-	        + "0 as detected_count, "
-	        + "0 as not_detected_count, " 
 	        + "asn.by_allele_type, "
 	        + "asn.by_symbol, "
 	        + "asn.by_driver, "
@@ -370,15 +366,13 @@ public class CreAssayResultIndexerSQL extends Indexer {
      */
     private Map<String, AlleleSorts> queryAlleleSortsMap(int startResultKey, int endResultKey) throws SQLException {
     	
-    	String query = "select ars.allele_key, "
-	        + "ars.detected_count, "
-	        + "ars.not_detected_count, " 
+    	String query = "select a.allele_key, "
 	        + "asn.by_allele_type, "
 	        + "asn.by_symbol, "
 	        + "asn.by_driver, "
 	        + "ac.reference_count, "
 	        + "aic.strain_count "  
-	        + "from allele_recombinase_systems as ars "
+	        + "from allele as a "
 	        + "join allele_sequence_num as asn "
 	        +	"on ars.allele_key = asn.allele_key  "
 	        + "join allele_counts as ac "
@@ -391,7 +385,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	        + 	"recombinase_allele_system ras join "
 	        + 	"recombinase_assay_result rar on "
 	        + 		"rar.allele_system_key = ras.allele_system_key "
-	        + 	"where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
+	        + 	"where ras._allele_key = a._allele_key and "
+	        +   "rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
 	        + ")";
     	
     	return queryAlleleSortsMap(query);
@@ -413,8 +408,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
     		alleleSorts.byAlleleType = rs.getInt("by_allele_type");
     		alleleSorts.bySymbol = rs.getInt("by_symbol");
     		alleleSorts.byDriver = rs.getInt("by_driver");
-    		alleleSorts.detectedCount = rs.getInt("detected_count");
-    		alleleSorts.notDetectedCount = rs.getInt("not_detected_count");
     		
     		alleleSortsMap.put(rs.getString("allele_key"), alleleSorts);
     	}
@@ -441,14 +434,14 @@ public class CreAssayResultIndexerSQL extends Indexer {
     			+ "select aus.allele_key, "
     			+ "aus.system, "
     			+ "false as detected "
-    			+ "from allele_recombinase_unaffected_system aus "
+    			+ "from recombinase_unaffected_system aus "
     			+ "join batch_alleles ba on "
     			+ 	"ba.allele_key = aus.allele_key "
     			+ "UNION "
     			+ "select aas.allele_key, "
     			+ "aas.system, "
     			+ "true as detected "
-    			+ "from allele_recombinase_affected_system aas "
+    			+ "from recombinase_affected_system aas "
     			+ "join batch_alleles ba on "
     			+ 	"ba.allele_key = aas.allele_key "
     			;
@@ -614,8 +607,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
     	public int byAlleleType;
     	public int bySymbol;
     	public int byDriver;
-    	public int detectedCount;
-    	public int notDetectedCount;
     }
     
     /*
