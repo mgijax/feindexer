@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
 
@@ -86,6 +87,11 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			// add marker-related fields, if any markers area associated with the disease
 			Set<String> associatedMarkerKeys = this.getMarkersByDisease(termId);
 			if ((associatedMarkerKeys != null) && (associatedMarkerKeys.size() > 0)) {
+				// use sets to collect data prone to redundancy across markers, then add their
+				// contents to the document after getting through all related markers
+				Set<String> featureTypes = new HashSet<String>();
+				Set<String> markerSynonyms = new HashSet<String>();
+				
 				for (String stringMarkerKey : associatedMarkerKeys) {
 					Integer markerKey = Integer.parseInt(stringMarkerKey);
 					String markerSymbol = getMarkerSymbol(markerKey);
@@ -97,13 +103,24 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 					if (markerSymbol != null) { doc.addField(DiseasePortalFields.MARKER_SYMBOL, markerSymbol); }
 					if (markerName != null) { doc.addField(DiseasePortalFields.MARKER_NAME, markerName); }
 					if (markerId != null) { doc.addField(DiseasePortalFields.MARKER_MGI_ID, markerId); }
-					addAllFromLookup(doc, DiseasePortalFields.MARKER_SYNONYM, markerKey.toString(), markerSynonymMap);
+					if (markerSynonymMap.containsKey(markerKey.toString())) {
+						markerSynonyms.addAll(markerSynonymMap.get(markerKey.toString()));
+					}
 					addAll(doc, DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
 
+					// add feature types for all markers in the grid cluster (if the marker is part of one)
 					if (gridClusterKey != null) {
 						String gckString = gridClusterKey.toString();
 						doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY, gckString);
-						addAllFromLookup(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, gckString, featureTypeMap);
+						if (featureTypeMap.containsKey(gckString)) {
+							featureTypes.addAll(featureTypeMap.get(gckString));
+						}
+					} else {
+						// add feature types for markers not in grid clusters
+						Set<String> mFeatureTypes = getMarkerFeatureTypes(markerKey);
+						if (mFeatureTypes != null) {
+							featureTypes.addAll(mFeatureTypes);
+						}
 					}
 					
 					if (this.isHuman(markerKey)) {
@@ -113,6 +130,14 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 						doc.addField(DiseasePortalFields.TERM_MOUSESYMBOL, markerSymbol);
 						addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
 					}
+				}
+				
+				// add the data we collected in Sets to minimize duplication across markers
+				if (featureTypes.size() > 0) {
+					addAll(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, featureTypes);
+				}
+				if (markerSynonyms.size() > 0) {
+					addAll(doc, DiseasePortalFields.MARKER_SYNONYM, markerSynonyms);
 				}
 			}
 

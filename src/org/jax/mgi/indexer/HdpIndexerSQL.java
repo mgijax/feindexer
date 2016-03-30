@@ -52,6 +52,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Set<Integer> humanMarkers = null;					// marker keys for human markers
 	protected Map<String,Set<String>> markerSynonymMap = null;	// marker key -> marker synonyms 
 	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
+	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerDisease = null;	// disease ID -> header terms
@@ -118,6 +119,45 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*------------------------------------------------------*/
 	/*--- methods for dealing with data cached in memory ---*/
 	/*------------------------------------------------------*/
+	
+	/* retrieve the mapping from each (Integer) marker key to a Set of its (String) feature types,
+	 * for those markers with non-null feature types
+	 */
+	protected Map<Integer,Set<String>> getMarkerFeatureTypes() throws Exception {
+		if (markerFeatureTypes == null) {
+			logger.info("retrieving feature types for markers");
+			Timer.reset();
+
+			String featureTypeQuery = "select marker_key, marker_subtype "
+				+ "from marker "
+				+ "where marker_subtype is not null";
+
+			markerFeatureTypes = new HashMap<Integer,Set<String>>();
+
+			ResultSet rs = ex.executeProto(featureTypeQuery, cursorLimit);
+			while (rs.next()) {
+				Integer markerKey = rs.getInt("marker_key");
+				
+				if (!markerFeatureTypes.containsKey(markerKey)) {
+					markerFeatureTypes.put(markerKey, new HashSet<String>());
+				}
+				markerFeatureTypes.get(markerKey).add(rs.getString("marker_subtype"));
+			}
+
+			logger.info("finished retrieving feature types for " + markerFeatureTypes.size() + " markers " + Timer.getElapsedMessage());
+		}
+		return markerFeatureTypes;
+	}
+
+	/* get the feature types for the marker with the specified key
+	 */
+	protected Set<String> getMarkerFeatureTypes(Integer markerKey) throws Exception {
+		if (markerFeatureTypes == null) { getMarkerFeatureTypes(); }
+		if (markerFeatureTypes.containsKey(markerKey)) {
+			return markerFeatureTypes.get(markerKey);
+		}
+		return null;
+	}
 	
 	/* retrieve the mapping from each phenotype and disease ID to the alternate
 	 * IDs for the corresponding term
@@ -373,6 +413,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
+
 	/* If we've not already retrieved the feature type data from the database,
 	 * get it now.  This pulls the feature types for all mouse markers in the
 	 * various grid clusters.  Mapping is from (String) grid cluster keys to a
