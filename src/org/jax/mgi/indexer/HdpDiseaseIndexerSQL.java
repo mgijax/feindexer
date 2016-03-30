@@ -1,0 +1,156 @@
+package org.jax.mgi.indexer;
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Set;
+import java.util.Map;
+
+import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
+
+/* Is: an indexer that builds the index supporting the Disease tab of the 
+ *		HMDC summary page.  Each document in the index represents data for
+ *		a single disease, and each disease is included in a single document.
+ */
+public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
+
+	/*--------------------------*/
+	/*--- instance variables ---*/
+	/*--------------------------*/
+	
+	/*--------------------*/
+	/*--- constructors ---*/
+	/*--------------------*/
+	
+	public HdpDiseaseIndexerSQL() {
+		super("index.url.diseasePortalDisease");
+	}
+
+	/*-----------------------*/
+	/*--- private methods ---*/
+	/*-----------------------*/
+	
+	/* Pull the disease data from the database and add them to the index.  If a
+	 * disease has no annotations, we still allow matches to it by disease name
+	 * and ID.  For diseases with annotations, we add the full suite of fields
+	 * for searching.
+	 */
+	private void processDiseases() throws Exception {
+		logger.info("loading disease terms");
+		
+		// main query - OMIM disease terms that are no obsolete.  We don't bother to
+		// specify an order, because we will compute ordering in-memory to ensure it
+		// is smart-alpha.  (The term.sequence_num field is not.)
+		String diseaseTermQuery = "select term_key, term, primary_id "
+				+ "from term "
+				+ "where vocab_name = '" + omim + "' "
+				+ "  and is_obsolete = 0 ";
+
+		ResultSet rs = ex.executeProto(diseaseTermQuery, cursorLimit);
+		logger.debug("  - finished disease query in " + ex.getTimestamp());
+
+		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
+		while (rs.next())  {  
+			uniqueKey += 1;			// used as a counter of diseases processed
+
+			String term = rs.getString("term");
+			String termId = rs.getString("primary_id");
+
+			SolrInputDocument doc = new SolrInputDocument();
+			doc.addField(DiseasePortalFields.UNIQUE_KEY, rs.getInt("term_key"));
+			doc.addField(DiseasePortalFields.TERM, term);
+			doc.addField(DiseasePortalFields.TERM_ID, termId);
+			doc.addField(DiseasePortalFields.TERM_TYPE, omim);
+
+			// find sort for the term name
+			int termSort = getTermSequenceNum(term);
+			doc.addField(DiseasePortalFields.BY_TERM_NAME, termSort);
+
+			// add any synonyms for this disease term and any alternate IDs
+			addAllFromLookup(doc,DiseasePortalFields.TERM_SYNONYM, termId, termSynonymMap);
+			addAll(doc, DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termId));
+
+			// add term headers for the disease
+			if (headersPerDisease.containsKey(termId)) {
+				addAllFromLookup(doc, DiseasePortalFields.TERM_HEADER, termId, headersPerDisease);
+			} else {
+				doc.addField(DiseasePortalFields.TERM_HEADER, term);
+			}
+
+			// add reference count and model count for disease
+			doc.addField(DiseasePortalFields.DISEASE_REF_COUNT, getDiseaseReferenceCount(termId));
+			doc.addField(DiseasePortalFields.DISEASE_MODEL_COUNTS, getDiseaseModelCount(termId));
+
+			// add marker-related fields, if any markers area associated with the disease
+			Set<String> associatedMarkerKeys = this.getMarkersByDisease(termId);
+			if ((associatedMarkerKeys != null) && (associatedMarkerKeys.size() > 0)) {
+				for (String stringMarkerKey : associatedMarkerKeys) {
+					Integer markerKey = Integer.parseInt(stringMarkerKey);
+					String markerSymbol = getMarkerSymbol(markerKey);
+					String markerName = getMarkerName(markerKey);
+					String markerId = getMarkerID(markerKey);
+					Integer gridClusterKey = getGridClusterKey(markerKey);
+					
+					doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
+					if (markerSymbol != null) { doc.addField(DiseasePortalFields.MARKER_SYMBOL, markerSymbol); }
+					if (markerName != null) { doc.addField(DiseasePortalFields.MARKER_NAME, markerName); }
+					if (markerId != null) { doc.addField(DiseasePortalFields.MARKER_MGI_ID, markerId); }
+					addAllFromLookup(doc, DiseasePortalFields.MARKER_SYNONYM, markerKey.toString(), markerSynonymMap);
+					addAll(doc, DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
+
+					if (gridClusterKey != null) {
+						String gckString = gridClusterKey.toString();
+						doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY, gckString);
+						addAllFromLookup(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, gckString, featureTypeMap);
+					}
+					
+					if (this.isHuman(markerKey)) {
+						doc.addField(DiseasePortalFields.TERM_HUMANSYMBOL, markerSymbol);
+						addAll(doc, DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
+					} else {
+						doc.addField(DiseasePortalFields.TERM_MOUSESYMBOL, markerSymbol);
+						addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
+					}
+				}
+			}
+
+			// Add this doc to the batch we're collecting.  If the stack hits our
+			// threshold, send it to the server and reset it.
+			docs.add(doc);
+			if (docs.size() >= solrBatchSize)  {
+				writeDocs(docs);
+				docs = new ArrayList<SolrInputDocument>();
+			}
+		}
+
+		// any leftover docs to send to the server?  (likely yes)
+		if (!docs.isEmpty())  server.add(docs);
+		server.commit();
+		rs.close();
+
+		logger.info("done processing " + uniqueKey + " disease terms");
+	}
+
+	/*
+	 *
+	 */
+
+	/*----------------------*/
+	/*--- public methods ---*/
+	/*----------------------*/
+	
+	@Override
+	public void index() throws Exception {
+		// collect various mappings needed for data lookup
+		getFeatureTypeMap();		// gridcluster keys to feature types
+		getTermSynonymMap();		// term IDs to term synonyms
+		getMarkerSynonymMap();		// marker keys to marker synonyms
+		getMarkerCoordinateMap();	// coordinates per marker
+		getHeadersPerDisease();		// disease IDs to term headers
+		getMarkerAllIdMap();		// marker key to searchable marker IDs
+		
+		processDiseases();
+	}
+}

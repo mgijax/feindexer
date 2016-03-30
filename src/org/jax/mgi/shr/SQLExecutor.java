@@ -128,7 +128,6 @@ public class SQLExecutor {
 	 * @param query
 	 * @return
 	 */
-
 	public ResultSet executeProto (String query) {
 
 		ResultSet set;
@@ -139,6 +138,36 @@ public class SQLExecutor {
 			}
 
 			java.sql.Statement stmt = conMGD.createStatement();
+			start = new Date();
+			set = stmt.executeQuery(query);
+			end = new Date();
+			return set;
+		} catch (Exception e) {
+			e.printStackTrace();
+			System.exit(1);
+			return null;
+		}
+	}
+
+	/**
+	 * Execute a query against MGD, setting up the connection if needed.  Use a cursor
+	 * to return 'cursorLimit' results at a time.
+	 * @param query
+	 * @return
+	 */
+	public ResultSet executeProto (String query, int cursorLimit) {
+
+		ResultSet set;
+
+		try {
+			if (conMGD == null) {
+				getMGDConnection();
+			}
+
+			java.sql.Statement stmt = conMGD.createStatement();
+			if (cursorLimit > 0) {
+				stmt.setFetchSize(cursorLimit);
+			}
 			start = new Date();
 			set = stmt.executeQuery(query);
 			end = new Date();

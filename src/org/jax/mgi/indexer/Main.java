@@ -60,6 +60,7 @@ public class Main
 		indexerMap.put("diseasePortal", new DiseasePortalIndexerSQL());
 		indexerMap.put("diseasePortalAnnotation", new DiseasePortalAnnotationIndexerSQL());
 		indexerMap.put("interaction", new InteractionIndexerSQL());
+		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
 	}
 
 	// other command args

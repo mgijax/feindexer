@@ -15,11 +15,20 @@ public class Timer {
     private static long firstTime = lastTime;
     private static Logger logger = LoggerFactory.getLogger(Timer.class);
     
+    public static void reset() {
+    	lastTime = System.currentTimeMillis();
+    	firstTime = lastTime;
+    }
+
     public static long getElapsed () {
     	long now = System.currentTimeMillis();
     	long elapsed = now - lastTime;
     	lastTime = now;
     	return elapsed;
+    }
+    
+    public static String getElapsedMessage() {
+    	return " in " + getElapsed() + " ms";
     }
     
     public static long write (String message) {

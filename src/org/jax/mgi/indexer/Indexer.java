@@ -328,8 +328,21 @@ public abstract class Indexer {
 			rows++;
 		}
 
+		rs.close();
 		logger.info("finished populating map of "+logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName);
 		return returnLookup;
+	}
+
+	/*
+	 * Convenience method to add all items from an iterable to a particular solr field.
+	 * Ignores input if null.
+	 */
+	protected void addAll(SolrInputDocument solrDoc,String solrField,Iterable<String> items) {
+		if(items != null) {
+			for(Object obj : items) {
+				solrDoc.addField(solrField,obj);
+			}
+		}
 	}
 
 	/*
