@@ -53,6 +53,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<String,Set<String>> markerSynonymMap = null;	// marker key -> marker synonyms 
 	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
+	protected Map<Integer,Set<Integer>> markerOrthologs = null;	// marker key -> set of ortholog marker keys
 	
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerDisease = null;	// disease ID -> header terms
@@ -564,6 +565,50 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return 0;
 	}
 
+	/* get a mapping from (Integer) marker key to a Set of (Integer) orthologous marker keys
+	 */
+	protected Map<Integer,Set<Integer>> getMarkerOrthologs() throws Exception {
+		if (markerOrthologs == null) {
+			Timer.reset();
+			markerOrthologs = new HashMap<Integer,Set<Integer>>();
+
+			logger.info("building mapping from each marker to its orthologs");
+			String orthologQuery = "select distinct otm.marker_key as marker_key, "
+				+ "  other_otm.marker_key as other_marker_key "
+				+ "from homology_cluster_organism o, "
+				+ "  homology_cluster_organism_to_marker otm, "
+				+ "  homology_cluster_organism other_o, "
+				+ "  homology_cluster_organism_to_marker other_otm "
+				+ "where other_o.cluster_key=o.cluster_key "
+				+ "  and o.cluster_organism_key=otm.cluster_organism_key "
+				+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
+				+ "  and otm.marker_key!=other_otm.marker_key";
+
+			ResultSet rs = ex.executeProto(orthologQuery, cursorLimit);
+			while(rs.next()) {
+				Integer markerKey = rs.getInt("marker_key");
+				if (!markerOrthologs.containsKey(markerKey)) {
+					markerOrthologs.put(markerKey, new HashSet<Integer>());
+				}
+				markerOrthologs.get(markerKey).add(rs.getInt("other_marker_key"));
+			}
+			rs.close();
+			logger.info("done collecting orthologs for " + markerOrthologs.size() + " markers" + Timer.getElapsedMessage());
+		}
+		return markerOrthologs;
+	}
+
+	/* get the set of marker keys that are orthologous to the given marker key, or null
+	 * if the given marker key has no orthologs
+	 */
+	protected Set<Integer> getMarkerOrthologs(Integer markerKey) throws Exception {
+		if (markerOrthologs == null) { getMarkerOrthologs(); }
+		if (markerOrthologs.containsKey(markerKey)) {
+			return markerOrthologs.get(markerKey);
+		}
+		return null;
+	}
+
 	/* get a mapping from (String) disease ID to an (Integer) count of disease models
 	 */
 	protected Map<String,Integer> getDiseaseModelCounts() throws Exception {
@@ -610,8 +655,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		
 		String markerQuery = "select marker_key, symbol, name, primary_id "
 			+ "from marker "
-			+ "where status != 'withdrawn' "
-			+ "  and organism in ('human', 'mouse')";
+			+ "where status != 'withdrawn' ";
 
 		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
 		while (rs.next()) {

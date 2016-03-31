@@ -91,6 +91,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				// contents to the document after getting through all related markers
 				Set<String> featureTypes = new HashSet<String>();
 				Set<String> markerSynonyms = new HashSet<String>();
+				Set<String> orthologNomen = new HashSet<String>();
+				Set<String> orthologIds = new HashSet<String>();
 				
 				for (String stringMarkerKey : associatedMarkerKeys) {
 					Integer markerKey = Integer.parseInt(stringMarkerKey);
@@ -130,6 +132,20 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 						doc.addField(DiseasePortalFields.TERM_MOUSESYMBOL, markerSymbol);
 						addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
 					}
+					
+					// collect nomen and ID data for orthologs of this marker
+					Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
+					if (orthologousMarkerKeys != null) {
+						for (Integer orthoMarkerKey : orthologousMarkerKeys) {
+							String orthoSymbol = getMarkerSymbol(orthoMarkerKey);
+							String orthoName = getMarkerName(orthoMarkerKey);
+							Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
+							
+							if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
+							if (orthoName != null) { orthologNomen.add(orthoName); }
+							if (orthoIds != null) { orthologIds.addAll(orthoIds); }
+						}
+					}
 				}
 				
 				// add the data we collected in Sets to minimize duplication across markers
@@ -138,6 +154,12 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				}
 				if (markerSynonyms.size() > 0) {
 					addAll(doc, DiseasePortalFields.MARKER_SYNONYM, markerSynonyms);
+				}
+				if (orthologNomen.size() > 0) {
+					addAll(doc, DiseasePortalFields.ORTHOLOG_NOMEN, orthologNomen);
+				}
+				if (orthologIds.size() > 0) {
+					addAll(doc, DiseasePortalFields.ORTHOLOG_ID, orthologIds);
 				}
 			}
 
