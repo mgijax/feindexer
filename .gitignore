@@ -1,1 +1,6 @@
 build
+feindexer.config
+lib/fe.jar
+unittest-results/
+dist/
+bin/buildAllIndexes
