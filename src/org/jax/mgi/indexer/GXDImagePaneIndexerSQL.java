@@ -4,16 +4,18 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.lang.StringUtils;
 import org.apache.solr.common.SolrInputDocument;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 import org.jax.mgi.shr.fe.indexconstants.ImagePaneFields;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
+import org.jax.mgi.shr.jsonmodel.GxdImageMeta;
 
 /**
  * GXDImagePaneIndexerSQL
@@ -27,6 +29,8 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 public class GXDImagePaneIndexerSQL extends Indexer 
 {   
 	// class variables
+	private final ObjectMapper objectMapper = new ObjectMapper();
+	
 	public static Map<String,Integer> ASSAY_TYPE_SEQ_MAP = new HashMap<String,Integer>();
 	static
 	{
@@ -39,7 +43,7 @@ public class GXDImagePaneIndexerSQL extends Indexer
 		ASSAY_TYPE_SEQ_MAP.put("RNase protection", 7);
 		ASSAY_TYPE_SEQ_MAP.put("Nuclease S1", 8);
 	}
-	public static SmartAlphaComparator sac = new SmartAlphaComparator();
+	public SmartAlphaComparator sac = new SmartAlphaComparator();
 	
     public GXDImagePaneIndexerSQL () 
     { super("index.url.gxdImagePane"); }
@@ -93,7 +97,7 @@ public class GXDImagePaneIndexerSQL extends Indexer
 		        		"assay_specimen s ON ers.specimen_key=s.specimen_key "+
 		        		"where eri.result_key=ers.result_key " +
 		        		"and eri.imagepane_key > "+start+" and eri.imagepane_key <= "+end+" ";
-	        	Map<Integer,Map<String,MetaData>> imagePaneMetaMap = new HashMap<Integer,Map<String,MetaData>>();
+	        	Map<Integer,Map<String,GxdImageMeta>> imagePaneMetaMap = new HashMap<Integer,Map<String,GxdImageMeta>>();
 	        	logger.info("building map of image pane keys to meta data, ie. gene symbols + assay types + specimen labels");
 	        	
 	            rs = ex.executeProto(geneQuery);
@@ -103,36 +107,42 @@ public class GXDImagePaneIndexerSQL extends Indexer
 		        	int ipKey = rs.getInt("imagepane_key");
 		        	String assayType = rs.getString("assay_type");
 		        	String markerSymbol = rs.getString("marker_symbol");
-		        	MetaData md = new MetaData(assayType,markerSymbol);
+		        	
+		        	GxdImageMeta imageMeta = new GxdImageMeta();
+		        	imageMeta.setMarkerSymbol(markerSymbol);
+		        	imageMeta.setAssayType(assayType);
+		        	imageMeta.setHybridization("");
 		        	
 		        	// init the meta data map for this pane
 		        	if(!imagePaneMetaMap.containsKey(ipKey))
 		        	{
-		        		imagePaneMetaMap.put(ipKey, new HashMap<String,MetaData>());
+		        		imagePaneMetaMap.put(ipKey, new HashMap<String,GxdImageMeta>());
 		        	}
-		        	Map<String,MetaData> metaMap = imagePaneMetaMap.get(ipKey);
+		        	Map<String,GxdImageMeta> metaMap = imagePaneMetaMap.get(ipKey);
 		        	
 		        	//init the meta data for this gene/assay type combo
-		        	if(!metaMap.containsKey(md.toKey()))
+		        	if(!metaMap.containsKey(imageMeta.toKey()))
 		        	{
-		        		metaMap.put(md.toKey(), md);
+		        		metaMap.put(imageMeta.toKey(), imageMeta);
 		        	}
-		        	else md = metaMap.get(md.toKey());
+		        	else {
+		        		imageMeta = metaMap.get(imageMeta.toKey());
+		        	}
 		        	
 		        	// append and specimen labels
 		        	String specLabel = rs.getString("specimen_label");
 		        	String assayID = rs.getString("assay_id");
-		        	md.addSpecimenLabel(specLabel,assayID);
+		        	imageMeta.addSpecimenLabel(specLabel, assayID);
 		        }
 		        logger.info("done building map of image pane keys to meta data");
 		        
 		        logger.info("sorting map of image pane keys to meta data");
-		        Map<Integer,List<MetaData>> imagePaneSortedMetaMap = new HashMap<Integer,List<MetaData>>();
+		        Map<Integer,List<GxdImageMeta>> imagePaneSortedMetaMap = new HashMap<Integer,List<GxdImageMeta>>();
 		        for(Integer key : imagePaneMetaMap.keySet())
 		        {
-		        	List<MetaData> sortedMeta = new ArrayList<MetaData>(imagePaneMetaMap.get(key).values());
+		        	List<GxdImageMeta> sortedMeta = new ArrayList<GxdImageMeta>(imagePaneMetaMap.get(key).values());
 		        	// actually sort the meta
-		        	Collections.sort(sortedMeta);
+		        	Collections.sort(sortedMeta,new ImageMetaComparator<GxdImageMeta>());
 		        	imagePaneSortedMetaMap.put(key,sortedMeta);
 		        }
 		        imagePaneMetaMap = null; // mark for garbage collection
@@ -198,9 +208,10 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            	
 	            	if(imagePaneSortedMetaMap.containsKey(imagepane_key))
 	            	{
-	            		for(MetaData md : imagePaneSortedMetaMap.get(imagepane_key))
+	            		for(GxdImageMeta imageMeta : imagePaneSortedMetaMap.get(imagepane_key))
 	            		{
-	            			doc.addField(ImagePaneFields.IMAGE_META, md.toString());
+	            			// save image meta data as JSON
+	            			doc.addField(ImagePaneFields.IMAGE_META, objectMapper.writeValueAsString(imageMeta));
 	            		}
 	            	}
 		                
@@ -240,53 +251,27 @@ public class GXDImagePaneIndexerSQL extends Indexer
     	return (endTime - startTime)/1000000;
     	
     }
+   
     
-    // Meta data for an image pane
-    public class MetaData implements Comparable<MetaData>
-    {	
-    	// instance variables
-    	public String assayType;
-    	public String markerSymbol;
-    	public List<String> specimenLabels=new ArrayList<String>();
-    	
-    	public MetaData(String assayType,String markerSymbol)
-    	{
-    		this.assayType=assayType;
-    		this.markerSymbol=markerSymbol;
-    	}
-
-		public void addSpecimenLabel(String specimen,String assayID)
-    	{
-			if (specimen == null) specimen = "null";
-			// need to attach the assayID for linking
-			String label = specimen+"|"+assayID;
-    		// keep the labels unique
-    		if(!specimenLabels.contains(label)) specimenLabels.add(label);
-    	}
-    	
-    	// a key to be used in maps that represents the uniqueness of this object
-    	public String toKey()
-    	{
-    		return assayType+"||"+markerSymbol;
-    	}
-    	
-    	public String toString()
-    	{
-    		return assayType+"||"+markerSymbol+"||"+StringUtils.join(specimenLabels,"\t\t");
-    	}
+    
+    /**
+     * Sort all meta data by assay type, then by marker symbol
+     */
+    private class ImageMetaComparator<T> implements Comparator<GxdImageMeta> {
 
 		@Override
-		public int compareTo(MetaData arg0)
-		{
+		public int compare(GxdImageMeta o1, GxdImageMeta o2) {
+			
 			// sort assayType first
-			int assayTypeSeq1 = ASSAY_TYPE_SEQ_MAP.containsKey(this.assayType) ? ASSAY_TYPE_SEQ_MAP.get(this.assayType): 99;
-			int assayTypeSeq2 = ASSAY_TYPE_SEQ_MAP.containsKey(arg0.assayType) ? ASSAY_TYPE_SEQ_MAP.get(arg0.assayType): 99;
+			int assayTypeSeq1 = ASSAY_TYPE_SEQ_MAP.containsKey(o1.getAssayType()) ? ASSAY_TYPE_SEQ_MAP.get(o1.getAssayType()): 99;
+			int assayTypeSeq2 = ASSAY_TYPE_SEQ_MAP.containsKey(o2.getAssayType()) ? ASSAY_TYPE_SEQ_MAP.get(o2.getAssayType()): 99;
 			if(assayTypeSeq1 > assayTypeSeq2) return 1;
 			else if (assayTypeSeq1 < assayTypeSeq2) return -1;
 			
 			// assay types are equal, try sorting by markerSymbol
-			return sac.compare(this.markerSymbol, arg0.markerSymbol);
+			return sac.compare(o1.getMarkerSymbol(), o2.getMarkerSymbol());
 		}
     	
     }
+    
 }
