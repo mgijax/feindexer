@@ -91,7 +91,8 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            start = i * chunkSize;
 	            end = start + chunkSize;
 	            
-	            String geneQuery="select eri.imagepane_key,ers.assay_type,ers.marker_symbol, s.specimen_label,ers.assay_id "+
+	            String geneQuery="select eri.imagepane_key,ers.assay_type,ers.marker_symbol,ers.assay_id, "+
+	            		"s.hybridization, s.specimen_label " +
 		        		"from expression_result_to_imagepane eri,  " +
 		        		"expression_result_summary ers LEFT OUTER JOIN " +
 		        		"assay_specimen s ON ers.specimen_key=s.specimen_key "+
@@ -107,11 +108,12 @@ public class GXDImagePaneIndexerSQL extends Indexer
 		        	int ipKey = rs.getInt("imagepane_key");
 		        	String assayType = rs.getString("assay_type");
 		        	String markerSymbol = rs.getString("marker_symbol");
+		        	String hybridization = rs.getString("hybridization");
 		        	
 		        	GxdImageMeta imageMeta = new GxdImageMeta();
 		        	imageMeta.setMarkerSymbol(markerSymbol);
 		        	imageMeta.setAssayType(assayType);
-		        	imageMeta.setHybridization("");
+		        	imageMeta.setHybridization(hybridization);
 		        	
 		        	// init the meta data map for this pane
 		        	if(!imagePaneMetaMap.containsKey(ipKey))
