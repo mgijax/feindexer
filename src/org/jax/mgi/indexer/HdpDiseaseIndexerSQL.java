@@ -140,9 +140,11 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 							String orthoSymbol = getMarkerSymbol(orthoMarkerKey);
 							String orthoName = getMarkerName(orthoMarkerKey);
 							Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
+							Set<String> orthoSynonyms = getMarkerSynonyms(orthoMarkerKey);
 							
 							if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
 							if (orthoName != null) { orthologNomen.add(orthoName); }
+							if (orthoSynonyms != null) { orthologNomen.addAll(orthoSynonyms); }
 							if (orthoIds != null) { orthologIds.addAll(orthoIds); }
 						}
 					}
