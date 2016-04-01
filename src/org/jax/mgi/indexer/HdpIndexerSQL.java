@@ -69,6 +69,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,Integer> annotationTermKeys = null;		// annot key -> term key of annotation
 	protected Map<Integer,Set<Integer>> termKeyToAnnotations = null;	// term key -> set of annotation keys
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
+	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
 	
 	// gridcluster key to feature types for mouse markers in the cluster
 	protected Map<String,Set<String>> featureTypeMap = null;
@@ -128,6 +129,90 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*------------------------------------------------------*/
 	/*--- methods for dealing with data cached in memory ---*/
 	/*------------------------------------------------------*/
+	
+	/* retrieve the mapping from each (Integer) term key to a Set of its (String) ancestor term keys
+	 */
+	protected Map<Integer,Set<Integer>> getTermAncestors() throws Exception {
+		if (termAncestors != null) { return null; }
+
+		logger.info("retrieving ancestors of terms");
+		Timer.reset();
+
+		String ancestorQuery = "select ta.term_key, ta.ancestor_term_key "
+			+ "from term_ancestor ta "
+			+ "where exists (select 1 from term t "
+			+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
+			+ "    and t.term_key = ta.term_key)";
+
+		termAncestors = new HashMap<Integer,Set<Integer>>();
+		
+		ResultSet rs = ex.executeProto(ancestorQuery, cursorLimit);
+		while (rs.next()) {
+			Integer termKey = rs.getInt("term_key");
+				
+			if (!termAncestors.containsKey(termKey)) {
+				termAncestors.put(termKey, new HashSet<Integer>());
+			}
+			termAncestors.get(termKey).add(rs.getInt("ancestor_term_key"));
+		}
+
+		logger.info("finished retrieving ancestors for " + termAncestors.size() + " terms " + Timer.getElapsedMessage());
+		return termAncestors;
+	}
+	
+	/* get the ancestor term keys for the given term key, or null if there are no ancestors
+	 */
+	protected Set<Integer> getTermAncestors(Integer termKey) throws Exception {
+		if (termAncestors == null) { getTermAncestors(); }
+		if (termAncestors.containsKey(termKey)) { return termAncestors.get(termKey); }
+		return null;
+	}
+	
+	/* iterate over the ancestors of the given term and collect terms, synonyms, and IDs in a
+	 * Set to be returned, as specified by the parameters.  Returns null if 'termKey' is
+	 * unknown or has no ancestors.
+	 */
+	protected Set<String> getTermAncestorData(Integer termKey, boolean getTerms,
+			boolean getSynonyms, boolean getIds) throws Exception {
+		Set<Integer> ancestors = getTermAncestors(termKey);
+		if (ancestors == null) { return null; }
+
+		Set<String> out = new HashSet<String>();
+		for (Integer ancestorTermKey : ancestors) {
+			if (getTerms) {
+				String term = getTerm(ancestorTermKey);
+				if (term != null) { out.add(term); }
+			}
+			
+			String termId = getTermId(ancestorTermKey);
+			
+			if (getSynonyms && (termId != null)) {
+				Set<String> synonyms = getTermSynonyms(termId);
+				if (synonyms != null) { out.addAll(synonyms); }
+			}
+			
+			if (getIds && (termId != null)) {
+				out.add(termId);
+				Set<String> altIds = getAlternateTermIds(termId);
+				if (altIds != null) { out.addAll(altIds); }
+			}
+		}
+		return out;
+	}
+	
+	/* get the terms and their synonyms that are ancestors of the given term key, or
+	 * null if there are none or if the term key is unknown
+	 */
+	protected Set<String> getTermAncestorIDs(Integer termKey) throws Exception {
+		return getTermAncestorData(termKey, false, false, true);
+	}
+	
+	/* get the primary and secondary IDs associated with the ancestors of the given term key,
+	 * or null if there are none or if the term key is unknown
+	 */
+	protected Set<String> getTermAncestorText(Integer termKey) throws Exception {
+		return getTermAncestorData(termKey, true, true, false);
+	}
 	
 	/* retrieve the mapping from each (Integer) marker key to a Set of its (String) feature types,
 	 * for those markers with non-null feature types
@@ -982,7 +1067,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/* get the set of IDs and/or terms connected to the given annotation through our set of
 	 * "related annotations".  Boolean flags indicate whether to return terms or IDs or both,
 	 * and whether to bring back diseases or phenotypes or both.  Returns null if no related
-	 * annotations or if the given annotation key is unknown.
+	 * annotations or if the given annotation key is unknown.  Also includes relevant terms,
+	 * synonyms, and IDs of ancestors, according to the parameters.
 	 */
 	protected Set<String> getRelatedTerms (Integer annotationKey, boolean getTerms, boolean getIds,
 			boolean getDiseases, boolean getPhenotypes) throws Exception {
@@ -999,10 +1085,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 				if (getTerms) {
 					String term = getTerm(termKey);
 					if (term != null) { out.add(term); }
+					Set<String> ancestorTerms = getTermAncestorText(termKey);
+					if (ancestorTerms != null) { out.addAll(ancestorTerms); }
 				}
 				if (getIds) {
 					String termId = getTermId(termKey);
 					if (termId != null) { out.add(termId); }
+					Set<String> ancestorIds = getTermAncestorIDs(termKey);
+					if (ancestorIds != null) { out.addAll(ancestorIds); }
 				}
 			}
 		}
