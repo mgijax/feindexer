@@ -56,11 +56,12 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		while (rs.next())  {  
 			uniqueKey += 1;			// used as a counter of diseases processed
 
+			Integer termKey = rs.getInt("term_key");
 			String term = rs.getString("term");
 			String termId = rs.getString("primary_id");
 
 			SolrInputDocument doc = new SolrInputDocument();
-			doc.addField(DiseasePortalFields.UNIQUE_KEY, rs.getInt("term_key"));
+			doc.addField(DiseasePortalFields.UNIQUE_KEY, termKey);
 			doc.addField(DiseasePortalFields.TERM, term);
 			doc.addField(DiseasePortalFields.TERM_ID, termId);
 			doc.addField(DiseasePortalFields.TERM_TYPE, omim);
@@ -84,6 +85,21 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			doc.addField(DiseasePortalFields.DISEASE_REF_COUNT, getDiseaseReferenceCount(termId));
 			doc.addField(DiseasePortalFields.DISEASE_MODEL_COUNTS, getDiseaseModelCount(termId));
 
+			// add terms and IDs from related annotations (those annotations for the same genocluster
+			// for mouse annotations, or for the same marker for human annotations)
+			
+//			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE, getRelatedPhenotypesForTerm(termKey, true, true));
+			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_TEXT, getRelatedPhenotypesForTerm(termKey, true, false));
+			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_ID, getRelatedPhenotypesForTerm(termKey, false, true));
+
+//			addAll(doc, DiseasePortalFields.MP_TERM_FOR_SS_DISEASE, getRelatedPhenotypesForTerm(termKey, true, true));
+			addAll(doc, DiseasePortalFields.MP_TERM_FOR_SS_DISEASE_TEXT, getRelatedPhenotypesForTerm(termKey, true, false));
+			addAll(doc, DiseasePortalFields.MP_TERM_FOR_SS_DISEASE_ID, getRelatedPhenotypesForTerm(termKey, false, true));
+
+//			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE, getRelatedDiseasesForTerm(termKey, true, true));
+			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseasesForTerm(termKey, true, false));
+			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseasesForTerm(termKey, false, true));
+			
 			// add marker-related fields, if any markers area associated with the disease
 			Set<String> associatedMarkerKeys = this.getMarkersByDisease(termId);
 			if ((associatedMarkerKeys != null) && (associatedMarkerKeys.size() > 0)) {
@@ -97,14 +113,13 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				for (String stringMarkerKey : associatedMarkerKeys) {
 					Integer markerKey = Integer.parseInt(stringMarkerKey);
 					String markerSymbol = getMarkerSymbol(markerKey);
-					String markerName = getMarkerName(markerKey);
-					String markerId = getMarkerID(markerKey);
 					Integer gridClusterKey = getGridClusterKey(markerKey);
 					
 					doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
-					if (markerSymbol != null) { doc.addField(DiseasePortalFields.MARKER_SYMBOL, markerSymbol); }
-					if (markerName != null) { doc.addField(DiseasePortalFields.MARKER_NAME, markerName); }
-					if (markerId != null) { doc.addField(DiseasePortalFields.MARKER_MGI_ID, markerId); }
+					addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, markerSymbol);
+					addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
+					addIfNotNull(doc, DiseasePortalFields.MARKER_MGI_ID, getMarkerID(markerKey));
+
 					if (markerSynonymMap.containsKey(markerKey.toString())) {
 						markerSynonyms.addAll(markerSynonymMap.get(markerKey.toString()));
 					}
@@ -163,7 +178,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				if (orthologIds.size() > 0) {
 					addAll(doc, DiseasePortalFields.ORTHOLOG_ID, orthologIds);
 				}
-			}
+			} // end of processing associated markers
 
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.

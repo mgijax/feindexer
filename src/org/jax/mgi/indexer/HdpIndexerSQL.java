@@ -61,6 +61,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<String,Integer> modelCountPerDisease = null;	// disease ID -> count of models
 
 	protected Map<String,Set<String>> termAlternateIds = null;	// term ID -> alternate term IDs
+	protected Set<Integer> omimTerms = null;					// set of term keys for OMIM terms
+	protected Set<Integer> mpTerms = null;						// set of term keys for MP terms
+	protected Map<Integer,String> terms = null;					// term key -> term
+	protected Map<Integer,String> termIds = null;				// term key -> primary term ID
+	protected Map<Integer,Set<Integer>> relatedAnnotations = null;	// annot key -> set of related annot keys
+	protected Map<Integer,Integer> annotationTermKeys = null;		// annot key -> term key of annotation
+	protected Map<Integer,Set<Integer>> termKeyToAnnotations = null;	// term key -> set of annotation keys
+	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	
 	// gridcluster key to feature types for mouse markers in the cluster
 	protected Map<String,Set<String>> featureTypeMap = null;
@@ -580,6 +588,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "  homology_cluster_organism other_o, "
 				+ "  homology_cluster_organism_to_marker other_otm "
 				+ "where other_o.cluster_key=o.cluster_key "
+				+ "  and o.organism in ('mouse', 'human') "
 				+ "  and o.cluster_organism_key=otm.cluster_organism_key "
 				+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
 				+ "  and otm.marker_key!=other_otm.marker_key";
@@ -646,6 +655,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/* populate the three caches of basic marker data (symbols, names, and primary IDs)
 	 */
 	private void cacheBasicMarkerData() throws SQLException {
+		if (markerSymbolMap != null) { return; }
+
 		logger.debug("Caching basic marker data");
 		Timer.reset();
 
@@ -732,6 +743,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 * them in memory.
 	 */
 	private void cacheMarkerOrganismData() throws SQLException {
+		if (mouseMarkers != null) { return; }
+		
 		logger.debug("Identifying human and mouse markers");
 		Timer.reset();
 
@@ -771,6 +784,277 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return humanMarkers.contains(markerKey);
 	}
 	
+	/* load data from the database to populate several caches stored as instance variables;
+	 * specifically populates omimTerms, mpTerms, terms, and termIds.
+	 */
+	protected void cacheBasicTermData() throws Exception {
+		if (omimTerms != null) { return; }
+		
+		logger.debug("Caching basic term data");
+		Timer.reset();
+
+		omimTerms = new HashSet<Integer>();
+		mpTerms = new HashSet<Integer>();
+		terms = new HashMap<Integer,String>();
+		termIds = new HashMap<Integer,String>();
+		
+		String termQuery = "select term_key, term, primary_id, vocab_name "
+			+ "from term "
+			+ "where vocab_name in ('OMIM', 'Mammalian Phenotype')";
+
+		ResultSet rs = ex.executeProto(termQuery, cursorLimit);
+		while (rs.next()) {
+			Integer termKey = rs.getInt("term_key");
+			terms.put(termKey, rs.getString("term"));
+			termIds.put(termKey, rs.getString("primary_id"));
+
+			if ("OMIM".equals(rs.getString("vocab_name"))) { omimTerms.add(termKey); }
+			else { mpTerms.add(termKey); }
+		}
+		rs.close();
+			
+		logger.debug("Finished retrieving basic term data (" + terms.size() + " terms)" + Timer.getElapsedMessage());
+	}
+	
+	/* get the vocabulary name for the given term key, or null if key is unknown
+	 */
+	protected String getVocabulary(Integer termKey) throws Exception {
+		if (omimTerms == null) { cacheBasicTermData(); }
+		if (omimTerms.contains(termKey)) { return omim; }
+		if (mpTerms.contains(termKey)) { return mp; }
+		return null;
+	}
+
+	/* get the term corresponding to the given term key, or null if key is unknown
+	 */
+	protected String getTerm(Integer termKey) throws Exception {
+		if (terms == null) { cacheBasicTermData(); }
+		if (terms.containsKey(termKey)) { return terms.get(termKey); }
+		return null;
+	}
+	
+	/* get the primary term ID corresponding to the given term key, or null if key is unknown
+	 */
+	protected String getTermId(Integer termKey) throws Exception {
+		if (termIds == null) { cacheBasicTermData(); }
+		if (termIds.containsKey(termKey)) { return termIds.get(termKey); }
+		return null;
+	}
+	
+	/* cache basic data for annotations, populating the instance variables annotationTermKeys
+	 * and notAnnotations
+	 */
+	protected void cacheBasicAnnotationData() throws Exception {
+		if (notAnnotations != null) { return; }
+		
+		logger.debug("Caching basic annotation data");
+		Timer.reset();
+
+		annotationTermKeys = new HashMap<Integer,Integer>();
+		notAnnotations = new HashSet<Integer>();
+		termKeyToAnnotations = new HashMap<Integer,Set<Integer>>();
+		
+		String annotQuery = "select hdp_annotation_key, term_key, qualifier_type "
+			+ "from hdp_annotation";
+
+		ResultSet rs = ex.executeProto(annotQuery, cursorLimit);
+		while (rs.next()) {
+			Integer hdpAnnotationKey = rs.getInt("hdp_annotation_key");
+			String qualifier = rs.getString("qualifier_type");
+			Integer termKey = rs.getInt("term_key");
+			
+			annotationTermKeys.put(hdpAnnotationKey, rs.getInt("term_key"));
+			if ((qualifier != null) && "NOT".equals(qualifier)) {
+				notAnnotations.add(hdpAnnotationKey);
+			}
+			
+			if (!termKeyToAnnotations.containsKey(termKey)) {
+				termKeyToAnnotations.put(termKey, new HashSet<Integer>());
+			}
+			termKeyToAnnotations.get(termKey).add(hdpAnnotationKey);
+		}
+		rs.close();
+			
+		logger.debug("Finished retrieving basic annotation data (" + annotationTermKeys.size() + " annotations)" + Timer.getElapsedMessage());
+	}
+
+	/* determine if the annotation with the given hdp_annotation_key has a NOT qualifier
+	 */
+	protected boolean isNotAnnotation(Integer annotationKey) throws Exception {
+		if (notAnnotations == null) { cacheBasicAnnotationData(); }
+		if (notAnnotations.contains(annotationKey)) { return true; }
+		return false;
+	}
+
+	/* get the annotations using the given term key, or null if none exist
+	 */
+	protected Set<Integer> getAnnotationsForTerm(Integer termKey) throws Exception {
+		if (termKeyToAnnotations == null) { cacheBasicAnnotationData(); }
+		if (termKeyToAnnotations.containsKey(termKey)) { return termKeyToAnnotations.get(termKey); }
+		return null;
+	}
+	
+	/* get the term key for the given hdp_annotation_key, or null if annotation key is unknown
+	 */
+	protected Integer getAnnotatedTermKey(Integer annotationKey) throws Exception {
+		if (annotationTermKeys == null) { cacheBasicAnnotationData(); }
+		if (annotationTermKeys.containsKey(annotationKey)) {
+			return annotationTermKeys.get(annotationKey);
+		}
+		return null;
+	}
+	
+	/* populate the instance variable relatedAnnotations, tracking which annotations are related
+	 * to which other annotations, either by being for the same genocluster (for mouse data) or for
+	 * the same human markers
+	 */
+	protected void cacheAnnotationRelationships() throws SQLException {
+		if (relatedAnnotations != null) { return; }
+		
+		logger.debug("Caching annotation relationships");
+		Timer.reset();
+
+		relatedAnnotations = new HashMap<Integer,Set<Integer>>();
+		
+		String mouseQuery = "with genoclusters as ( "
+			+ "  select distinct on (ha.hdp_annotation_key) ha.hdp_annotation_key, "
+			+ "    gg.hdp_genocluster_key "
+			+ "  from hdp_annotation ha, "
+			+ "    hdp_genocluster_genotype gg "
+			+ "  where ha.genotype_key = gg.genotype_key) "
+			+ "select h1.hdp_annotation_key as annotKey1, "
+			+ "  g2.hdp_annotation_key as annotKey2 "
+			+ "from hdp_annotation h1, genoclusters g1, genoclusters g2 "
+			+ "where h1.hdp_annotation_key = g1.hdp_annotation_key "
+			+ "  and g1.hdp_genocluster_key = g2.hdp_genocluster_key "
+			+ "  and g1.hdp_annotation_key != g2.hdp_annotation_key";
+
+		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);
+		while (rs.next()) {
+			Integer annotKey1 = rs.getInt("annotKey1");
+			
+			if (!relatedAnnotations.containsKey(annotKey1)) {
+				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
+			}
+			relatedAnnotations.get(annotKey1).add(rs.getInt("annotKey2"));
+		}
+		rs.close();
+			
+		int mouseCount = relatedAnnotations.size();
+		logger.debug("Got relationships for " + mouseCount + " mouse annotations)" + Timer.getElapsedMessage());
+		
+		Timer.reset();
+		String humanQuery = "select ha1.hdp_annotation_key as annotKey1, "
+			+ "  ha2.hdp_annotation_key as annotKey2 "
+			+ "from hdp_annotation ha1, "
+			+ "  hdp_annotation ha2 "
+			+ "where ha1.term_id != ha2.term_id "
+			+ "  and ha1.marker_key = ha2.marker_key "
+			+ "  and ha1.organism_key = 2 "
+			+ "  and ha2.organism_key = 2";
+
+		ResultSet rs2 = ex.executeProto(humanQuery, cursorLimit);
+		while (rs2.next()) {
+			Integer annotKey1 = rs2.getInt("annotKey1");
+			
+			if (!relatedAnnotations.containsKey(annotKey1)) {
+				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
+			}
+			relatedAnnotations.get(annotKey1).add(rs2.getInt("annotKey2"));
+		}
+		rs2.close();
+			
+		logger.debug("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
+	}
+
+	/* get the set of annotation keys that are related to the given hdp_annotation_key, based on
+	 * mouse data for the same genocluster and human data for the same marker.  Returns null
+	 * if there are no relationships for the hdp_annotation_key.
+	 */
+	protected Set<Integer> getRelatedAnnotations(Integer annotationKey) throws Exception {
+		if (relatedAnnotations == null) { cacheAnnotationRelationships(); }
+		if (relatedAnnotations.containsKey(annotationKey)) {
+			return relatedAnnotations.get(annotationKey);
+		}
+		return null;
+	}
+	
+	/* get the set of IDs and/or terms connected to the given annotation through our set of
+	 * "related annotations".  Boolean flags indicate whether to return terms or IDs or both,
+	 * and whether to bring back diseases or phenotypes or both.  Returns null if no related
+	 * annotations or if the given annotation key is unknown.
+	 */
+	protected Set<String> getRelatedTerms (Integer annotationKey, boolean getTerms, boolean getIds,
+			boolean getDiseases, boolean getPhenotypes) throws Exception {
+
+		Set<Integer> relatedAnnot = getRelatedAnnotations(annotationKey);
+		if (relatedAnnot == null) { return null; }
+		
+		Set<String> out = new HashSet<String>();		// set of strings to return
+		
+		for (Integer annotKey : relatedAnnot) {
+			Integer termKey = getAnnotatedTermKey(annotKey);
+			String vocab = getVocabulary(termKey);
+			if ( (getDiseases && omim.equals(vocab)) || (getPhenotypes && mp.equals(vocab)) ) {
+				if (getTerms) {
+					String term = getTerm(termKey);
+					if (term != null) { out.add(term); }
+				}
+				if (getIds) {
+					String termId = getTermId(termKey);
+					if (termId != null) { out.add(termId); }
+				}
+			}
+		}
+		return out;
+	}
+
+	/* get the set of disease IDs and terms which come via related annotations for the specified annotation
+	 */
+	protected Set<String> getRelatedDiseases(Integer annotationKey, boolean getTerms, boolean getIds) throws Exception {
+		return getRelatedTerms(annotationKey, getTerms, getIds, true, false);
+	}
+
+	/* get the set of phenotype IDs and terms which come via related annotations for the specified annotation
+	 */
+	protected Set<String> getRelatedPhenotypes(Integer annotationKey, boolean getTerms, boolean getIds) throws Exception {
+		return getRelatedTerms(annotationKey, getTerms, getIds, false, true);
+	}
+
+	/* get the set of disease IDs and terms which come via related annotations for the specified term key
+	 */
+	protected Set<String> getRelatedDiseasesForTerm(Integer termKey, boolean getTerms, boolean getIds) throws Exception {
+		Set<Integer> annotKeys = getAnnotationsForTerm(termKey);
+		if (annotKeys != null) {
+			Set<String> out = new HashSet<String>();
+			for (Integer annotKey : annotKeys) {
+				Set<String> relatedTerms = getRelatedDiseases(annotKey, getTerms, getIds);
+				if (relatedTerms != null) {
+					out.addAll(relatedTerms);
+				}
+			}
+			return out;
+		}
+		return null;
+	}
+
+	/* get the set of phenotype IDs and terms which come via related annotations for the specified term key
+	 */
+	protected Set<String> getRelatedPhenotypesForTerm(Integer termKey, boolean getTerms, boolean getIds) throws Exception {
+		Set<Integer> annotKeys = getAnnotationsForTerm(termKey);
+		if (annotKeys != null) {
+			Set<String> out = new HashSet<String>();
+			for (Integer annotKey : annotKeys) {
+				Set<String> relatedTerms = getRelatedPhenotypes(annotKey, getTerms, getIds);
+				if (relatedTerms != null) {
+					out.addAll(relatedTerms);
+				}
+			}
+			return out;
+		}
+		return null;
+	}
+
 	/*-----------------------------------------------*/
 	/*--- public methods for building temp tables ---*/
 	/*-----------------------------------------------*/
