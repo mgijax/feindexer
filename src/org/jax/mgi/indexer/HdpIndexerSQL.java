@@ -485,7 +485,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String markerQuery = "select distinct h.term_id, h.marker_key, m.symbol "
 				+ "from hdp_annotation h, marker m "
 				+ "where h.vocab_name='OMIM' "
-				+ "  and h.organism_key = 1 "
+				+ "  and h.organism_key in (1, 2) "
 				+ "  and h.marker_key = m.marker_key "
 				+ "  and h.qualifier_type is null "
 				+ "  and (h.genotype_type!='complex' or h.genotype_type is null) "
