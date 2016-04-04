@@ -280,12 +280,21 @@ public class GXDImagePaneIndexerSQL extends Indexer
     
     
     /**
-     * Sort all meta data by assay type, then by marker symbol
+     * Sort all meta data by marker symbol, then by assay type
+     * 
+     * NOTE: This sorts the meta information inside each image pane row
+     * 	It is unrelated to the column sorts: BY_ASSAY_TYPE, BY_MARKER, and BY_HYBRIDIZATION
      */
     private class ImageMetaComparator<T> implements Comparator<GxdImageMeta> {
 
 		@Override
 		public int compare(GxdImageMeta o1, GxdImageMeta o2) {
+			
+			// sort gene symbols first
+			int symbolCompare = sac.compare(o1.getMarkerSymbol(), o2.getMarkerSymbol());
+			if (symbolCompare != 0){
+				return symbolCompare;
+			}
 			
 			// sort assayType first
 			int assayTypeSeq1 = ASSAY_TYPE_SEQ_MAP.containsKey(o1.getAssayType()) ? ASSAY_TYPE_SEQ_MAP.get(o1.getAssayType()): 99;
@@ -293,8 +302,7 @@ public class GXDImagePaneIndexerSQL extends Indexer
 			if(assayTypeSeq1 > assayTypeSeq2) return 1;
 			else if (assayTypeSeq1 < assayTypeSeq2) return -1;
 			
-			// assay types are equal, try sorting by markerSymbol
-			return sac.compare(o1.getMarkerSymbol(), o2.getMarkerSymbol());
+			return 0;
 		}
     	
     }
