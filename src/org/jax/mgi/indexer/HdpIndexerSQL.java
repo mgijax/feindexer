@@ -162,10 +162,65 @@ public abstract class HdpIndexerSQL extends Indexer {
 	
 	/* get the ancestor term keys for the given term key, or null if there are no ancestors
 	 */
-	protected Set<Integer> getTermAncestors(Integer termKey) throws Exception {
+	protected Set<Integer> getTermAncestorsold(Integer termKey) throws Exception {
 		if (termAncestors == null) { getTermAncestors(); }
 		if (termAncestors.containsKey(termKey)) { return termAncestors.get(termKey); }
 		return null;
+	}
+	
+	protected Map<Integer,Set<Integer>> childToParents = null;	// child term key -> parent term keys
+	protected Map<Integer,Set<Integer>> ancestors = null;		// child term key -> all ancestors
+
+	protected void getTermRelationships() throws Exception {
+		if (childToParents != null) { return; }
+		
+		logger.info("retrieving parent/child term relationships");
+		Timer.reset();
+		
+		String parentQuery = "select ta.term_key as parent_key, "
+			+ "  ta.child_term_key as child_key "
+			+ "from term_child ta "
+			+ "where exists (select 1 from term t "
+			+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
+			+ "    and t.term_key = ta.term_key)";
+		
+		childToParents = new HashMap<Integer,Set<Integer>>();
+		ancestors = new HashMap<Integer,Set<Integer>>();
+		
+		ResultSet rs = ex.executeProto(parentQuery);
+		while (rs.next()) {
+			Integer childKey = rs.getInt("child_key");
+			
+			if (!childToParents.containsKey(childKey)) {
+				childToParents.put(childKey, new HashSet<Integer>());
+			}
+			childToParents.get(childKey).add(rs.getInt("parent_key"));
+		}
+		
+		logger.info("finished retrieving parent/child relationships for " + childToParents.size() + " child terms");
+	}
+	
+	protected Set<Integer> getTermAncestors (Integer termKey) throws Exception {
+		if (childToParents == null) { getTermRelationships(); }
+		
+		// already calculated ancestors for this term?  return them.
+		if (ancestors.containsKey(termKey)) { return ancestors.get(termKey); }
+		
+		// no parents for this term?  It's a root, so return null.
+		if (!childToParents.containsKey(termKey)) { return null; }
+		
+		Set<Integer> myAncestors = new HashSet<Integer>();
+		
+		for (Integer parent : childToParents.get(termKey)) {
+			myAncestors.add(parent);
+			Set<Integer> parentsAncestors = getTermAncestors(parent);
+			if (parentsAncestors != null) {
+				myAncestors.addAll(parentsAncestors);
+			}
+		}
+		ancestors.put(termKey, myAncestors);
+		
+		return myAncestors;
 	}
 	
 	/* iterate over the ancestors of the given term and collect terms, synonyms, and IDs in a
