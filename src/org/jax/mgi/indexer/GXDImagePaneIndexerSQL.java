@@ -155,7 +155,8 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            String query = "select i.mgi_id,ip.imagepane_key, " +
 	            		"i.figure_label, i.pixeldb_numeric_id, ip.pane_label, " +
 	            		"ip.x,ip.y,ip.width,ip.height, " +
-	            		"ip.by_assay_type, ip.by_marker, ip.by_hybridization, " +
+	            		"ip.by_assay_type, ip.by_marker, ip.by_hybridization_asc, " +
+	            		"ip.by_hybridization_desc, " +
 	            		"i.width image_width, i.height image_height " +
 	            		" from image i,expression_imagepane ip where i.image_key=ip.image_key " +
 	            		"and i.pixeldb_numeric_id is not null "+
@@ -192,8 +193,8 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            	// add the sort fields
 	            	doc.addField(ImagePaneFields.BY_ASSAY_TYPE, rs.getInt("by_assay_type"));
 	            	doc.addField(ImagePaneFields.BY_MARKER, rs.getInt("by_marker"));
-	            	// determine actual byHybridization sort by inspecting meta data down further
-	            	Integer byHybridization  =  rs.getInt("by_hybridization");
+	            	doc.addField(ImagePaneFields.BY_HYBRIDIZATION_ASC, rs.getInt("by_hybridization_asc"));
+	            	doc.addField(ImagePaneFields.BY_HYBRIDIZATION_DESC, rs.getInt("by_hybridization_desc"));
 
 	            	//get results
 	            	// if this lookup fails, then there is probably a data inconsistency
@@ -213,31 +214,13 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            	
 	            	if(imagePaneSortedMetaMap.containsKey(imagepane_key))
 	            	{
-	            		boolean isHybridizationNotNull = false;
 	            		for(GxdImageMeta imageMeta : imagePaneSortedMetaMap.get(imagepane_key))
 	            		{
 	            			// save image meta data as JSON
 	            			doc.addField(ImagePaneFields.IMAGE_META, objectMapper.writeValueAsString(imageMeta));
-	            			
-	            			if (imageMeta.hybridization != null &&
-	            					!imageMeta.hybridization.equals("") &&
-	            					!imageMeta.hybridization.equalsIgnoreCase("not specified")
-	            			) {
-	            				isHybridizationNotNull = true;
-	            			}
 	            		}
-	            		
-	            		/*
-	            		 *  if hybridization is null or Not Specified we want to
-	            		 *  sort them to the bottom always, so set the sort value to null
-	            		 */
-	            		if (!isHybridizationNotNull) {
-	            			byHybridization = null;
-	            		}
-	            	}
 	            	
-
-	            	doc.addField(ImagePaneFields.BY_HYBRIDIZATION, byHybridization);
+	            	}
 	            	
 		                
                     docs.add(doc);
