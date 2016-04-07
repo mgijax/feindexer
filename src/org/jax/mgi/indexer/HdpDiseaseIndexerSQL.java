@@ -91,8 +91,10 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_TEXT, getRelatedPhenotypesForTerm(termKey, true, false));
 			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_ID, getRelatedPhenotypesForTerm(termKey, false, true));
 
-			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseasesForTerm(termKey, true, false));
-			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseasesForTerm(termKey, false, true));
+// commented out so we stop returning related diseases beyond the disease that is annotated
+// (show only the matching disease for a search by disease)
+//			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseasesForTerm(termKey, true, false));
+//			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseasesForTerm(termKey, false, true));
 			
 			// add marker-related fields, if any markers area associated with the disease
 			Set<String> associatedMarkerKeys = this.getMarkersByDisease(termId);
