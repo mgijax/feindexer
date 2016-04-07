@@ -1083,28 +1083,31 @@ public abstract class HdpIndexerSQL extends Indexer {
 		int mouseCount = relatedAnnotations.size();
 		logger.debug("Got relationships for " + mouseCount + " mouse annotations)" + Timer.getElapsedMessage());
 		
-		Timer.reset();
-		String humanQuery = "select ha1.hdp_annotation_key as annotKey1, "
-			+ "  ha2.hdp_annotation_key as annotKey2 "
-			+ "from hdp_annotation ha1, "
-			+ "  hdp_annotation ha2 "
-			+ "where ha1.term_id != ha2.term_id "
-			+ "  and ha1.marker_key = ha2.marker_key "
-			+ "  and ha1.organism_key = 2 "
-			+ "  and ha2.organism_key = 2";
-
-		ResultSet rs2 = ex.executeProto(humanQuery, cursorLimit);
-		while (rs2.next()) {
-			Integer annotKey1 = rs2.getInt("annotKey1");
-			
-			if (!relatedAnnotations.containsKey(annotKey1)) {
-				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
-			}
-			relatedAnnotations.get(annotKey1).add(rs2.getInt("annotKey2"));
-		}
-		rs2.close();
-			
-		logger.debug("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
+/* Commented out this section, ensuring that we do NOT bring back additional diseases for
+*  human markers.  We only want to bring back the disease that matches the user's query.
+* 		Timer.reset();
+*		String humanQuery = "select ha1.hdp_annotation_key as annotKey1, "
+*			+ "  ha2.hdp_annotation_key as annotKey2 "
+*			+ "from hdp_annotation ha1, "
+*			+ "  hdp_annotation ha2 "
+*			+ "where ha1.term_id != ha2.term_id "
+*			+ "  and ha1.marker_key = ha2.marker_key "
+*			+ "  and ha1.organism_key = 2 "
+*			+ "  and ha2.organism_key = 2";
+*
+*		ResultSet rs2 = ex.executeProto(humanQuery, cursorLimit);
+*		while (rs2.next()) {
+*			Integer annotKey1 = rs2.getInt("annotKey1");
+*			
+*			if (!relatedAnnotations.containsKey(annotKey1)) {
+*				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
+*			}
+*			relatedAnnotations.get(annotKey1).add(rs2.getInt("annotKey2"));
+*		}
+*		rs2.close();
+*			
+*		logger.debug("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
+*/
 	}
 
 	/* get the set of annotation keys that are related to the given hdp_annotation_key, based on
