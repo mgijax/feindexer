@@ -316,7 +316,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			logger.info("retrieving alternate IDs for terms");
 			Timer.reset();
 
-			String termIdQuery="select t.primary_id term_id, ti.acc_id alt_id "
+			String termIdQuery="select t.primary_id as term_id, ti.acc_id as alt_id "
 				+ "from term t, term_id ti "
 				+ "where t.term_key = ti.term_key "
 				+ "  and t.vocab_name in ('Mammalian Phenotype', 'OMIM') ";
@@ -1144,11 +1144,27 @@ public abstract class HdpIndexerSQL extends Indexer {
 					String term = getTerm(termKey);
 					if (term != null) { out.add(term); }
 					Set<String> ancestorTerms = getTermAncestorText(termKey);
+
+					// if getting terms, also add synonyms
+					String termId = getTermId(termKey);
+					Set<String> ancestorSynonyms = getTermSynonyms(termId);
+					if (ancestorSynonyms != null) {
+						out.addAll(ancestorSynonyms);
+					}
+
 					if (ancestorTerms != null) { out.addAll(ancestorTerms); }
 				}
 				if (getIds) {
 					String termId = getTermId(termKey);
 					if (termId != null) { out.add(termId); }
+					
+					// need to add both alternate IDs and ancestor IDs
+
+					if (termId != null) {
+						Set<String> altIds = getAlternateTermIds(termId);
+						if (altIds != null) { out.addAll(altIds); }
+					}
+					
 					Set<String> ancestorIds = getTermAncestorIDs(termKey);
 					if (ancestorIds != null) { out.addAll(ancestorIds); }
 				}
