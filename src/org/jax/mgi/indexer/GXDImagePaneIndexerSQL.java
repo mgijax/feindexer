@@ -1,6 +1,7 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,25 +32,33 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	// class variables
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	
-	public static Map<String,Integer> ASSAY_TYPE_SEQ_MAP = new HashMap<String,Integer>();
-	static
-	{
-		ASSAY_TYPE_SEQ_MAP.put("Immunohistochemistry", 1);
-		ASSAY_TYPE_SEQ_MAP.put("RNA in situ", 2);
-		ASSAY_TYPE_SEQ_MAP.put("In situ reporter (knock in)", 3);
-		ASSAY_TYPE_SEQ_MAP.put("Northern blot", 4);
-		ASSAY_TYPE_SEQ_MAP.put("Western blot", 5);
-		ASSAY_TYPE_SEQ_MAP.put("RT-PCR", 6);
-		ASSAY_TYPE_SEQ_MAP.put("RNase protection", 7);
-		ASSAY_TYPE_SEQ_MAP.put("Nuclease S1", 8);
-	}
+	public Map<String,Integer> assayTypeSeqMap = new HashMap<String,Integer>();
 	public SmartAlphaComparator sac = new SmartAlphaComparator();
 	
     public GXDImagePaneIndexerSQL () 
     { super("index.url.gxdImagePane"); }
     
+    
+    private void initAssayTypeSeqMap() throws SQLException {
+    	
+    	String assayTypeSeqSQL = "select distinct assay_type, assay_type_seq "
+    			+ "from expression_assay ";
+    	
+    	ResultSet rs = ex.executeProto(assayTypeSeqSQL);
+    	
+    	while(rs.next()) {
+    		this.assayTypeSeqMap.put(rs.getString("assay_type"), rs.getInt("assay_type_seq"));
+    	}
+    }
+    
     public void index() throws Exception
     {    
+    	
+    		// get assay type sequences for image meta data sorting
+    		initAssayTypeSeqMap();
+    	
+    	
+    	
         	String imageQuery="select ei.result_key,ei.imagepane_key,ers.assay_id "+
         			"from expression_result_to_imagepane ei,expression_result_summary ers "+
         			"where ei.result_key=ers.result_key";
@@ -280,8 +289,8 @@ public class GXDImagePaneIndexerSQL extends Indexer
 			}
 			
 			// sort assayType first
-			int assayTypeSeq1 = ASSAY_TYPE_SEQ_MAP.containsKey(o1.getAssayType()) ? ASSAY_TYPE_SEQ_MAP.get(o1.getAssayType()): 99;
-			int assayTypeSeq2 = ASSAY_TYPE_SEQ_MAP.containsKey(o2.getAssayType()) ? ASSAY_TYPE_SEQ_MAP.get(o2.getAssayType()): 99;
+			int assayTypeSeq1 = assayTypeSeqMap.containsKey(o1.getAssayType()) ? assayTypeSeqMap.get(o1.getAssayType()): 99;
+			int assayTypeSeq2 = assayTypeSeqMap.containsKey(o2.getAssayType()) ? assayTypeSeqMap.get(o2.getAssayType()): 99;
 			if(assayTypeSeq1 > assayTypeSeq2) return 1;
 			else if (assayTypeSeq1 < assayTypeSeq2) return -1;
 			
