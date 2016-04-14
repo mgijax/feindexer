@@ -71,6 +71,20 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
 	
+	/* We use the term "basic search units" for the grid, referring to the basic unit that we
+	 * are searching for -- genoclusters for mouse data and marker/disease pairs for human
+	 * data.  If our search matches a BSU, then all of its annotations are returned.  If a BSU
+	 * was not matched by the search, then none of its data are returned.
+	 */
+	protected Map<Integer,BSU> bsuMap = null;				// maps BSU key to its cached data
+	Map<Integer,Map<Integer,Integer>> humanBsuMap = null;	// marker key -> disease key -> BSU key
+	Map<Integer,Integer> mouseBsuMap = null;				// genocluster key -> BSU key
+
+	Map<Integer,String> gcToHumanMarkers = null;	// maps gridcluster key to human marker data
+	Map<Integer,String> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data
+	Map<Integer,String> allelePairs = null;			// maps genocluster key to allele pair data
+	Set<Integer> conditionalGenoclusters = null;	// set of conditional genocluster keys
+	
 	// gridcluster key to feature types for mouse markers in the cluster
 	protected Map<String,Set<String>> featureTypeMap = null;
 	
@@ -155,6 +169,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 			termAncestors.get(termKey).add(rs.getInt("ancestor_term_key"));
 		}
+		rs.close();
 
 		logger.info("finished retrieving ancestors for " + termAncestors.size() + " terms " + Timer.getElapsedMessage());
 		return termAncestors;
@@ -196,6 +211,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 			childToParents.get(childKey).add(rs.getInt("parent_key"));
 		}
+		rs.close();
 		
 		logger.info("finished retrieving parent/child relationships for " + childToParents.size() + " child terms");
 	}
@@ -292,6 +308,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				}
 				markerFeatureTypes.get(markerKey).add(rs.getString("marker_subtype"));
 			}
+			rs.close();
 
 			logger.info("finished retrieving feature types for " + markerFeatureTypes.size() + " markers " + Timer.getElapsedMessage());
 		}
@@ -338,6 +355,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 	
+	/* get the alternate term IDs for the term identified by the given term key
+	 */
+	protected Set<String> getAlternateTermIds(Integer termKey) throws Exception {
+		if (termKey == null) { return null; }
+		String termId = getTermId(termKey);
+		if (termId == null) { return null; }
+		return getAlternateTermIds(termId);
+	}
+	
 	/* retrieve the mapping from each disease and phenotype ID to the
 	 * corresponding term's synonyms
 	 */
@@ -365,6 +391,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 			return termSynonymMap.get(termID);
 		}
 		return null;
+	}
+	
+	/* get the synonyms for the given disease or phenotype term key
+	 */
+	protected Set<String> getTermSynonyms(Integer termKey) throws Exception {
+		String termId = this.getTermId(termKey);
+		if (termId == null) { return null; }
+		return getTermSynonyms(termId);
 	}
 	
 	/* retrieve the mapping from each (String) marker key to the marker's synonyms, including
@@ -612,6 +646,19 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return featureTypeMap;
 	}
 
+	/* return the feature types associated with all markers in the given grid cluster
+	 */
+	protected Set<String> getFeatureTypes(Integer gridClusterKey) throws Exception {
+		if (gridClusterKey == null) { return null; }
+		if (featureTypeMap == null) { getFeatureTypeMap(); }
+
+		String gckString = gridClusterKey.toString();
+		if (featureTypeMap.containsKey(gckString)) {
+			return featureTypeMap.get(gckString);
+		}
+		return null;
+	}
+	
 	/* get a mapping from (String) disease ID to a Set of (String) marker keys that are
 	 * positively associated with that disease.  (no annotations with a NOT qualifier)
 	 */
@@ -677,6 +724,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
+	/* get the headers for the disease specified by the given term key
+	 */
+	protected Set<String> getHeadersByDisease (Integer diseaseKey) throws Exception {
+		if (diseaseKey == null) { return null; }
+		String termId = getTermId(diseaseKey);
+		if (termId == null) { return null; }
+		return getHeadersByDisease(termId);
+	}
+	
 	/* get a mapping from (String) disease ID to an (Integer) count of references
 	 */
 	protected Map<String,Integer> getDiseaseReferenceCounts() throws Exception {
@@ -1648,5 +1704,286 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		server.commit();
 		logger.debug("Done processing annotations 1 to " + maxAnnotationKey);
+	}
+	
+	/*---------------------------------------------------------------------*/
+	/*--- methods dealing with "basic search units" (BSUs) for the grid ---*/
+	/*---------------------------------------------------------------------*/
+	
+	/* cache the human and mouse marker data for each grid cluster
+	 */
+	protected void cacheGridClusterMarkers() throws Exception {
+		if (gcToHumanMarkers != null) { return; }
+
+		logger.info("retrieving gridcluster markers");
+		Timer.reset();
+
+		gcToHumanMarkers = new HashMap<Integer,String>();
+		gcToMouseMarkers = new HashMap<Integer,String>();
+		
+		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, "
+			+ "  m.primary_id, ms.by_symbol "
+			+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
+			+ "where gcm.marker_key = m.marker_key "
+			+ "  and m.marker_key = ms.marker_key "
+			+ "order by ms.by_symbol";
+
+		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
+		while (rs.next()) {
+			Integer gcKey = rs.getInt("hdp_gridcluster_key");
+			String organism = rs.getString("organism");
+			String symbol = rs.getString("symbol");
+			String accId = rs.getString("primary_id");
+				
+			if ("human".equals(organism)) {
+				if (!gcToHumanMarkers.containsKey(gcKey)) {
+					gcToHumanMarkers.put(gcKey, symbol + "|" + accId);
+				} else {
+					gcToHumanMarkers.put(gcKey, gcToHumanMarkers.get(gcKey) + ", " + symbol + "|" + accId);
+				}
+			} else {
+				if (!gcToMouseMarkers.containsKey(gcKey)) {
+					gcToMouseMarkers.put(gcKey, symbol + "|" + accId);
+				} else {
+					gcToMouseMarkers.put(gcKey, gcToMouseMarkers.get(gcKey) + ", " + symbol + "|" + accId);
+				}
+			}
+		}
+		rs.close();
+		logger.info("  - retrieved marker data for gridclusters " + Timer.getElapsedMessage());
+	}
+	
+	/* get the mouse marker data for the given grid cluster key, formatted as:
+	 *   Symbol1|ID1, Symbol2|ID2, ...
+	 * returns null if no mouse markers or unknown grid cluster key
+	 */
+	protected String getMouseMarkers(int gridClusterKey) throws Exception {
+		if (gcToMouseMarkers == null) { cacheGridClusterMarkers(); }
+		if (gcToMouseMarkers.containsKey(gridClusterKey)) {
+			return gcToMouseMarkers.get(gridClusterKey);
+		}
+		return null;
+	}
+	
+	/* get the human marker data for the given grid cluster key, formatted as:
+	 *   Symbol1|ID1, Symbol2|ID2, ...
+	 * returns null if no human markers or unknown grid cluster key
+	 */
+	protected String getHumanMarkers(int gridClusterKey) throws Exception {
+		if (gcToHumanMarkers == null) { cacheGridClusterMarkers(); }
+		if (gcToHumanMarkers.containsKey(gridClusterKey)) {
+			return gcToHumanMarkers.get(gridClusterKey);
+		}
+		return null;
+	}
+	
+	/* cache the allele pairs in memory for each genocluster
+	 */
+	protected void cacheAllelePairs() throws Exception {
+		if (allelePairs != null) { return; }
+		
+		logger.info("retrieving allele pairs for genoclusters");
+		Timer.reset();
+
+		// grab the allele combination from the first genotype for each genocluster
+		String allelePairQuery = "select distinct on (gc1.hdp_genocluster_key) "
+			+ "  gc1.hdp_genocluster_key, g1.combination_1, g1.is_conditional "
+			+ "from hdp_genocluster_genotype gc1, "
+			+ "  genotype g1 "
+			+ "where gc1.genotype_key = g1.genotype_key";
+
+		allelePairs = new HashMap<Integer,String>();
+		conditionalGenoclusters = new HashSet<Integer>();
+		
+		ResultSet rs = ex.executeProto(allelePairQuery, cursorLimit);
+		while (rs.next()) {
+			allelePairs.put(rs.getInt("hdp_genocluster_key"), rs.getString("combination_1"));
+			if (rs.getInt("is_conditional") == 1) {
+				conditionalGenoclusters.add(rs.getInt("hdp_genocluster_key"));
+			}
+		}
+		rs.close();
+
+		logger.info("finished retrieving allele pairs for " + allelePairs.size() + " genoclusters " + Timer.getElapsedMessage());
+		logger.info("found " + conditionalGenoclusters.size() + " conditional genoclusters");
+	}
+	
+	/* get the allele pairs for the specified genocluster as a String with embedded
+	 * \Allele() tags, suitable for formatting by the fewi's NotesTagConverter.  Returns
+	 * null if no allele pairs for the specified genocluster key.
+	 */
+	protected String getAllelePairs(int genoClusterKey) throws Exception {
+		if (allelePairs == null) { cacheAllelePairs(); }
+		if (allelePairs.containsKey(genoClusterKey)) {
+			return allelePairs.get(genoClusterKey);
+		}
+		return null;
+	}
+	
+	/* returns true if the specified genocluster is condtional, false if not
+	 */
+	protected boolean isConditional(int genoClusterKey) throws Exception {
+		if (conditionalGenoclusters == null) { cacheAllelePairs(); }
+		return conditionalGenoclusters.contains(genoClusterKey);
+	}
+
+	/* look up data for the BSUs and cache them in memory, assigning a new integer key
+	 * to each BSU.
+	 */
+	protected void cacheBsus() throws Exception {
+		if (bsuMap != null) { return; }
+		
+		// We need the 'condtionalGenotypes' to determine which genoclusters are conditional.
+		if (conditionalGenoclusters == null) { cacheAllelePairs(); }
+
+		Timer.reset();
+		logger.debug("Caching BSUs");
+		int bsuKey = 0;					// incremental key, identifying each BSU
+		bsuMap = new HashMap<Integer,BSU>();
+		humanBsuMap = new HashMap<Integer,Map<Integer,Integer>>();
+		
+		/* Of note:
+		 *   1. No genoclusters have human markers.
+		 *   2. Many genoclusters have multiple mouse markers.
+		 *   3. No markers are in more than one gridcluster.
+		 *   4. A small number of markers are not in a homology cluster.
+		 */
+		
+		// human marker/disease data, plus homology cluster key
+		String humanQuery = "select gcm.hdp_gridcluster_key, gcm.marker_key, " 
+				+ "  ha.term_key, hc.cluster_key "
+				+ "from hdp_gridcluster_marker gcm "
+				+ "inner join hdp_annotation ha on ( "
+				+ "  gcm.marker_key = ha.marker_key "
+				+ "  and ha.organism_key = 2 " 
+				+ "  and ha.annotation_type = 1006) "
+				+ "left outer join homology_cluster hc on ( "
+				+ "  gcm.hdp_gridcluster_key = hc.cluster_key) "
+				+ "order by gcm.marker_key, ha.term_key";
+		
+		ResultSet rs = ex.executeProto(humanQuery, cursorLimit);
+		while (rs.next()) {
+			bsuKey++;
+			BSU bsu = new BSU(bsuKey);
+			
+			Integer markerKey = rs.getInt("marker_key");
+			Integer termKey = rs.getInt("term_key");
+			
+			bsu.setHumanData(rs.getInt("hdp_gridcluster_key"), markerKey, termKey, rs.getInt("cluster_key"));
+			bsuMap.put(bsuKey, bsu);
+			
+			if (!humanBsuMap.containsKey(markerKey)) {
+				humanBsuMap.put(markerKey, new HashMap<Integer,Integer>());
+			}
+			if (!humanBsuMap.get(markerKey).containsKey(termKey)) {
+				humanBsuMap.get(markerKey).put(termKey, bsuKey);
+			}
+		}
+		rs.close();
+		int humanCount = bsuMap.size();
+		logger.debug("Cached " + humanCount + " human marker/disease BSUs " + Timer.getElapsedMessage());
+
+		// mouse genocluster data
+
+		Timer.reset();
+
+		mouseBsuMap = new HashMap<Integer,Integer>();
+		
+		String mouseQuery = "select distinct gc.hdp_genocluster_key, gcm.hdp_gridcluster_key "
+			+ "from hdp_genocluster gc, hdp_gridcluster_marker gcm "
+			+ "where gc.marker_key = gcm.marker_key "
+			+ "order by gc.hdp_genocluster_key";
+
+		ResultSet rs2 = ex.executeProto(mouseQuery, cursorLimit);
+		while (rs2.next()) {
+			bsuKey++;
+			BSU bsu = new BSU(bsuKey);
+			
+			Integer genoclusterKey = rs2.getInt("hdp_genocluster_key");
+			Integer gridclusterKey = rs2.getInt("hdp_gridcluster_key");
+			boolean isConditional = this.isConditional(genoclusterKey);
+			
+			bsu.setMouseData(gridclusterKey, genoclusterKey, isConditional);
+			bsuMap.put(bsuKey, bsu);
+			mouseBsuMap.put(genoclusterKey, bsuKey);
+		}
+		rs2.close();
+		logger.debug("Cached " + (bsuMap.size() - humanCount) + " mouse genocluster BSUs " + Timer.getElapsedMessage());
+	}
+	
+	/* get the BSU for the given human marker key and disease term key.  Returns null
+	 * if there is no BSU for the pair.
+	 */
+	protected BSU getHumanBsu(int humanMarkerKey, int termKey) throws Exception {
+		if (humanBsuMap == null) { cacheBsus(); }
+		if (humanBsuMap.containsKey(humanMarkerKey)) {
+			if (humanBsuMap.get(humanMarkerKey).containsKey(termKey)) {
+				int bsuKey = humanBsuMap.get(humanMarkerKey).get(termKey);
+				return bsuMap.get(bsuKey);
+			}
+		}
+		return null;
+	}
+
+	/* get the BSU for the given mouse genocluster key.  Returns null if there is no
+	 * corresponding BSU for that key.
+	 */
+	protected BSU getMouseBsu(int genoclusterKey) throws Exception {
+		if (mouseBsuMap == null) { cacheBsus(); }
+		if (mouseBsuMap.containsKey(genoclusterKey)) {
+			return bsuMap.get(mouseBsuMap.get(genoclusterKey));
+		}
+		return null;
+	}
+	
+	/* get the list of assigned BSU keys, caching the data if we don't have it yet.
+	 */
+	protected List<Integer> getBsuKeys() throws Exception {
+		if (bsuMap == null) { cacheBsus(); }
+
+		List<Integer> bsuKeys = new ArrayList<Integer>();
+		bsuKeys.addAll(bsuMap.keySet());
+		logger.debug("Retrieved " + bsuKeys.size() + " BSU keys");
+
+		Collections.sort(bsuKeys);
+		logger.debug("Sorted " + bsuKeys.size() + " BSU keys");
+		return bsuKeys;
+	}
+	
+	/* private inner class, used to hold the data for a "basic search unit" for the grid --
+	 * either a genocluster for mouse data or a marker/disease pair for human data.  BSU class
+	 * is available within the package.
+	 */
+	class BSU {
+		public int bsuKey;						// unique key for this BSU
+		public Integer genoclusterKey;			// key of genocluster for mouse data (optional)
+		public Integer gridclusterKey;			// key of gridcluster (grid row)
+		public Integer humanMarkerKey;			// key of marker for human data 
+		public Integer diseaseKey;				// key of disease term for human data 
+		public boolean isMouseData = true;		// is this mouse data (true) or human (false)?
+		public boolean isConditional = false;	// conditional mouse genocluster (true) or not (false)?
+		public Integer homologyClusterKey;		// key of homology cluster for human data
+		
+		private BSU() {}
+		
+		public BSU(int bsuKey) {
+			this.bsuKey = bsuKey;
+		}
+		
+		public void setMouseData(int gridclusterKey, int genoclusterKey, boolean isConditional) {
+			this.gridclusterKey = gridclusterKey;
+			this.genoclusterKey = genoclusterKey;
+			this.isConditional = isConditional;
+			this.isMouseData = true;
+		}
+		
+		public void setHumanData(int gridclusterKey, int humanMarkerKey, int diseaseKey, int homologyClusterKey) {
+			this.gridclusterKey = gridclusterKey;
+			this.humanMarkerKey = humanMarkerKey;
+			this.diseaseKey = diseaseKey;
+			this.homologyClusterKey = homologyClusterKey;
+			this.isMouseData = false;
+			this.isConditional = false;
+		}
 	}
 }

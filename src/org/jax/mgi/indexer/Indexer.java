@@ -337,7 +337,7 @@ public abstract class Indexer {
 	 * Convenience method to add the given value for the given solr field.
 	 * Is a no-op if either the field or the value are null.
 	 */
-	protected void addIfNotNull(SolrInputDocument solrDoc, String solrField, String value) {
+	protected void addIfNotNull(SolrInputDocument solrDoc, String solrField, Object value) {
 		if ((value != null) && (solrField != null)) {
 			solrDoc.addField(solrField, value);
 		}
