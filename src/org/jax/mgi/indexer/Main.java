@@ -155,6 +155,7 @@ public class Main
 			try{
 				idx.setupConnection();
 				idx.index();
+				idx.closeConnection();
 				logger.info("completed run of "+idx.getClass());
 			}
 			catch (Exception e)

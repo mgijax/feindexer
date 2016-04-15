@@ -112,6 +112,33 @@ public abstract class Indexer {
 	 */
 	abstract void index() throws Exception;
 
+	
+	// closes down the connection and makes sure a last commit is run
+	public void closeConnection() {
+		
+		logger.info("Waiting for Threads to finish: ");
+		
+		for(Thread t : currentThreads) {
+			try {
+				t.join();
+			} catch (InterruptedException e) {
+				logger.error(e.getMessage());
+				e.printStackTrace();
+			}
+		}
+		
+		try {
+			logger.info("Waiting for Solr Commit");
+			server.commit(true, true);
+		} catch (SolrServerException | IOException e) {
+			e.printStackTrace();
+		}
+		
+		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
+		
+	}
+	
+	
 	// Create a hashmap, of a key -> hashSet mapping.
 	// The hashSet is simply a collection for our 1->N cases.
 	//TODO: This does not belong in this class. It's a straight up utility function
@@ -423,4 +450,5 @@ public abstract class Indexer {
 		this.ex.executeVoid("analyze " + tableName);
 		logger.debug("  - analyzed " + tableName + " in " + ex.getTimestamp());
 	}
+
 }
