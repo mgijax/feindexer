@@ -100,18 +100,31 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/* look up the grid cluster for the given marker and add its associated data to the
 	 * Solr document
 	 */
-	protected void addGridClusterData(SolrInputDocument doc, int markerKey) throws Exception {
-		Integer gck = getGridClusterKey(markerKey);
+	protected void addGridClusterData(SolrInputDocument doc, Integer markerKey, Integer gridclusterKey) throws Exception {
+
+		// if given the grid cluster key, go with it.  if not, look it up based on marker.
+		Integer gck;
+		if (gridclusterKey != null) { gck = gridclusterKey; }
+		else { gck = getGridClusterKey(markerKey); }
+		
 		addIfNotNull(doc, DiseasePortalFields.GRID_CLUSTER_KEY, gck);
-		addIfNotNull(doc, DiseasePortalFields.HOMOLOGY_CLUSTER_KEY, gck);
+		
+		// only update the homology cluster key (single-valued) if we've not yet defined one
+		if (!doc.containsKey(DiseasePortalFields.HOMOLOGY_CLUSTER_KEY)) {
+			addIfNotNull(doc, DiseasePortalFields.HOMOLOGY_CLUSTER_KEY, gck);
+		}
 		
 		// add feature types for all markers in the gridcluster (if there is one) or
 		// for just this marker (if not)
 		Set<String> featureTypes = null;
 		if (gck != null) {
-			featureTypes = getFeatureTypes(gck);
-			addIfNotNull(doc, DiseasePortalFields.GRID_HUMAN_SYMBOLS, getHumanMarkers(gck));
-			addIfNotNull(doc, DiseasePortalFields.GRID_MOUSE_SYMBOLS, getMouseMarkers(gck));
+			// only add symbols if not already defined
+			if (!(doc.containsKey(DiseasePortalFields.GRID_HUMAN_SYMBOLS) ||
+					doc.containsKey(DiseasePortalFields.GRID_MOUSE_SYMBOLS))) {
+				featureTypes = getFeatureTypes(gck);
+				addIfNotNull(doc, DiseasePortalFields.GRID_HUMAN_SYMBOLS, getHumanMarkers(gck));
+				addIfNotNull(doc, DiseasePortalFields.GRID_MOUSE_SYMBOLS, getMouseMarkers(gck));
+			}
 		} else {
 			featureTypes = getMarkerFeatureTypes(markerKey);
 		}
@@ -141,6 +154,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				if (orthoIds != null) { orthologIds.addAll(orthoIds); }
 			}
 
+			
 			if (orthologNomen.size() > 0) {
 				addAll(doc, DiseasePortalFields.ORTHOLOG_NOMEN, orthologNomen);
 			}
@@ -152,7 +166,8 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	
 	/* add data for the given term key to the Solr document
 	 */
-	protected void addTermData(SolrInputDocument doc, int termKey, String termType) throws Exception {
+	protected void addTermData(SolrInputDocument doc, Integer termKey, String termType) throws Exception {
+		if (termKey == null) { return; }
 		addIfNotNull(doc, DiseasePortalFields.TERM, getTerm(termKey));
 		addIfNotNull(doc, DiseasePortalFields.TERM_ID, getTermId(termKey));
 		addIfNotNull(doc, DiseasePortalFields.TERM_TYPE, termType); 
@@ -205,11 +220,10 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				doc = new SolrInputDocument();
 				doc.addField(DiseasePortalFields.UNIQUE_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
-				doc.addField(DiseasePortalFields.TERM_QUALIFIER, rs.getString("qualifier_type"));
 				doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
 
 				addMarkerData(doc, markerKey);
-				addGridClusterData(doc, markerKey);
+				addGridClusterData(doc, markerKey, null);
 				addOrthologyData(doc, markerKey);
 			}
 
@@ -235,10 +249,75 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		// one time, rather than requiring all BSUs to be cached in memory for the
 		// entire run of the indexer.
 		
+		logger.info("processing mouse annotations");
+
 		String mouseQuery = "select a.hdp_genocluster_key, a.term_key, a.annotation_type, "
 			+ "  a.qualifier_type, a.term_type "
-			+ "from hdp_genocluster_annotation a";
+			+ "from hdp_genocluster_annotation a "
+			+ "order by a.hdp_genocluster_key";
 		
+		int lastBsuKey = -1;		// last BSU key that was saved as a document
+
+		SolrInputDocument doc = null;
+		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
+
+		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);
+		while (rs.next()) {
+			Integer genoclusterKey = rs.getInt("hdp_genocluster_key");
+			BSU bsu = getMouseBsu(genoclusterKey);
+			
+			Integer termKey = rs.getInt("term_key");
+
+			// assume MP annotation, as those are mor common; correct if needed
+			String annotationType = mp;
+			if (1005 == rs.getInt("annotation_type")) { annotationType = omim; }
+
+			if (lastBsuKey != bsu.bsuKey) {
+				if (lastBsuKey >= 0) {
+					// need to save this document; write to the server if our queue is big enough
+					docs.add(doc);
+					if (docs.size() >= solrBatchSize) {
+						writeDocs(docs);
+						docs = new ArrayList<SolrInputDocument>();
+					}
+				}
+				lastBsuKey = bsu.bsuKey;
+
+				// need to start a new document...
+				doc = new SolrInputDocument();
+				doc.addField(DiseasePortalFields.UNIQUE_KEY, bsu.bsuKey);
+				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
+				doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
+				addIfNotNull(doc, DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
+
+				if (isConditional(genoclusterKey)) {
+					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 1);
+				} else {
+					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
+				}
+
+				List<Integer> markerKeys = getMarkers(genoclusterKey);
+				if (markerKeys != null) {
+					for (Integer markerKey : markerKeys) {
+						addMarkerData(doc, markerKey); 
+						addOrthologyData(doc, markerKey);
+					}
+				}
+			}
+
+			// fields to add to the current document (whether new or continuing to fill
+			// the document for the same BSU as before)
+
+			if (bsu.gridclusterKey != null) { addGridClusterData(doc, null, bsu.gridclusterKey); }
+			addTermData(doc, termKey, annotationType);
+		}
+		
+		// need to push final documents to the server
+		if (doc != null) { docs.add(doc); }
+		if (!docs.isEmpty()) { server.add(docs); }
+		rs.close();
+		
+		logger.info("finished processing mouse annotations");
 	}
 	
 	/* walk through the basic units for searching (genoclusters for mouse data,

@@ -504,11 +504,11 @@ public abstract class HdpIndexerSQL extends Indexer {
 			termsToSort.add(rs.getString("term"));
 		}
 		rs.close();
-		logger.debug("  - collected data in list");
+		logger.info("  - collected data in list");
 
 		//sort the terms using smart alpha
 		Collections.sort(termsToSort,new SmartAlphaComparator());
-		logger.debug("  - sorted list in smart-alpha order");
+		logger.info("  - sorted list in smart-alpha order");
 
 		termSortMap = new HashMap<String,Integer>();
 		for(int i=0;i<termsToSort.size();i++) {
@@ -536,7 +536,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Map<String,Set<String>> getMarkerAllIdMap() throws Exception {
 		if (markerAllIdMap == null) {
-			logger.debug("Loading marker IDs");
+			logger.info("Loading marker IDs");
 			Timer.reset();
 
 			// load all marker IDs (for every organism)
@@ -545,7 +545,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','RIKEN Cluster','UniGene') ";
 			markerAllIdMap = populateLookup(markerIdQuery,"marker_key","acc_id","marker keys to IDs");
 			
-			logger.debug("Finished loading IDs for " + markerAllIdMap.size() + " markers" + Timer.getElapsedMessage());
+			logger.info("Finished loading IDs for " + markerAllIdMap.size() + " markers" + Timer.getElapsedMessage());
 		}
 		return markerAllIdMap;
 	}
@@ -567,7 +567,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Map<Integer,Integer> getHomologyMap() throws SQLException {
 		if (homologyMap == null) {
-			logger.debug("Retrieving homologyMap data");
+			logger.info("Retrieving homologyMap data");
 			Timer.reset();
 			homologyMap = new HashMap<Integer,Integer>();
 
@@ -582,7 +582,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 			rs.close();
 			
-			logger.debug("Finished retrieving homologyMap data (" + homologyMap.size() + " markers)" + Timer.getElapsedMessage());
+			logger.info("Finished retrieving homologyMap data (" + homologyMap.size() + " markers)" + Timer.getElapsedMessage());
 		}
 		return homologyMap;
 	}
@@ -604,7 +604,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Map<String,Set<String>> getFeatureTypeMap() throws Exception {
 		if (featureTypeMap == null) {
-			logger.debug("Retrieving feature types");
+			logger.info("Retrieving feature types");
 			Timer.reset();
 
 			// look up the feature types for all mouse markers in a 
@@ -641,7 +641,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			featureTypeMap = populateLookupOrdered(featureTypeQuery,
 					"hdp_gridcluster_key", "feature_type", "gridcluster keys to feature types");
 			
-			logger.debug("Finished retrieving feature types (" + featureTypeMap.size() + " gridclusters)" + Timer.getElapsedMessage());
+			logger.info("Finished retrieving feature types (" + featureTypeMap.size() + " gridclusters)" + Timer.getElapsedMessage());
 		}
 		return featureTypeMap;
 	}
@@ -664,7 +664,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Map<String,Set<String>> getMarkersPerDisease() throws Exception {
 		if (markersPerDisease == null) {
-			logger.debug("Retrieving markers per disease");
+			logger.info("Retrieving markers per disease");
 			Timer.reset();
 
 			// This had used getNonNormalAnnotationsTable() as a source, but optimizing to
@@ -681,7 +681,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			markersPerDisease = populateLookupOrdered(markerQuery,
 					"term_id", "marker_key", "diseases to markers");
 			
-			logger.debug("Finished retrieving markers for (" + markersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
+			logger.info("Finished retrieving markers for (" + markersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
 		}
 		return markersPerDisease;
 	}
@@ -700,7 +700,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Map<String,Set<String>> getHeadersPerDisease() throws Exception {
 		if (headersPerDisease == null) {
-			logger.debug("Retrieving headers per disease");
+			logger.info("Retrieving headers per disease");
 			Timer.reset();
 
 			String headerQuery = "select distinct term_id, header "
@@ -709,7 +709,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "order by term_id, header";
 			headersPerDisease = populateLookupOrdered(headerQuery, "term_id", "header", "diseases to headers");
 			
-			logger.debug("Finished retrieving headers for (" + headersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
+			logger.info("Finished retrieving headers for (" + headersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
 		}
 		return headersPerDisease;
 	}
@@ -853,7 +853,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	private void cacheBasicMarkerData() throws SQLException {
 		if (markerSymbolMap != null) { return; }
 
-		logger.debug("Caching basic marker data");
+		logger.info("Caching basic marker data");
 		Timer.reset();
 
 		markerSymbolMap = new HashMap<Integer, String>();
@@ -872,7 +872,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		rs.close();
 			
-		logger.debug("Finished retrieving basic marker data (" + markerIdMap.size() + " markers)" + Timer.getElapsedMessage());
+		logger.info("Finished retrieving basic marker data (" + markerIdMap.size() + " markers)" + Timer.getElapsedMessage());
 	}
 	
 	/* get a mapping from marker key to marker symbol for all current markers, cached
@@ -941,7 +941,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	private void cacheMarkerOrganismData() throws SQLException {
 		if (mouseMarkers != null) { return; }
 		
-		logger.debug("Identifying human and mouse markers");
+		logger.info("Identifying human and mouse markers");
 		Timer.reset();
 
 		mouseMarkers = new HashSet<Integer>();
@@ -962,7 +962,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		rs.close();
 			
-		logger.debug("Identified " + mouseMarkers.size() + " mouse and "
+		logger.info("Identified " + mouseMarkers.size() + " mouse and "
 			+ humanMarkers.size() + " human markers" + Timer.getElapsedMessage());
 	}
 	
@@ -986,7 +986,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected void cacheBasicTermData() throws Exception {
 		if (omimTerms != null) { return; }
 		
-		logger.debug("Caching basic term data");
+		logger.info("Caching basic term data");
 		Timer.reset();
 
 		omimTerms = new HashSet<Integer>();
@@ -1009,7 +1009,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		rs.close();
 			
-		logger.debug("Finished retrieving basic term data (" + terms.size() + " terms)" + Timer.getElapsedMessage());
+		logger.info("Finished retrieving basic term data (" + terms.size() + " terms)" + Timer.getElapsedMessage());
 	}
 	
 	/* get the vocabulary name for the given term key, or null if key is unknown
@@ -1043,7 +1043,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected void cacheBasicAnnotationData() throws Exception {
 		if (notAnnotations != null) { return; }
 		
-		logger.debug("Caching basic annotation data");
+		logger.info("Caching basic annotation data");
 		Timer.reset();
 
 		annotationTermKeys = new HashMap<Integer,Integer>();
@@ -1071,7 +1071,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		rs.close();
 			
-		logger.debug("Finished retrieving basic annotation data (" + annotationTermKeys.size() + " annotations)" + Timer.getElapsedMessage());
+		logger.info("Finished retrieving basic annotation data (" + annotationTermKeys.size() + " annotations)" + Timer.getElapsedMessage());
 	}
 
 	/* determine if the annotation with the given hdp_annotation_key has a NOT qualifier
@@ -1107,7 +1107,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected void cacheAnnotationRelationships() throws SQLException {
 		if (relatedAnnotations != null) { return; }
 		
-		logger.debug("Caching annotation relationships");
+		logger.info("Caching annotation relationships");
 		Timer.reset();
 
 		relatedAnnotations = new HashMap<Integer,Set<Integer>>();
@@ -1137,7 +1137,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		rs.close();
 			
 		int mouseCount = relatedAnnotations.size();
-		logger.debug("Got relationships for " + mouseCount + " mouse annotations)" + Timer.getElapsedMessage());
+		logger.info("Got relationships for " + mouseCount + " mouse annotations)" + Timer.getElapsedMessage());
 		
 /* Commented out this section, ensuring that we do NOT bring back additional diseases for
 *  human markers.  We only want to bring back the disease that matches the user's query.
@@ -1162,7 +1162,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 *		}
 *		rs2.close();
 *			
-*		logger.debug("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
+*		logger.info("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
 */
 	}
 
@@ -1538,7 +1538,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		rs_tmp.next();
 		int i = rs_tmp.getInt("max_hdp_key");
 		rs_tmp.close();
-		logger.debug("Got max annotation key: " + i);
+		logger.info("Got max annotation key: " + i);
 		return i;
 	}
 	
@@ -1588,7 +1588,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 					" and ha.hdp_annotation_key <= " + endKey;
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - Got annotations for keys " + (startKey + 1) + " to " + endKey);
+		logger.info("  - Got annotations for keys " + (startKey + 1) + " to " + endKey);
 		return rs;
 	}
 	
@@ -1676,7 +1676,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		int start = 0;					// start annotation key for the current chunk
 		int end = start + dbChunkSize;	// end annotation key for the current chunk
 		
-		logger.debug("Processing annotations 1 to " + maxAnnotationKey);
+		logger.info("Processing annotations 1 to " + maxAnnotationKey);
 		List<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		
 		while (start < maxAnnotationKey) {
@@ -1689,7 +1689,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				if (docs.size() >= solrBatchSize) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
-					logger.debug("  - sent batch of docs to Solr");
+					logger.info("  - sent batch of docs to Solr");
 				}
 			}
 
@@ -1700,10 +1700,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		if (!docs.isEmpty()) {
 			server.add(docs);
-			logger.debug("  - sent final batch of docs to Solr");
+			logger.info("  - sent final batch of docs to Solr");
 		}
 		server.commit();
-		logger.debug("Done processing annotations 1 to " + maxAnnotationKey);
+		logger.info("Done processing annotations 1 to " + maxAnnotationKey);
 	}
 	
 	/*---------------------------------------------------------------------*/
@@ -1831,13 +1831,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 * to each BSU.
 	 */
 	protected void cacheBsus() throws Exception {
+		logger.info("entered cacheBsus()");
 		if (bsuMap != null) { return; }
 		
 		// We need the 'condtionalGenotypes' to determine which genoclusters are conditional.
 		if (conditionalGenoclusters == null) { cacheAllelePairs(); }
 
 		Timer.reset();
-		logger.debug("Caching BSUs");
+		logger.info("Caching BSUs");
 		int bsuKey = 0;					// incremental key, identifying each BSU
 		bsuMap = new HashMap<Integer,BSU>();
 		humanBsuMap = new HashMap<Integer,Map<Integer,Integer>>();
@@ -1881,7 +1882,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		rs.close();
 		int humanCount = bsuMap.size();
-		logger.debug("Cached " + humanCount + " human marker/disease BSUs " + Timer.getElapsedMessage());
+		logger.info("Cached " + humanCount + " human marker/disease BSUs " + Timer.getElapsedMessage());
 
 		// mouse genocluster data
 
@@ -1889,10 +1890,11 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		mouseBsuMap = new HashMap<Integer,Integer>();
 		
-		String mouseQuery = "select distinct gc.hdp_genocluster_key, gcm.hdp_gridcluster_key "
-			+ "from hdp_genocluster gc, hdp_gridcluster_marker gcm "
-			+ "where gc.marker_key = gcm.marker_key "
-			+ "order by gc.hdp_genocluster_key";
+		String mouseQuery = "select distinct g.hdp_genocluster_key, gcm.hdp_gridcluster_key "
+			+ "from hdp_genocluster_genotype g "
+			+ "left outer join hdp_genocluster gc on (g.hdp_genocluster_key = gc.hdp_genocluster_key) "
+			+ "left outer join hdp_gridcluster_marker gcm on (gc.marker_key = gcm.marker_key) "
+			+ "order by g.hdp_genocluster_key";
 
 		ResultSet rs2 = ex.executeProto(mouseQuery, cursorLimit);
 		while (rs2.next()) {
@@ -1908,7 +1910,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			mouseBsuMap.put(genoclusterKey, bsuKey);
 		}
 		rs2.close();
-		logger.debug("Cached " + (bsuMap.size() - humanCount) + " mouse genocluster BSUs " + Timer.getElapsedMessage());
+		logger.info("Cached " + (bsuMap.size() - humanCount) + " mouse genocluster BSUs " + Timer.getElapsedMessage());
 	}
 	
 	/* get the BSU for the given human marker key and disease term key.  Returns null
@@ -1943,10 +1945,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		List<Integer> bsuKeys = new ArrayList<Integer>();
 		bsuKeys.addAll(bsuMap.keySet());
-		logger.debug("Retrieved " + bsuKeys.size() + " BSU keys");
+		logger.info("Retrieved " + bsuKeys.size() + " BSU keys");
 
 		Collections.sort(bsuKeys);
-		logger.debug("Sorted " + bsuKeys.size() + " BSU keys");
+		logger.info("Sorted " + bsuKeys.size() + " BSU keys");
 		return bsuKeys;
 	}
 	
