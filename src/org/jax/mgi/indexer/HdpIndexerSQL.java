@@ -515,7 +515,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			termSortMap.put(termsToSort.get(i), i);
 		}
 		maxTermSeqNum = termSortMap.keySet().size() + 1;
-		logger.info("finished calculating sequence numbers for " + (maxTermSeqNum - 1) + " diseases and phenotypes" + Timer.getElapsedMessage());
+		logger.info("finished calculating sequence numbers for " + (maxTermSeqNum - 1) + " diseases and phenotypes " + Timer.getElapsedMessage());
 		
 		return termSortMap;
 	}

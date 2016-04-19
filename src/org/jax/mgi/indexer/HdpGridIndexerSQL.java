@@ -268,7 +268,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			
 			Integer termKey = rs.getInt("term_key");
 
-			// assume MP annotation, as those are mor common; correct if needed
+			// assume MP annotation, as those are more common; correct if needed
 			String annotationType = mp;
 			if (1005 == rs.getInt("annotation_type")) { annotationType = omim; }
 
