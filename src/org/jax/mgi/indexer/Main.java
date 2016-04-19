@@ -62,7 +62,7 @@ public class Main
 		indexerMap.put("interaction", new InteractionIndexerSQL());
 		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
-//		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
+		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 	}
 
 	// other command args
