@@ -182,6 +182,8 @@ public abstract class Indexer {
 	 * Here we also spawn a new process for each batch of documents.
 	 */
 	public void writeDocs(Collection<SolrInputDocument> docs) {
+		if(docs == null || docs.size() == 0) return;
+		
 		DocWriterThread docWriter = new DocWriterThread(this,docs);
 		Thread newThread = new Thread(docWriter);
 		// kick off the thread
