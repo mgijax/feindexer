@@ -130,24 +130,7 @@ public class SQLExecutor {
 	 * @return
 	 */
 	public ResultSet executeProto (String query) {
-
-		ResultSet set;
-
-		try {
-			if (conMGD == null) {
-				getMGDConnection();
-			}
-
-			java.sql.Statement stmt = conMGD.createStatement();
-			start = new Date();
-			set = stmt.executeQuery(query);
-			end = new Date();
-			return set;
-		} catch (Exception e) {
-			e.printStackTrace();
-			System.exit(1);
-			return null;
-		}
+		return executeProto(query, 0);
 	}
 
 	/**
