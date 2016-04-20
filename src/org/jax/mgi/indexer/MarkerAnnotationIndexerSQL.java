@@ -40,11 +40,11 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 		// ancestor IDs for a given GO term key
 		Map<String,Set<String>> ancestorIds = null;
-    	String goAncestorQuery = "select tas.term_key, ancestor_primary_id " +
-    			"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
-    			"where t.vocab_name in ('GO','InterPro Domains') " +
-    			"and tas.ancestor_term not in ('cellular_component','biological_process','molecular_function') ";
-    	ancestorIds = this.populateLookup(goAncestorQuery, "term_key", "ancestor_primary_id", "term key -> Ancestor Term ID");
+		String goAncestorQuery = "select tas.term_key, ancestor_primary_id " +
+				"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
+				"where t.vocab_name in ('GO','InterPro Domains') " +
+				"and tas.ancestor_term not in ('cellular_component','biological_process','molecular_function') ";
+		ancestorIds = this.populateLookup(goAncestorQuery, "term_key", "ancestor_primary_id", "term key -> Ancestor Term ID");
 		logger.info("Ancestor Id mapping is complete.  Size: " + ancestorIds.size() );
 
 
@@ -91,11 +91,11 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 			logger.info("Getting slimgrid header terms.");
 			String cmd = "select distinct tth.term_key, h.abbreviation as header_term "
-			    + "from term_to_header tth "
-			    + "join term h on h.term_key = tth.header_term_key "
-			    + "join annotation a on a.term_key = tth.term_key "
-			    + "where a.object_type = 'Marker' "
-			    + "	and a.annotation_key between " + minAnnotKey + " and " + maxAnnotKey + " ";
+					+ "from term_to_header tth "
+					+ "join term h on h.term_key = tth.header_term_key "
+					+ "join annotation a on a.term_key = tth.term_key "
+					+ "where a.object_type = 'Marker' "
+					+ "	and a.annotation_key between " + minAnnotKey + " and " + maxAnnotKey + " ";
 
 			Map<String, Set<String>> termToHeaders = this.populateLookup(cmd, "term_key", "header_term",
 					"term_key to header_term(s)");
@@ -106,14 +106,14 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 			logger.info("Getting all marker annotations.");
 			rs = ex.executeProto("select a.annotation_key, a.vocab_name, a.term, a.evidence_code, a.evidence_term, " +
-						"a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term, " +
-						"asn.by_object_dag_term, gec.evidence_category, a.term_key, " +
-						"asn.by_isoform, msn.by_symbol " +
+					"a.term_id, a.qualifier, mta.marker_key, a.dag_name, asn.by_dag_structure, asn.by_vocab_dag_term, " +
+					"asn.by_object_dag_term, gec.evidence_category, a.term_key, " +
+					"asn.by_isoform, msn.by_symbol " +
 					"from annotation as a " +
-						"join marker_to_annotation as mta on a.annotation_key = mta.annotation_key " +
-						"join annotation_sequence_num as asn on a.annotation_key = asn.annotation_key " +
-						"join go_evidence_category as gec on a.evidence_code = gec.evidence_code " +
-						"join marker_sequence_num msn on msn.marker_Key = mta.marker_key " +
+					"join marker_to_annotation as mta on a.annotation_key = mta.annotation_key " +
+					"join annotation_sequence_num as asn on a.annotation_key = asn.annotation_key " +
+					"join go_evidence_category as gec on a.evidence_code = gec.evidence_code " +
+					"join marker_sequence_num msn on msn.marker_Key = mta.marker_key " +
 					"where a.object_type = 'Marker' "
 					+ " and a.annotation_key between " + minAnnotKey + " and " + maxAnnotKey + " ");
 
@@ -169,28 +169,28 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 				// include header terms where available
 				if (termToHeaders.containsKey(termKey)) {
-				    for (String header : termToHeaders.get(termKey)) {
-				    	doc.addField(IndexConstants.SLIM_TERM, header);
-				    }
+					for (String header : termToHeaders.get(termKey)) {
+						doc.addField(IndexConstants.SLIM_TERM, header);
+					}
 				}
 
 
 				// include GO IDs of ancestors
 				if (ancestorIds.containsKey(termKey)) {
-				    for (String ancestorId : ancestorIds.get(termKey)) {
-				    	doc.addField(IndexConstants.VOC_ID, ancestorId);
-				    }
+					for (String ancestorId : ancestorIds.get(termKey)) {
+						doc.addField(IndexConstants.VOC_ID, ancestorId);
+					}
 				}
 
-           		// if we have ancestors, add their ids, and ancestor synonyms
-//           		if(this.ancestorIds.containsKey(mt.termId))
-//           		{
-//           			for(String ancestorId : this.ancestorIds.get(mt.termId))
-//           			{
-//           				doc.addField(IndexConstants.MRK_TERM_ID,ancestorId);
-//                   		this.addAllFromLookupNoDups(doc,termField,ancestorId,this.termSynonyms);
-//           			}
-//           		}
+				// if we have ancestors, add their ids, and ancestor synonyms
+				//           		if(this.ancestorIds.containsKey(mt.termId))
+				//           		{
+				//           			for(String ancestorId : this.ancestorIds.get(mt.termId))
+				//           			{
+				//           				doc.addField(IndexConstants.MRK_TERM_ID,ancestorId);
+				//                   		this.addAllFromLookupNoDups(doc,termField,ancestorId,this.termSynonyms);
+				//           			}
+				//           		}
 
 
 
@@ -204,7 +204,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 				}
 			}
 			writeDocs(docs);
-			server.commit();
+			commit();
 		}
 
 		logger.info("Done adding to solr; completed markerAnnotation index.");

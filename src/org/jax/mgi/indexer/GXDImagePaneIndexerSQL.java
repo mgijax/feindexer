@@ -219,10 +219,10 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	                }
 	            }
 	            if (! docs.isEmpty()) {
-	                server.add(docs);
+	                writeDocs(docs);
 	            }
 	            
-	            server.commit();
+	            commit();
             }
             
     }

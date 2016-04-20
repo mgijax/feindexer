@@ -84,7 +84,7 @@ public class InteractionIndexerSQL extends Indexer {
 			HashMap<String, HashSet<String>> miToValidation =           makeHash(propSQL.replace("<NAME>", "validation")            .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
 			HashMap<String, HashSet<String>> miToTranscript =           makeHash(propSQL.replace("<NAME>", "mature_transcript")     .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
 			HashMap<String, HashSet<String>> miToNotes =                makeHash(propSQL.replace("<NAME>", "note")                  .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			
+
 			HashMap<String, HashSet<String>> miToAlgorithm =            makeHash(propSQL.replace("<NAME>", "algorithm")             .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
 			HashMap<String, HashSet<String>> miToParticipantProductID = makeHash(propSQL.replace("<NAME>", "participant_product_ID").replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
 			HashMap<String, HashSet<String>> miToOrganizerProductID =   makeHash(propSQL.replace("<NAME>", "organizer_product_ID")  .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
@@ -168,13 +168,13 @@ public class InteractionIndexerSQL extends Indexer {
 						doc.addField(IndexConstants.MATURE_TRANSCRIPT, s);
 					}
 				}
-								
+
 				if (miToParticipantProductID.containsKey(miKey)) {
 					for (String s : miToParticipantProductID.get(miKey)) {
 						doc.addField(IndexConstants.PARTICIPANT_PRODUCT_ID, s);
 					}
 				}
-				
+
 				if (miToOrganizerProductID.containsKey(miKey)) {
 					for (String s : miToOrganizerProductID.get(miKey)) {
 						doc.addField(IndexConstants.ORGANIZER_PRODUCT_ID, s);
@@ -186,7 +186,7 @@ public class InteractionIndexerSQL extends Indexer {
 						doc.addField(IndexConstants.ALGORITHM, s);
 					}
 				}
-				
+
 				if (miToOtherReferences.containsKey(miKey)) {
 					for (String s : miToOtherReferences.get(miKey)) {
 						doc.addField(IndexConstants.OTHER_REFERENCES, s);
@@ -259,10 +259,8 @@ public class InteractionIndexerSQL extends Indexer {
 
 		// very likely, we'll have some extra docs left to write
 
-		if (!docs.isEmpty()) {
-			server.add(docs);
-		}
-		server.commit();
+		writeDocs(docs);
+		commit();
 		logger.info("Done");
 	}
 }

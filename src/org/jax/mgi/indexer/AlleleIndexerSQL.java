@@ -10,6 +10,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.update.CommitTracker;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
@@ -245,8 +246,8 @@ public class AlleleIndexerSQL extends Indexer {
 			}
 		}
 		logger.info("Adding final stack of the documents to Solr");
-		server.add(docs);
-		server.commit();    
+		writeDocs(docs);
+		commit();
 	}
 
 
@@ -285,7 +286,7 @@ public class AlleleIndexerSQL extends Indexer {
 		String phenoNotesSQL="select allele_key, note\r\n from tmp_allele_note where allele_key > "+start+" and allele_key <= "+end+" ";
 		return populateLookup(phenoNotesSQL,"allele_key","note","allele_key->annotation notes");
 	}
-	
+
 	public Map<String,Set<String>> getAlleleTermIdsMap(int start,int end) throws Exception {
 		// get the direct MP ID associations
 		String mpIdsSQL="select mpt.allele_key, mpt.term_id from tmp_allele_mp_term mpt where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
@@ -320,7 +321,7 @@ public class AlleleIndexerSQL extends Indexer {
 
 		return allelePhenoIdMap;
 	}
-	
+
 	public Map<String,Set<String>> getAlleleTermsMap(int start,int end) throws Exception {
 		// get the direct MP Term associations
 		String mpTermsSQL="select mpt.allele_key, mpt.term\r\n from tmp_allele_mp_term mpt where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
@@ -354,7 +355,7 @@ public class AlleleIndexerSQL extends Indexer {
 
 		return allelePhenoTermMap;
 	}
-	
+
 	public Map<String,Set<String>> getAlleleIdsMap(int start,int end) throws Exception {
 		String allToIDSQL = "select allele_key, acc_id from allele_id where allele_key > "+start+" and allele_key <= "+end+" ";
 		Map<String,Set<String>> allIdMap = populateLookup(allToIDSQL, "allele_key", "acc_id","allele_keys -> allele accession IDs");
@@ -374,7 +375,7 @@ public class AlleleIndexerSQL extends Indexer {
 		Map<String,Set<String>> mrkNomenMap = populateLookup(mrkNomenQuery,"marker_key","nomen","marker_keys -> marker nomenclature");
 		return mrkNomenMap;
 	}
-	
+
 	public Map<String,Set<String>> getAlleleNomenMap(int start, int end) throws Exception {
 		String nomenQuery = "select allele_key, nomen from tmp_allele_nomen where allele_key > "+start+" and allele_key <= "+end+" ";
 		Map<String,Set<String>> nomenMap = populateLookup(nomenQuery,"allele_key","nomen","allele_keys -> allele nomenclature");
@@ -488,7 +489,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"into temp tmp_allele_term from tmp_allele_mp_term mpt join term t on t.primary_id=mpt.term_id "+
 				"UNION " +
 				"select aot.allele_key,t.term_key from tmp_allele_omim_term aot join term t on t.primary_id=aot.term_id ";
-		
+
 		ex.executeVoid(alleleTermsQuery);
 		createTempIndex("tmp_allele_term","allele_key");
 		logger.info("done creating temp table of allele_key to term_key");
@@ -520,7 +521,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"where mqtl.note_type='TEXT-QTL' " +
 				"and a.allele_type='QTL' ";
 		ex.executeVoid(qtlNotesQuery);
-		
+
 		createTempIndex("tmp_allele_note","allele_key");
 		logger.info("done creating temp table of allele_key to mp annotation note");
 		// create allele to nomenclature
@@ -543,7 +544,7 @@ public class AlleleIndexerSQL extends Indexer {
 		Double cmOffset=0.0;
 		String cytogeneticOffset=null;
 	}
-	
+
 	private boolean notEmpty(String s) {
 		return s!=null && !s.equals("");
 	}

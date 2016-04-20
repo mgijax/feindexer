@@ -71,6 +71,7 @@ public class SQLExecutor {
 
 	private void getMGDConnection() throws SQLException {
 		conMGD = DriverManager.getConnection(mgdJDBCUrl, user, password);
+		conMGD.setAutoCommit(false);
 	}
 
 	/**

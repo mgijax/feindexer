@@ -71,11 +71,9 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer {
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
-		
-		if (! docs.isEmpty()) {
-			server.add(docs);
-		}
-		server.commit();
+
+		writeDocs(docs);
+		commit();
 
 		logger.info("finished first set of data");
 
@@ -166,10 +164,8 @@ public class DiseasePortalAnnotationIndexerSQL extends Indexer {
 			}
 		}
 
-		if(!docs.isEmpty()) {
-			server.add(docs);
-		}
-		server.commit();
+		writeDocs(docs);
+		commit();
 	}
 
 	private String getVocabName(String annotationTypeKey) {

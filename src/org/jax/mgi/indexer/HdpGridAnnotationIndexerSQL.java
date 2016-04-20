@@ -29,14 +29,14 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
-	
+
 	Map<Integer,Integer> genotypeToGenocluster = null;		// genotype key -> genocluster key
 	Map<String,Integer> headerSequenceNum = null;			// header -> sequence num
 
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
-	
+
 	public HdpGridAnnotationIndexerSQL() {
 		super("index.url.diseasePortalGridAnnotation");
 	}
@@ -44,31 +44,31 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/*-----------------------*/
 	/*--- private methods ---*/
 	/*-----------------------*/
-	
+
 	/* cache necessary data for genotypes, including which genocluster each is
 	 * associated with
 	 */
 	protected void cacheGenotypeData() throws Exception {
 		if (genotypeToGenocluster != null) { return; }
-		
+
 		logger.info("Collecting genotype data");
 		Timer.reset();
-		
+
 		String genotypeQuery = "select genotype_key, hdp_genocluster_key "
-			+ "from hdp_genocluster_genotype";
+				+ "from hdp_genocluster_genotype";
 
 		genotypeToGenocluster = new HashMap<Integer,Integer>();
-		
+
 		ResultSet rs = ex.executeProto(genotypeQuery, cursorLimit);
 		while (rs.next()) {
 			genotypeToGenocluster.put(rs.getInt("genotype_key"), rs.getInt("hdp_genocluster_key"));
 		}
 		rs.close();
-		
+
 		logger.info("Finished collecting data for " + genotypeToGenocluster.size()
-			+ " genotypes " + Timer.getElapsedMessage());
+				+ " genotypes " + Timer.getElapsedMessage());
 	}
-	
+
 	/* get the database key for the genocluster that the specified genotype is
 	 * associated with
 	 */
@@ -79,17 +79,17 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		}
 		return null;
 	}
-	
+
 	/* compute and cache the sequence numbers for headers
 	 */
 	protected void cacheHeaderData() throws Exception {
 		if (headerSequenceNum != null) { return; }
-		
+
 		logger.info("Collecting header data");
 		Timer.reset();
-		
+
 		String headerQuery = "select distinct header from hdp_annotation order by header";
-		
+
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
 		ResultSet rs = ex.executeProto(headerQuery);
@@ -100,7 +100,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		logger.info("  - collected data in list");
 
 		headerSequenceNum = new HashMap<String,Integer>();
-		
+
 		//sort the terms using smart alpha
 		Collections.sort(termsToSort,new SmartAlphaComparator());
 		logger.info("  - sorted list in smart-alpha order");
@@ -110,7 +110,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		}
 		logger.info("finished collecting  " + (maxTermSeqNum - 1) + " headers " + Timer.getElapsedMessage());
 	}
-	
+
 	/* get the sequence number for the given header
 	 */
 	protected int getHeaderSequenceNum(String header) throws Exception {
@@ -124,8 +124,8 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/* build and return a solr document for the given data
 	 */
 	protected SolrInputDocument buildDocument(BSU bsu, Integer termKey,
-		String header, String qualifier) throws Exception {
-		
+			String header, String qualifier) throws Exception {
+
 		uniqueKey += 1;	
 		String term = getTerm(termKey);
 
@@ -151,9 +151,9 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		int mouseCount = uniqueKey;
 
 		String humanQuery = "select distinct marker_key, term_key, header, qualifier_type "
-			+ "from hdp_annotation "
-			+ "where annotation_type = 1006";		// only human marker/disease annotations
-		
+				+ "from hdp_annotation "
+				+ "where annotation_type = 1006";		// only human marker/disease annotations
+
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 		ResultSet rs = ex.executeProto(humanQuery, cursorLimit);
@@ -163,33 +163,33 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 
 			// need to save this document; write to the server if our queue is big enough
 			docs.add(buildDocument(bsu, termKey, rs.getString("header"),
-				rs.getString("qualifier_type")));
+					rs.getString("qualifier_type")));
 
 			if (docs.size() >= solrBatchSize) {
 				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
-		
+
 		// need to push final documents to the server
-		if (!docs.isEmpty()) { server.add(docs); }
+		writeDocs(docs);
 		rs.close();
-		
+
 		logger.info("finished processing " + (uniqueKey - mouseCount) + " human annotations");
 	}
-	
+
 	/* retrieve the mouse genocluster disease and phenotype annotations, and write the
 	 * appropriate data to the grid annotation index
 	 */
 	protected void processMouseData() throws Exception {
-		
+
 		logger.info("processing mouse annotations");
 		int humanCount = uniqueKey;
 
 		String mouseQuery = "select distinct genotype_key, term_key, header, qualifier_type "
-			+ "from hdp_annotation "
-			+ "where annotation_type != 1006";		// skip human marker/disease annotations
-		
+				+ "from hdp_annotation "
+				+ "where annotation_type != 1006";		// skip human marker/disease annotations
+
 		SolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
@@ -200,21 +200,21 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 
 			// need to save this document; write to the server if our queue is big enough
 			docs.add(this.buildDocument(bsu, rs.getInt("term_key"), rs.getString("header"),
-				rs.getString("qualifier_type")));
+					rs.getString("qualifier_type")));
 
 			if (docs.size() >= solrBatchSize) {
 				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
-		
+
 		// need to push final documents to the server
-		if (!docs.isEmpty()) { server.add(docs); }
+		writeDocs(docs);
 		rs.close();
-		
+
 		logger.info("finished processing " + (uniqueKey - humanCount) + " mouse annotations");
 	}
-	
+
 	/* walk through the basic units for searching (genoclusters for mouse data,
 	 * marker/disease pairs for human data), collate the data for each, and send
 	 * their annotations to the index.
@@ -227,10 +227,10 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
-	
+
 	@Override
 	public void index() throws Exception {
 		processAnnotationData();
-		server.commit();
+		commit();
 	}
 }

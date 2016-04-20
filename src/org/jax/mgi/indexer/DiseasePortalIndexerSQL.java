@@ -24,7 +24,7 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
  */
 
 public class DiseasePortalIndexerSQL extends Indexer {   
-	
+
 	public DiseasePortalIndexerSQL () {
 		super("index.url.diseasePortal");
 	}    
@@ -189,39 +189,39 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		// (to use for filtering query results in HMDC).  Also include
 		// mouse markers that are not part of a homology cluster.
 		String featureTypeQuery =
-		    "select distinct gc.hdp_gridcluster_key, "
-		    + "  m.marker_subtype as feature_type "
-		    + "from hdp_gridcluster_marker gc, "
-		    + "  homology_cluster_organism_to_marker sm, "
-		    + "  homology_cluster_organism so, "
-		    + "  homology_cluster_organism oo, "
-		    + "  homology_cluster_organism_to_marker om, "
-		    + "  marker m "
-		    + "where gc.marker_key = sm.marker_key "
-		    + "  and sm.cluster_organism_key = so.cluster_organism_key "
-		    + "  and so.cluster_key = oo.cluster_key "
-		    + "  and oo.cluster_organism_key = om.cluster_organism_key "
-		    + "  and oo.organism = 'mouse' "
-		    + "  and om.marker_key = m.marker_key "
-		    + "  and m.marker_subtype is not null "
-		    + "union "
-		    + "select distinct gc.hdp_gridcluster_key, "
-		    + "  m.marker_subtype as feature_type "
-		    + "from hdp_gridcluster_marker gc, "
-		    + "  marker m "
-		    + "where gc.marker_key = m.marker_key "
-		    + "  and not exists (select 1 from "
-		    + "    homology_cluster_organism_to_marker sm "
-		    + "    where gc.marker_key = sm.marker_key) "
-		    + "  and m.marker_subtype is not null";
+				"select distinct gc.hdp_gridcluster_key, "
+						+ "  m.marker_subtype as feature_type "
+						+ "from hdp_gridcluster_marker gc, "
+						+ "  homology_cluster_organism_to_marker sm, "
+						+ "  homology_cluster_organism so, "
+						+ "  homology_cluster_organism oo, "
+						+ "  homology_cluster_organism_to_marker om, "
+						+ "  marker m "
+						+ "where gc.marker_key = sm.marker_key "
+						+ "  and sm.cluster_organism_key = so.cluster_organism_key "
+						+ "  and so.cluster_key = oo.cluster_key "
+						+ "  and oo.cluster_organism_key = om.cluster_organism_key "
+						+ "  and oo.organism = 'mouse' "
+						+ "  and om.marker_key = m.marker_key "
+						+ "  and m.marker_subtype is not null "
+						+ "union "
+						+ "select distinct gc.hdp_gridcluster_key, "
+						+ "  m.marker_subtype as feature_type "
+						+ "from hdp_gridcluster_marker gc, "
+						+ "  marker m "
+						+ "where gc.marker_key = m.marker_key "
+						+ "  and not exists (select 1 from "
+						+ "    homology_cluster_organism_to_marker sm "
+						+ "    where gc.marker_key = sm.marker_key) "
+						+ "  and m.marker_subtype is not null";
 
 		logger.info("building map of hdp_gridcluster_key "
-		    + "-> feature type");
+				+ "-> feature type");
 
 		Map<String,Set<String>> featureTypeMap = 
-		    populateLookupOrdered(featureTypeQuery,
-			"hdp_gridcluster_key", "feature_type",
-			"gridcluster keys to feature types");
+				populateLookupOrdered(featureTypeQuery,
+						"hdp_gridcluster_key", "feature_type",
+						"gridcluster keys to feature types");
 
 		// We also need a lookup that maps from human markers to the
 		// feature types of the mouse markers in their respective
@@ -229,28 +229,28 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		// those human markers for a homology cluster where those
 		// markers have no annotations themselves.
 		String humanFeatureTypeQuery =
-		    "select distinct sm.marker_key as human_marker_key, "
-		    + "  m.marker_subtype as feature_type "
-		    + "from homology_cluster_organism_to_marker sm, "
-		    + "  homology_cluster_organism so, "
-		    + "  homology_cluster_organism oo, "
-		    + "  homology_cluster_organism_to_marker om, "
-		    + "  marker m "
-		    + "where so.organism = 'human' "
-		    + "  and sm.cluster_organism_key = so.cluster_organism_key "
-		    + "  and so.cluster_key = oo.cluster_key "
-		    + "  and oo.cluster_organism_key = om.cluster_organism_key "
-		    + "  and oo.organism = 'mouse' "
-		    + "  and om.marker_key = m.marker_key "
-		    + "  and m.marker_subtype is not null ";
+				"select distinct sm.marker_key as human_marker_key, "
+						+ "  m.marker_subtype as feature_type "
+						+ "from homology_cluster_organism_to_marker sm, "
+						+ "  homology_cluster_organism so, "
+						+ "  homology_cluster_organism oo, "
+						+ "  homology_cluster_organism_to_marker om, "
+						+ "  marker m "
+						+ "where so.organism = 'human' "
+						+ "  and sm.cluster_organism_key = so.cluster_organism_key "
+						+ "  and so.cluster_key = oo.cluster_key "
+						+ "  and oo.cluster_organism_key = om.cluster_organism_key "
+						+ "  and oo.organism = 'mouse' "
+						+ "  and om.marker_key = m.marker_key "
+						+ "  and m.marker_subtype is not null ";
 
 		logger.info("building map of human marker key "
-		    + "-> feature type");
+				+ "-> feature type");
 
 		Map<String,Set<String>> humanFeatureTypeMap = 
-		    populateLookupOrdered(humanFeatureTypeQuery,
-			"human_marker_key", "feature_type",
-			"human marker keys to feature types"); 
+				populateLookupOrdered(humanFeatureTypeQuery,
+						"human_marker_key", "feature_type",
+						"human marker keys to feature types"); 
 
 		// load homologene IDs
 		String homologeneIdQuery="select hcotm.marker_key, hc.primary_id homology_id "+
@@ -315,65 +315,65 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		// in femover and is the one stored in the hdp_gridcluster
 		// table.
 		logger.info("getting homology cluster keys for markers");
-		
+
 		String homologyQuery = "select m.marker_key, "
-			+ " m.hdp_gridcluster_key, g.source "
-			+ "from hdp_gridcluster g, hdp_gridcluster_marker m "
-			+ "where g.hdp_gridcluster_key = m.hdp_gridcluster_key "
-			+ " and source is not null";
+				+ " m.hdp_gridcluster_key, g.source "
+				+ "from hdp_gridcluster g, hdp_gridcluster_marker m "
+				+ "where g.hdp_gridcluster_key = m.hdp_gridcluster_key "
+				+ " and source is not null";
 		Map<Integer,Integer> homologyMap = new HashMap<Integer,Integer>();
 		Map<Integer,String> homologySource = new HashMap<Integer,String>();
 
 		rs = ex.executeProto(homologyQuery);
 		while (rs.next()) {
 			homologyMap.put(rs.getInt("marker_key"),
-				rs.getInt("hdp_gridcluster_key"));
+					rs.getInt("hdp_gridcluster_key"));
 			homologySource.put(rs.getInt("marker_key"),
-				rs.getString("source"));
+					rs.getString("source"));
 		}
 		rs.close();
 
 		logger.info("done getting homology sources for "
-			+ homologyMap.size() + " markers");
+				+ homologyMap.size() + " markers");
 
 		/* Some human genes were missing links to their homology 
 		 * cluster, so we're broadening the net used to collect the
 		 * homology keys.
 		 */
 		String allHomologyQuery =
-			"with hybrid as ( "
-			+ "select hyb_m.marker_key, hyb_c.cluster_key, case "
-			+ " when hyb_c.secondary_source = 'HomoloGene and HGNC' then 'HomoloGene' "
-			+ " else hyb_c.secondary_source end as source "
-			+ "from homology_cluster hyb_c, "
-			+ " homology_cluster_organism hyb_o, "
-			+ " homology_cluster_organism_to_marker hyb_m "
-			+ "where hyb_c.source = 'HomoloGene and HGNC' "
-			+ " and hyb_c.cluster_key = hyb_o.cluster_key "
-			+ " and hyb_o.cluster_organism_key = hyb_m.cluster_organism_key "
-			+ " and hyb_o.organism in ('human', 'mouse')"
-			+ ") "
-			+ "select m.marker_key, c.cluster_key, c.source "
-			+ "from hybrid h, homology_cluster c, homology_cluster_organism o, "
-			+ " homology_cluster_organism_to_marker m "
-			+ "where c.source = h.source "
-			+ " and h.marker_key = m.marker_key "
-			+ " and c.cluster_key = o.cluster_key "
-			+ " and o.cluster_organism_key = m.cluster_organism_key";
+				"with hybrid as ( "
+						+ "select hyb_m.marker_key, hyb_c.cluster_key, case "
+						+ " when hyb_c.secondary_source = 'HomoloGene and HGNC' then 'HomoloGene' "
+						+ " else hyb_c.secondary_source end as source "
+						+ "from homology_cluster hyb_c, "
+						+ " homology_cluster_organism hyb_o, "
+						+ " homology_cluster_organism_to_marker hyb_m "
+						+ "where hyb_c.source = 'HomoloGene and HGNC' "
+						+ " and hyb_c.cluster_key = hyb_o.cluster_key "
+						+ " and hyb_o.cluster_organism_key = hyb_m.cluster_organism_key "
+						+ " and hyb_o.organism in ('human', 'mouse')"
+						+ ") "
+						+ "select m.marker_key, c.cluster_key, c.source "
+						+ "from hybrid h, homology_cluster c, homology_cluster_organism o, "
+						+ " homology_cluster_organism_to_marker m "
+						+ "where c.source = h.source "
+						+ " and h.marker_key = m.marker_key "
+						+ " and c.cluster_key = o.cluster_key "
+						+ " and o.cluster_organism_key = m.cluster_organism_key";
 
 		Map<Integer,Integer> allHomologyMap = new HashMap<Integer,Integer>();
 		Map<Integer,String> allHomologySource = new HashMap<Integer,String>();
 		rs = ex.executeProto(allHomologyQuery);
 		while (rs.next()) {
 			allHomologyMap.put(rs.getInt("marker_key"),
-				rs.getInt("cluster_key"));
+					rs.getInt("cluster_key"));
 			allHomologySource.put(rs.getInt("marker_key"),
-				rs.getString("source"));
+					rs.getString("source"));
 		}
 		rs.close();
 
 		logger.info("done getting homology cluster keys for all "
-			+ allHomologyMap.size() + " markers");
+				+ allHomologyMap.size() + " markers");
 
 		// get IMSR count for each marker that has an allele
 		logger.info("building counts of IMSR to marker key");
@@ -564,8 +564,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
-		if (!docs.isEmpty())  server.add(docs);
-		server.commit();
+		writeDocs(docs);
+		commit();
 		rs.close();
 
 		logger.info("done loading disease terms without annotations");
@@ -629,16 +629,16 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			// pages.
 			if (allHomologyMap.containsKey(markerKey)) {
 				doc.addField(
-				    DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
-				    allHomologyMap.get(markerKey));
+						DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
+						allHomologyMap.get(markerKey));
 			}
 
 			// add the source of the homology data (HomoloGene or
 			// HGNC), if available
 			if (allHomologySource.containsKey(markerKey)) {
 				doc.addField(
-					DiseasePortalFields.HOMOLOGY_SOURCE,
-					allHomologySource.get(markerKey));
+						DiseasePortalFields.HOMOLOGY_SOURCE,
+						allHomologySource.get(markerKey));
 			}
 
 			/* If we have a mouse marker with a feature type, then
@@ -647,13 +647,13 @@ public class DiseasePortalIndexerSQL extends Indexer {
 			 * in its homology cluster.
 			 */
 			if (rs.getString("feature_type") != null) {
-			    doc.addField(
-				DiseasePortalFields.FILTERABLE_FEATURE_TYPES,
-				rs.getString("feature_type"));
+				doc.addField(
+						DiseasePortalFields.FILTERABLE_FEATURE_TYPES,
+						rs.getString("feature_type"));
 			} else if ("human".equals(organism)) {
-			    addAllFromLookup(doc,
-				DiseasePortalFields.FILTERABLE_FEATURE_TYPES,
-				markerKey.toString(), humanFeatureTypeMap);
+				addAllFromLookup(doc,
+						DiseasePortalFields.FILTERABLE_FEATURE_TYPES,
+						markerKey.toString(), humanFeatureTypeMap);
 			}
 
 			doc.addField(DiseasePortalFields.HOMOLOGENE_ID,homologyId);
@@ -711,8 +711,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
-		if (!docs.isEmpty())  server.add(docs);
-		server.commit();
+		writeDocs(docs);
+		commit();
 		rs.close();
 
 		logger.info("done loading markers without annotations");
@@ -830,21 +830,21 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				// one from lookup by marker key
 				if (homologyMap.containsKey(markerKey)) {
 					gridClusterKey =
-						homologyMap.get(markerKey);
+							homologyMap.get(markerKey);
 				}
 
 				// add the source of the homology data
 				// (HomoloGene or HGNC), if available
 				if (homologySource.containsKey(markerKey)) {
-				    doc.addField(
-					DiseasePortalFields.HOMOLOGY_SOURCE,
-					homologySource.get(markerKey));
+					doc.addField(
+							DiseasePortalFields.HOMOLOGY_SOURCE,
+							homologySource.get(markerKey));
 				}
 
 				// --------- Grid cluster fields ---------------
 				// For grid clusters, we only include human annotations and rolled-up mouse annotations (no allele->OMIM)
 				boolean isOnGrid = "human".equalsIgnoreCase(organism) || (genoClusterKey!=null && genoClusterKey>0);
-				
+
 				if(isOnGrid) {
 					if(gridClusterKey!=null && gridClusterKey>0) {
 						doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY,gridClusterKey);
@@ -873,8 +873,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				// grouping in markers with no annotations.)
 
 				doc.addField(
-				    DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
-				    gridClusterKey);
+						DiseasePortalFields.HOMOLOGY_CLUSTER_KEY,
+						gridClusterKey);
 
 				// -------- Marker centric fields -------------
 
@@ -1029,11 +1029,8 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				}
 
 			}
-			if (! docs.isEmpty()) {
-				server.add(docs);
-			}
-
-			server.commit();
+			writeDocs(docs);
+			commit();
 		}
 	}
 	private Map<String,Set<String>> populateMpForDiseaseLookup(int start,int end,List<Map<String,Set<String>>> mpLookups) throws Exception {
@@ -1129,7 +1126,7 @@ public class DiseasePortalIndexerSQL extends Indexer {
 		logger.info("finished building map of MP query terms/altIDs/synonyms/ancestors to equivalent MP hdp_annotation_keys");
 		return mpTermForMPMap;
 	}
-	
+
 	private Map<String,Set<String>> populateOMIMForMpGridLookup(int start,int end,List<Map<String,Set<String>>> omimLookups) throws Exception {
 		// load a map of OMIM term IDs to equivalent MP IDs via hdp_annotation
 		logger.info("building map of OMIM query terms/synonyms to equivalent MP hdp_annotation_keys");
@@ -1249,12 +1246,12 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"and gc1.hdp_genocluster_key=gc2.hdp_genocluster_key";
 		ex.executeVoid(hdpAnnotationCrossQuery);
 
-    	hdpAnnotationCrossQuery = "insert into tmp_ha_cross " +
-    	"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, ha2.hdp_annotation_key ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 " +
-    	"from hdp_annotation ha1, hdp_annotation ha2 " +
-    	"where ha1.term_id != ha2.term_id  and ha1.marker_key=ha2.marker_key and ha1.organism_key=2 and ha2.organism_key=2";
-    	ex.executeVoid(hdpAnnotationCrossQuery);
-		
+		hdpAnnotationCrossQuery = "insert into tmp_ha_cross " +
+				"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, ha2.hdp_annotation_key ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 " +
+				"from hdp_annotation ha1, hdp_annotation ha2 " +
+				"where ha1.term_id != ha2.term_id  and ha1.marker_key=ha2.marker_key and ha1.organism_key=2 and ha2.organism_key=2";
+		ex.executeVoid(hdpAnnotationCrossQuery);
+
 		//createTempIndex("tmp_ha_genocluster","vocab1");
 		//createTempIndex("tmp_ha_genocluster","vocab2");
 		logger.info("done creating temp table of hdp_annotation cross hdp_annotation via genocluster");
@@ -1308,12 +1305,12 @@ public class DiseasePortalIndexerSQL extends Indexer {
 				"				and ha_mp.vocab_name='Mammalian Phenotype' \n" + 
 				"				and ha_omim.vocab_name='OMIM'";
 		ex.executeVoid(mpToDiseaseQuery);
-		
-		
+
+
 		// TODO ha_mp.genotype_key=ha_omim.genotype_key
 		// Needs to be at the cluster level
 		// Not sure if the above still needs to be revisited? - oblod 10/15/2014
-		
+
 		createTempIndex("tmp_mp_to_disease","hdp_annotation_key");
 
 		// mp to mp ID mappings

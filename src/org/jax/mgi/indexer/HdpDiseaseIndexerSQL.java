@@ -20,11 +20,11 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
-	
+
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
-	
+
 	public HdpDiseaseIndexerSQL() {
 		super("index.url.diseasePortalDisease");
 	}
@@ -32,7 +32,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	/*-----------------------*/
 	/*--- private methods ---*/
 	/*-----------------------*/
-	
+
 	/* Pull the disease data from the database and add them to the index.  If a
 	 * disease has no annotations, we still allow matches to it by disease name
 	 * and ID.  For diseases with annotations, we add the full suite of fields
@@ -40,7 +40,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	 */
 	private void processDiseases() throws Exception {
 		logger.info("loading disease terms");
-		
+
 		// main query - OMIM disease terms that are no obsolete.  We don't bother to
 		// specify an order, because we will compute ordering in-memory to ensure it
 		// is smart-alpha.  (The term.sequence_num field is not.)
@@ -87,7 +87,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 
 			// add terms and IDs from related annotations (those annotations for the same genocluster
 			// for mouse annotations, or for the same marker for human annotations)
-			
+
 			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_TEXT, getRelatedPhenotypesForTerm(termKey, true, false));
 			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_ID, getRelatedPhenotypesForTerm(termKey, false, true));
 
@@ -95,7 +95,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			// that bridge for human gene/disease annotations.
 			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseasesForTerm(termKey, true, false));
 			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseasesForTerm(termKey, false, true));
-			
+
 			// add marker-related fields, if any markers area associated with the disease
 			Set<String> associatedMarkerKeys = this.getMarkersByDisease(termId);
 			if ((associatedMarkerKeys != null) && (associatedMarkerKeys.size() > 0)) {
@@ -105,12 +105,12 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				Set<String> markerSynonyms = new HashSet<String>();
 				Set<String> orthologNomen = new HashSet<String>();
 				Set<String> orthologIds = new HashSet<String>();
-				
+
 				for (String stringMarkerKey : associatedMarkerKeys) {
 					Integer markerKey = Integer.parseInt(stringMarkerKey);
 					String markerSymbol = getMarkerSymbol(markerKey);
 					Integer gridClusterKey = getGridClusterKey(markerKey);
-					
+
 					doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
 					addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, markerSymbol);
 					addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
@@ -135,7 +135,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 							featureTypes.addAll(mFeatureTypes);
 						}
 					}
-					
+
 					if (this.isHuman(markerKey)) {
 						doc.addField(DiseasePortalFields.TERM_HUMANSYMBOL, markerSymbol);
 						addAll(doc, DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
@@ -143,7 +143,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 						doc.addField(DiseasePortalFields.TERM_MOUSESYMBOL, markerSymbol);
 						addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
 					}
-					
+
 					// collect nomen and ID data for orthologs of this marker
 					Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
 					if (orthologousMarkerKeys != null) {
@@ -152,7 +152,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 							String orthoName = getMarkerName(orthoMarkerKey);
 							Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
 							Set<String> orthoSynonyms = getMarkerSynonyms(orthoMarkerKey);
-							
+
 							if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
 							if (orthoName != null) { orthologNomen.add(orthoName); }
 							if (orthoSynonyms != null) { orthologNomen.addAll(orthoSynonyms); }
@@ -160,7 +160,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 						}
 					}
 				}
-				
+
 				// add the data we collected in Sets to minimize duplication across markers
 				if (featureTypes.size() > 0) {
 					addAll(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, featureTypes);
@@ -186,8 +186,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		}
 
 		// any leftover docs to send to the server?  (likely yes)
-		if (!docs.isEmpty())  server.add(docs);
-		server.commit();
+		writeDocs(docs);
+		commit();
 		rs.close();
 
 		logger.info("done processing " + uniqueKey + " disease terms");
@@ -200,7 +200,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
-	
+
 	@Override
 	public void index() throws Exception {
 		// collect various mappings needed for data lookup
@@ -210,7 +210,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		getMarkerCoordinateMap();	// coordinates per marker
 		getHeadersPerDisease();		// disease IDs to term headers
 		getMarkerAllIdMap();		// marker key to searchable marker IDs
-		
+
 		processDiseases();
 	}
 }

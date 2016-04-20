@@ -35,7 +35,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class Indexer {
 
-	public HttpSolrServer server = null;
+	private HttpSolrServer server = null;
 	public SQLExecutor ex = new SQLExecutor();
 	public Properties props = new Properties();
 	public Logger logger = LoggerFactory.getLogger(this.getClass());
@@ -53,13 +53,11 @@ public abstract class Indexer {
 		this.httpPropName = httpPropName;
 	}
 
-	public void setupConnection() throws Exception
-	{
+	public void setupConnection() throws Exception {
 		logger.info("Setting up the properties");
 
 		InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.props");
-		if (in== null)
-		{
+		if (in== null) {
 			logger.info("resource config.props not found");
 		}
 		try {
@@ -102,7 +100,7 @@ public abstract class Indexer {
 		try {
 			logger.info("Deleting current index.");
 			server.deleteByQuery("*:*");
-			server.commit();
+			commit();
 		}
 		catch (Exception e) {e.printStackTrace();}
 	}
@@ -127,15 +125,19 @@ public abstract class Indexer {
 			}
 		}
 		
+		commit();
+		
+		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
+		
+	}
+	
+	public void commit() {
 		try {
 			logger.info("Waiting for Solr Commit");
 			server.commit(true, true);
 		} catch (SolrServerException | IOException e) {
 			e.printStackTrace();
 		}
-		
-		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
-		
 	}
 	
 	
@@ -169,9 +171,7 @@ public abstract class Indexer {
 
 	}
 
-
-	public void setMaxThreads(int maxThreads)
-	{
+	public void setMaxThreads(int maxThreads) {
 		this.maxThreads = maxThreads;
 	}
 
@@ -219,7 +219,7 @@ public abstract class Indexer {
 	 * This was investigated to be a bottleneck in large data loads
 	 */
 	class DocWriterThread implements Runnable {
-		HttpSolrServer server;
+		private HttpSolrServer server;
 		Collection<SolrInputDocument> docs;
 		private final int commitWithin = 50000; // 50 seconds
 		private final int times_to_retry = 5;

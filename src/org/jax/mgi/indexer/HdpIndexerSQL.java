@@ -27,22 +27,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 * should be defined in any concrete subclasses.
 	 *    abstract void index() throws Exception {}
 	 */
-	
+
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
-	
+
 	protected int cursorLimit = 10000;				// number of records to retrieve at once
-	
+
 	protected int uniqueKey = 0;					// (incremental) unique key for index documents
 
 	protected String omim = "OMIM";					// vocab name for disease terms
 	protected String mp = "Mammalian Phenotype";	// vocab name for mouse phenotype terms
 	protected String hpo = "HPO";					// vocab name for human phenotype terms
-	
+
 	protected int dbChunkSize = 30000;				// number of annotations to process in each batch
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
-	
+
 	protected Map<Integer,Integer> homologyMap = null;			// marker key -> gridcluster key
 	protected Map<Integer, String> markerSymbolMap = null;		// marker key -> marker symbol
 	protected Map<Integer, String> markerNameMap = null;		// marker key -> marker name
@@ -54,7 +54,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;	// marker key -> set of ortholog marker keys
-	
+
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerDisease = null;	// disease ID -> header terms
 	protected Map<String,Integer> refCountPerDisease = null;	// disease ID -> count of refs
@@ -70,7 +70,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,Set<Integer>> termKeyToAnnotations = null;	// term key -> set of annotation keys
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
-	
+
 	/* We use the term "basic search units" for the grid, referring to the basic unit that we
 	 * are searching for -- genoclusters for mouse data and marker/disease pairs for human
 	 * data.  If our search matches a BSU, then all of its annotations are returned.  If a BSU
@@ -84,58 +84,58 @@ public abstract class HdpIndexerSQL extends Indexer {
 	Map<Integer,String> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data
 	Map<Integer,String> allelePairs = null;			// maps genocluster key to allele pair data
 	Set<Integer> conditionalGenoclusters = null;	// set of conditional genocluster keys
-	
+
 	// gridcluster key to feature types for mouse markers in the cluster
 	protected Map<String,Set<String>> featureTypeMap = null;
-	
+
 	// name of table mapping annotations to genoclusters
 	protected String annotationToGenocluster = null;
-	
+
 	// name of table like hdp_annotation table, but with only non-normal annotations
 	protected String nonNormalAnnotations = null;
-	
+
 	// name of table which joins each annotation in a genocluster to each other
 	// annotation for the genocluster, to allow display of all annotations for
 	// the genocluster, even if only a subset matched
 	protected String annotationCrossProduct = null;
-	
+
 	// name of table which maps from a disease annotation to all other diseases for
 	// that genocluster
 	protected String diseaseToDisease = null;
-	
+
 	// name of the table which maps from a disease annotation to all phenotypes for
 	// that genocluster
 	protected String diseaseToPhenotype = null;
-	
+
 	// name of the table which maps from a phenotype annotation to all diseases for
 	// that genocluster
 	protected String phenotypeToDisease = null;
-	
+
 	// name of the table which maps from a phenotype annotation to disease annotations
 	// for the same genocluster
 	protected String phenotypeToDiseaseViaGenocluster = null;
-	
+
 	// name of the table which maps from a phenotype annotation to disease annotations
 	// for the same genotype (not genocluster)
 	protected String phenotypeToDiseaseViaGenotype = null;
-	
+
 	// name of the table which maps from a phenotype annotation to other phenotype
 	// annotations for the same genocluster
 	protected String phenotypeToPhenotype = null;
-	
+
 	// maps from each disease and phenotype term to its smart-alpha sequence number
 	protected Map<String,Integer> termSortMap = null;
-	
+
 	// one higher than the largest sequence number in 'termSortMap'
 	protected int maxTermSeqNum = 0;
-	
+
 	// mapping from each disease and phenotype ID to the corresponding term's synonyms
 	protected Map<String,Set<String>> termSynonymMap = null;
-	
+
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
-	
+
 	protected HdpIndexerSQL(String httpPropName) {
 		super(httpPropName);
 	}
@@ -143,7 +143,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*------------------------------------------------------*/
 	/*--- methods for dealing with data cached in memory ---*/
 	/*------------------------------------------------------*/
-	
+
 	/* retrieve the mapping from each (Integer) term key to a Set of its (String) ancestor term keys
 	 */
 	protected Map<Integer,Set<Integer>> getTermAncestors() throws Exception {
@@ -153,17 +153,17 @@ public abstract class HdpIndexerSQL extends Indexer {
 		Timer.reset();
 
 		String ancestorQuery = "select ta.term_key, ta.ancestor_term_key "
-			+ "from term_ancestor ta "
-			+ "where exists (select 1 from term t "
-			+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
-			+ "    and t.term_key = ta.term_key)";
+				+ "from term_ancestor ta "
+				+ "where exists (select 1 from term t "
+				+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
+				+ "    and t.term_key = ta.term_key)";
 
 		termAncestors = new HashMap<Integer,Set<Integer>>();
-		
+
 		ResultSet rs = ex.executeProto(ancestorQuery, cursorLimit);
 		while (rs.next()) {
 			Integer termKey = rs.getInt("term_key");
-				
+
 			if (!termAncestors.containsKey(termKey)) {
 				termAncestors.put(termKey, new HashSet<Integer>());
 			}
@@ -174,7 +174,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("finished retrieving ancestors for " + termAncestors.size() + " terms " + Timer.getElapsedMessage());
 		return termAncestors;
 	}
-	
+
 	/* get the ancestor term keys for the given term key, or null if there are no ancestors
 	 */
 	protected Set<Integer> getTermAncestorsold(Integer termKey) throws Exception {
@@ -182,51 +182,51 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (termAncestors.containsKey(termKey)) { return termAncestors.get(termKey); }
 		return null;
 	}
-	
+
 	protected Map<Integer,Set<Integer>> childToParents = null;	// child term key -> parent term keys
 	protected Map<Integer,Set<Integer>> ancestors = null;		// child term key -> all ancestors
 
 	protected void getTermRelationships() throws Exception {
 		if (childToParents != null) { return; }
-		
+
 		logger.info("retrieving parent/child term relationships");
 		Timer.reset();
-		
+
 		String parentQuery = "select ta.term_key as parent_key, "
-			+ "  ta.child_term_key as child_key "
-			+ "from term_child ta "
-			+ "where exists (select 1 from term t "
-			+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
-			+ "    and t.term_key = ta.term_key)";
-		
+				+ "  ta.child_term_key as child_key "
+				+ "from term_child ta "
+				+ "where exists (select 1 from term t "
+				+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
+				+ "    and t.term_key = ta.term_key)";
+
 		childToParents = new HashMap<Integer,Set<Integer>>();
 		ancestors = new HashMap<Integer,Set<Integer>>();
-		
+
 		ResultSet rs = ex.executeProto(parentQuery);
 		while (rs.next()) {
 			Integer childKey = rs.getInt("child_key");
-			
+
 			if (!childToParents.containsKey(childKey)) {
 				childToParents.put(childKey, new HashSet<Integer>());
 			}
 			childToParents.get(childKey).add(rs.getInt("parent_key"));
 		}
 		rs.close();
-		
+
 		logger.info("finished retrieving parent/child relationships for " + childToParents.size() + " child terms");
 	}
-	
+
 	protected Set<Integer> getTermAncestors (Integer termKey) throws Exception {
 		if (childToParents == null) { getTermRelationships(); }
-		
+
 		// already calculated ancestors for this term?  return them.
 		if (ancestors.containsKey(termKey)) { return ancestors.get(termKey); }
-		
+
 		// no parents for this term?  It's a root, so return null.
 		if (!childToParents.containsKey(termKey)) { return null; }
-		
+
 		Set<Integer> myAncestors = new HashSet<Integer>();
-		
+
 		for (Integer parent : childToParents.get(termKey)) {
 			myAncestors.add(parent);
 			Set<Integer> parentsAncestors = getTermAncestors(parent);
@@ -235,10 +235,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 		}
 		ancestors.put(termKey, myAncestors);
-		
+
 		return myAncestors;
 	}
-	
+
 	/* iterate over the ancestors of the given term and collect terms, synonyms, and IDs in a
 	 * Set to be returned, as specified by the parameters.  Returns null if 'termKey' is
 	 * unknown or has no ancestors.
@@ -254,14 +254,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 				String term = getTerm(ancestorTermKey);
 				if (term != null) { out.add(term); }
 			}
-			
+
 			String termId = getTermId(ancestorTermKey);
-			
+
 			if (getSynonyms && (termId != null)) {
 				Set<String> synonyms = getTermSynonyms(termId);
 				if (synonyms != null) { out.addAll(synonyms); }
 			}
-			
+
 			if (getIds && (termId != null)) {
 				out.add(termId);
 				Set<String> altIds = getAlternateTermIds(termId);
@@ -270,21 +270,21 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return out;
 	}
-	
+
 	/* get the terms and their synonyms that are ancestors of the given term key, or
 	 * null if there are none or if the term key is unknown
 	 */
 	protected Set<String> getTermAncestorIDs(Integer termKey) throws Exception {
 		return getTermAncestorData(termKey, false, false, true);
 	}
-	
+
 	/* get the primary and secondary IDs associated with the ancestors of the given term key,
 	 * or null if there are none or if the term key is unknown
 	 */
 	protected Set<String> getTermAncestorText(Integer termKey) throws Exception {
 		return getTermAncestorData(termKey, true, true, false);
 	}
-	
+
 	/* retrieve the mapping from each (Integer) marker key to a Set of its (String) feature types,
 	 * for those markers with non-null feature types
 	 */
@@ -294,15 +294,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 
 			String featureTypeQuery = "select marker_key, marker_subtype "
-				+ "from marker "
-				+ "where marker_subtype is not null";
+					+ "from marker "
+					+ "where marker_subtype is not null";
 
 			markerFeatureTypes = new HashMap<Integer,Set<String>>();
 
 			ResultSet rs = ex.executeProto(featureTypeQuery, cursorLimit);
 			while (rs.next()) {
 				Integer markerKey = rs.getInt("marker_key");
-				
+
 				if (!markerFeatureTypes.containsKey(markerKey)) {
 					markerFeatureTypes.put(markerKey, new HashSet<String>());
 				}
@@ -324,7 +324,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* retrieve the mapping from each phenotype and disease ID to the alternate
 	 * IDs for the corresponding term
 	 */
@@ -334,9 +334,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 
 			String termIdQuery="select t.primary_id as term_id, ti.acc_id as alt_id "
-				+ "from term t, term_id ti "
-				+ "where t.term_key = ti.term_key "
-				+ "  and t.vocab_name in ('Mammalian Phenotype', 'OMIM') ";
+					+ "from term t, term_id ti "
+					+ "where t.term_key = ti.term_key "
+					+ "  and t.vocab_name in ('Mammalian Phenotype', 'OMIM') ";
 
 			termAlternateIds = populateLookup(termIdQuery,"term_id","alt_id","alternate IDs to term IDs");
 
@@ -354,7 +354,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* get the alternate term IDs for the term identified by the given term key
 	 */
 	protected Set<String> getAlternateTermIds(Integer termKey) throws Exception {
@@ -363,7 +363,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (termId == null) { return null; }
 		return getAlternateTermIds(termId);
 	}
-	
+
 	/* retrieve the mapping from each disease and phenotype ID to the
 	 * corresponding term's synonyms
 	 */
@@ -373,9 +373,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 
 			String termSynonymQuery="select t.primary_id term_id,ts.synonym "+
-				"from term t,term_synonym ts "+
-				"where t.term_key=ts.term_key " +
-				"and t.vocab_name in ('OMIM','Mammalian Phenotype') ";
+					"from term t,term_synonym ts "+
+					"where t.term_key=ts.term_key " +
+					"and t.vocab_name in ('OMIM','Mammalian Phenotype') ";
 			termSynonymMap = populateLookup(termSynonymQuery,"term_id","synonym","disease + MP synonyms to term IDs");
 
 			logger.info("finished retrieving synonyms for diseases and phenotypes" + Timer.getElapsedMessage());
@@ -392,7 +392,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* get the synonyms for the given disease or phenotype term key
 	 */
 	protected Set<String> getTermSynonyms(Integer termKey) throws Exception {
@@ -400,7 +400,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (termId == null) { return null; }
 		return getTermSynonyms(termId);
 	}
-	
+
 	/* retrieve the mapping from each (String) marker key to the marker's synonyms, including
 	 * the synonyms for all orthologous markers.
 	 */
@@ -410,11 +410,11 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 
 			String markerSynonymQuery="select distinct msn.marker_key, msn.term synonym " +
-				"from marker_searchable_nomenclature msn " +
-				"where msn.term_type in ('old symbol','old name','synonym') " +
-				"UNION " +
-				"select distinct ms.marker_key, ms.synonym " +
-				"from marker_synonym ms ";
+					"from marker_searchable_nomenclature msn " +
+					"where msn.term_type in ('old symbol','old name','synonym') " +
+					"UNION " +
+					"select distinct ms.marker_key, ms.synonym " +
+					"from marker_synonym ms ";
 			markerSynonymMap = populateLookup(markerSynonymQuery,"marker_key","synonym","marker keys to synonyms");
 
 			logger.info("finished retrieving synonyms for markers" + Timer.getElapsedMessage());
@@ -432,7 +432,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* retrieve the mapping from each (String) marker key to the spatial strings for its coordinates
 	 */
 	protected Map<String, Set<String>> getMarkerCoordinateMap() throws Exception {
@@ -442,13 +442,13 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 			// load all mouse and human marker locations to be encoded for Solr spatial queries
 			String markerLocationQuery="select distinct m.marker_key, ml.chromosome, "
-				+ "  ml.strand, ml.start_coordinate, ml.end_coordinate "
-				+ "from marker_location ml, "
-				+ "  marker m "
-				+ "where m.marker_key=ml.marker_key "
-				+ "  and ml.sequence_num=1 "
-				+ "  and ml.start_coordinate is not null "
-				+ "  and ml.chromosome != 'UN' ";
+					+ "  ml.strand, ml.start_coordinate, ml.end_coordinate "
+					+ "from marker_location ml, "
+					+ "  marker m "
+					+ "where m.marker_key=ml.marker_key "
+					+ "  and ml.sequence_num=1 "
+					+ "  and ml.start_coordinate is not null "
+					+ "  and ml.chromosome != 'UN' ";
 
 			markerCoordinates = new HashMap<String,Set<String>>();
 			ResultSet rs = ex.executeProto(markerLocationQuery, cursorLimit);
@@ -486,7 +486,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* build the mapping from each disease and phenotype term to its smart-alpha
 	 * sequence number and remember the next sequence number to be assigned.
 	 */
@@ -516,10 +516,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		maxTermSeqNum = termSortMap.keySet().size() + 1;
 		logger.info("finished calculating sequence numbers for " + (maxTermSeqNum - 1) + " diseases and phenotypes " + Timer.getElapsedMessage());
-		
+
 		return termSortMap;
 	}
-	
+
 	/* get the smart-alpha sequence number for the given disease or phenotype term
 	 */
 	public int getTermSequenceNum(String term) throws SQLException {
@@ -531,7 +531,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return maxTermSeqNum;
 	}
-	
+
 	/* get the mapping from each (String) marker key to a set of its searchable IDs
 	 */
 	protected Map<String,Set<String>> getMarkerAllIdMap() throws Exception {
@@ -541,15 +541,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 			// load all marker IDs (for every organism)
 			String markerIdQuery="select marker_key, acc_id "
-				+ "from marker_id "
-				+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','RIKEN Cluster','UniGene') ";
+					+ "from marker_id "
+					+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','RIKEN Cluster','UniGene') ";
 			markerAllIdMap = populateLookup(markerIdQuery,"marker_key","acc_id","marker keys to IDs");
-			
+
 			logger.info("Finished loading IDs for " + markerAllIdMap.size() + " markers" + Timer.getElapsedMessage());
 		}
 		return markerAllIdMap;
 	}
-	
+
 	/* get the set of marker IDs for the given marker key
 	 */
 	protected Set<String> getMarkerIds(Integer markerID) throws Exception {
@@ -581,7 +581,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				homologyMap.put(rs.getInt("marker_key"), rs.getInt("hdp_gridcluster_key"));
 			}
 			rs.close();
-			
+
 			logger.info("Finished retrieving homologyMap data (" + homologyMap.size() + " markers)" + Timer.getElapsedMessage());
 		}
 		return homologyMap;
@@ -612,35 +612,35 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// (to use for filtering query results in HMDC).  Also include
 			// mouse markers that are not part of a homology cluster.
 			String featureTypeQuery =
-			    "select distinct gc.hdp_gridcluster_key, "
-			    + "  m.marker_subtype as feature_type "
-			    + "from hdp_gridcluster_marker gc, "
-			    + "  homology_cluster_organism_to_marker sm, "
-			    + "  homology_cluster_organism so, "
-			    + "  homology_cluster_organism oo, "
-			    + "  homology_cluster_organism_to_marker om, "
-			    + "  marker m "
-			    + "where gc.marker_key = sm.marker_key "
-			    + "  and sm.cluster_organism_key = so.cluster_organism_key "
-			    + "  and so.cluster_key = oo.cluster_key "
-			    + "  and oo.cluster_organism_key = om.cluster_organism_key "
-			    + "  and oo.organism = 'mouse' "
-			    + "  and om.marker_key = m.marker_key "
-			    + "  and m.marker_subtype is not null "
-			    + "union "
-			    + "select distinct gc.hdp_gridcluster_key, "
-			    + "  m.marker_subtype as feature_type "
-			    + "from hdp_gridcluster_marker gc, "
-			    + "  marker m "
-			    + "where gc.marker_key = m.marker_key "
-			    + "  and not exists (select 1 from "
-			    + "    homology_cluster_organism_to_marker sm "
-			    + "    where gc.marker_key = sm.marker_key) "
-			    + "  and m.marker_subtype is not null";
+					"select distinct gc.hdp_gridcluster_key, "
+							+ "  m.marker_subtype as feature_type "
+							+ "from hdp_gridcluster_marker gc, "
+							+ "  homology_cluster_organism_to_marker sm, "
+							+ "  homology_cluster_organism so, "
+							+ "  homology_cluster_organism oo, "
+							+ "  homology_cluster_organism_to_marker om, "
+							+ "  marker m "
+							+ "where gc.marker_key = sm.marker_key "
+							+ "  and sm.cluster_organism_key = so.cluster_organism_key "
+							+ "  and so.cluster_key = oo.cluster_key "
+							+ "  and oo.cluster_organism_key = om.cluster_organism_key "
+							+ "  and oo.organism = 'mouse' "
+							+ "  and om.marker_key = m.marker_key "
+							+ "  and m.marker_subtype is not null "
+							+ "union "
+							+ "select distinct gc.hdp_gridcluster_key, "
+							+ "  m.marker_subtype as feature_type "
+							+ "from hdp_gridcluster_marker gc, "
+							+ "  marker m "
+							+ "where gc.marker_key = m.marker_key "
+							+ "  and not exists (select 1 from "
+							+ "    homology_cluster_organism_to_marker sm "
+							+ "    where gc.marker_key = sm.marker_key) "
+							+ "  and m.marker_subtype is not null";
 
 			featureTypeMap = populateLookupOrdered(featureTypeQuery,
 					"hdp_gridcluster_key", "feature_type", "gridcluster keys to feature types");
-			
+
 			logger.info("Finished retrieving feature types (" + featureTypeMap.size() + " gridclusters)" + Timer.getElapsedMessage());
 		}
 		return featureTypeMap;
@@ -658,7 +658,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* get a mapping from (String) disease ID to a Set of (String) marker keys that are
 	 * positively associated with that disease.  (no annotations with a NOT qualifier)
 	 */
@@ -670,22 +670,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// This had used getNonNormalAnnotationsTable() as a source, but optimizing to
 			// bring the 'where' clause up into this query and simplify.
 			String markerQuery = "select distinct h.term_id, h.marker_key, m.symbol "
-				+ "from hdp_annotation h, marker m "
-				+ "where h.vocab_name='OMIM' "
-				+ "  and h.organism_key in (1, 2) "
-				+ "  and h.marker_key = m.marker_key "
-				+ "  and h.qualifier_type is null "
-				+ "  and (h.genotype_type!='complex' or h.genotype_type is null) "
-				+ "order by h.term_id, m.symbol";
+					+ "from hdp_annotation h, marker m "
+					+ "where h.vocab_name='OMIM' "
+					+ "  and h.organism_key in (1, 2) "
+					+ "  and h.marker_key = m.marker_key "
+					+ "  and h.qualifier_type is null "
+					+ "  and (h.genotype_type!='complex' or h.genotype_type is null) "
+					+ "order by h.term_id, m.symbol";
 
 			markersPerDisease = populateLookupOrdered(markerQuery,
 					"term_id", "marker_key", "diseases to markers");
-			
+
 			logger.info("Finished retrieving markers for (" + markersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
 		}
 		return markersPerDisease;
 	}
-	
+
 	/* get the markers for the disease specified by 'diseaseID'
 	 */
 	protected Set<String> getMarkersByDisease (String diseaseID) throws Exception {
@@ -704,16 +704,16 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 
 			String headerQuery = "select distinct term_id, header "
-				+ "from hdp_annotation "
-				+ "where vocab_name = '" + omim + "' "
-				+ "order by term_id, header";
+					+ "from hdp_annotation "
+					+ "where vocab_name = '" + omim + "' "
+					+ "order by term_id, header";
 			headersPerDisease = populateLookupOrdered(headerQuery, "term_id", "header", "diseases to headers");
-			
+
 			logger.info("Finished retrieving headers for (" + headersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
 		}
 		return headersPerDisease;
 	}
-	
+
 	/* get the headers for the disease specified by 'diseaseID'
 	 */
 	protected Set<String> getHeadersByDisease (String diseaseID) throws Exception {
@@ -732,7 +732,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (termId == null) { return null; }
 		return getHeadersByDisease(termId);
 	}
-	
+
 	/* get a mapping from (String) disease ID to an (Integer) count of references
 	 */
 	protected Map<String,Integer> getDiseaseReferenceCounts() throws Exception {
@@ -778,16 +778,16 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 			logger.info("building mapping from each marker to its orthologs");
 			String orthologQuery = "select distinct otm.marker_key as marker_key, "
-				+ "  other_otm.marker_key as other_marker_key "
-				+ "from homology_cluster_organism o, "
-				+ "  homology_cluster_organism_to_marker otm, "
-				+ "  homology_cluster_organism other_o, "
-				+ "  homology_cluster_organism_to_marker other_otm "
-				+ "where other_o.cluster_key=o.cluster_key "
-				+ "  and o.organism in ('mouse', 'human') "
-				+ "  and o.cluster_organism_key=otm.cluster_organism_key "
-				+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
-				+ "  and otm.marker_key!=other_otm.marker_key";
+					+ "  other_otm.marker_key as other_marker_key "
+					+ "from homology_cluster_organism o, "
+					+ "  homology_cluster_organism_to_marker otm, "
+					+ "  homology_cluster_organism other_o, "
+					+ "  homology_cluster_organism_to_marker other_otm "
+					+ "where other_o.cluster_key=o.cluster_key "
+					+ "  and o.organism in ('mouse', 'human') "
+					+ "  and o.cluster_organism_key=otm.cluster_organism_key "
+					+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
+					+ "  and otm.marker_key!=other_otm.marker_key";
 
 			ResultSet rs = ex.executeProto(orthologQuery, cursorLimit);
 			while(rs.next()) {
@@ -824,9 +824,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 			logger.info("building counts of disease models for disease IDs");
 
 			String diseaseModelQuery="select dm.disease_id, count(dm.disease_model_key) diseaseModelCount " +
-				"from disease_model dm " +
-				"where is_not_model=0 " +
-				"group by disease_id ";
+					"from disease_model dm " +
+					"where is_not_model=0 " +
+					"group by disease_id ";
 
 			ResultSet rs = ex.executeProto(diseaseModelQuery, cursorLimit);
 			while(rs.next()) {
@@ -859,10 +859,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		markerSymbolMap = new HashMap<Integer, String>();
 		markerNameMap = new HashMap<Integer, String>();
 		markerIdMap = new HashMap<Integer, String>();
-		
+
 		String markerQuery = "select marker_key, symbol, name, primary_id "
-			+ "from marker "
-			+ "where status != 'withdrawn' ";
+				+ "from marker "
+				+ "where status != 'withdrawn' ";
 
 		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
 		while (rs.next()) {
@@ -871,10 +871,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 			markerIdMap.put(rs.getInt("marker_key"), rs.getString("primary_id"));
 		}
 		rs.close();
-			
+
 		logger.info("Finished retrieving basic marker data (" + markerIdMap.size() + " markers)" + Timer.getElapsedMessage());
 	}
-	
+
 	/* get a mapping from marker key to marker symbol for all current markers, cached
 	 * in memory after the first retrieval from the database.  Mapping is from (Integer)
 	 * marker key to (String) marker symbol.
@@ -912,7 +912,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* retrieve the marker name for the given 'markerKey' or null if the key
 	 * is not recognized.
 	 */
@@ -923,7 +923,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* retrieve the primary ID for the given 'markerKey' or null if the key
 	 * is not recognized.
 	 */
@@ -934,13 +934,13 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* retrieve from the database the sets of mouse and human marker keys, and remember
 	 * them in memory.
 	 */
 	private void cacheMarkerOrganismData() throws SQLException {
 		if (mouseMarkers != null) { return; }
-		
+
 		logger.info("Identifying human and mouse markers");
 		Timer.reset();
 
@@ -948,9 +948,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 		humanMarkers = new HashSet<Integer>();
 
 		String organismQuery = "select marker_key, organism "
-			+ "from marker "
-			+ "where status != 'withdrawn' "
-			+ "  and organism in ('human', 'mouse') ";
+				+ "from marker "
+				+ "where status != 'withdrawn' "
+				+ "  and organism in ('human', 'mouse') ";
 
 		ResultSet rs = ex.executeProto(organismQuery, cursorLimit);
 		while (rs.next()) {
@@ -961,31 +961,31 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 		}
 		rs.close();
-			
+
 		logger.info("Identified " + mouseMarkers.size() + " mouse and "
-			+ humanMarkers.size() + " human markers" + Timer.getElapsedMessage());
+				+ humanMarkers.size() + " human markers" + Timer.getElapsedMessage());
 	}
-	
+
 	/* returns true if the given 'markerKey' identifies a mouse marker, false if not.
 	 */
 	protected boolean isMouse(Integer markerKey) throws SQLException {
 		if (mouseMarkers == null) { cacheMarkerOrganismData(); }
 		return mouseMarkers.contains(markerKey);
 	}
-	
+
 	/* returns true if the given 'markerKey' identifies a human marker, false if not.
 	 */
 	protected boolean isHuman(Integer markerKey) throws SQLException {
 		if (humanMarkers == null) { cacheMarkerOrganismData(); }
 		return humanMarkers.contains(markerKey);
 	}
-	
+
 	/* load data from the database to populate several caches stored as instance variables;
 	 * specifically populates omimTerms, mpTerms, terms, and termIds.
 	 */
 	protected void cacheBasicTermData() throws Exception {
 		if (omimTerms != null) { return; }
-		
+
 		logger.info("Caching basic term data");
 		Timer.reset();
 
@@ -993,10 +993,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		mpTerms = new HashSet<Integer>();
 		terms = new HashMap<Integer,String>();
 		termIds = new HashMap<Integer,String>();
-		
+
 		String termQuery = "select term_key, term, primary_id, vocab_name "
-			+ "from term "
-			+ "where vocab_name in ('OMIM', 'Mammalian Phenotype')";
+				+ "from term "
+				+ "where vocab_name in ('OMIM', 'Mammalian Phenotype')";
 
 		ResultSet rs = ex.executeProto(termQuery, cursorLimit);
 		while (rs.next()) {
@@ -1008,10 +1008,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 			else { mpTerms.add(termKey); }
 		}
 		rs.close();
-			
+
 		logger.info("Finished retrieving basic term data (" + terms.size() + " terms)" + Timer.getElapsedMessage());
 	}
-	
+
 	/* get the vocabulary name for the given term key, or null if key is unknown
 	 */
 	protected String getVocabulary(Integer termKey) throws Exception {
@@ -1028,7 +1028,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (terms.containsKey(termKey)) { return terms.get(termKey); }
 		return null;
 	}
-	
+
 	/* get the primary term ID corresponding to the given term key, or null if key is unknown
 	 */
 	protected String getTermId(Integer termKey) throws Exception {
@@ -1036,41 +1036,41 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (termIds.containsKey(termKey)) { return termIds.get(termKey); }
 		return null;
 	}
-	
+
 	/* cache basic data for annotations, populating the instance variables annotationTermKeys
 	 * and notAnnotations
 	 */
 	protected void cacheBasicAnnotationData() throws Exception {
 		if (notAnnotations != null) { return; }
-		
+
 		logger.info("Caching basic annotation data");
 		Timer.reset();
 
 		annotationTermKeys = new HashMap<Integer,Integer>();
 		notAnnotations = new HashSet<Integer>();
 		termKeyToAnnotations = new HashMap<Integer,Set<Integer>>();
-		
+
 		String annotQuery = "select hdp_annotation_key, term_key, qualifier_type "
-			+ "from hdp_annotation";
+				+ "from hdp_annotation";
 
 		ResultSet rs = ex.executeProto(annotQuery, cursorLimit);
 		while (rs.next()) {
 			Integer hdpAnnotationKey = rs.getInt("hdp_annotation_key");
 			String qualifier = rs.getString("qualifier_type");
 			Integer termKey = rs.getInt("term_key");
-			
+
 			annotationTermKeys.put(hdpAnnotationKey, rs.getInt("term_key"));
 			if ((qualifier != null) && "NOT".equals(qualifier)) {
 				notAnnotations.add(hdpAnnotationKey);
 			}
-			
+
 			if (!termKeyToAnnotations.containsKey(termKey)) {
 				termKeyToAnnotations.put(termKey, new HashSet<Integer>());
 			}
 			termKeyToAnnotations.get(termKey).add(hdpAnnotationKey);
 		}
 		rs.close();
-			
+
 		logger.info("Finished retrieving basic annotation data (" + annotationTermKeys.size() + " annotations)" + Timer.getElapsedMessage());
 	}
 
@@ -1089,7 +1089,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (termKeyToAnnotations.containsKey(termKey)) { return termKeyToAnnotations.get(termKey); }
 		return null;
 	}
-	
+
 	/* get the term key for the given hdp_annotation_key, or null if annotation key is unknown
 	 */
 	protected Integer getAnnotatedTermKey(Integer annotationKey) throws Exception {
@@ -1099,71 +1099,71 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* populate the instance variable relatedAnnotations, tracking which annotations are related
 	 * to which other annotations, either by being for the same genocluster (for mouse data) or for
 	 * the same human markers
 	 */
 	protected void cacheAnnotationRelationships() throws SQLException {
 		if (relatedAnnotations != null) { return; }
-		
+
 		logger.info("Caching annotation relationships");
 		Timer.reset();
 
 		relatedAnnotations = new HashMap<Integer,Set<Integer>>();
-		
+
 		String mouseQuery = "with genoclusters as ( "
-			+ "  select distinct on (ha.hdp_annotation_key) ha.hdp_annotation_key, "
-			+ "    gg.hdp_genocluster_key "
-			+ "  from hdp_annotation ha, "
-			+ "    hdp_genocluster_genotype gg "
-			+ "  where ha.genotype_key = gg.genotype_key) "
-			+ "select h1.hdp_annotation_key as annotKey1, "
-			+ "  g2.hdp_annotation_key as annotKey2 "
-			+ "from hdp_annotation h1, genoclusters g1, genoclusters g2 "
-			+ "where h1.hdp_annotation_key = g1.hdp_annotation_key "
-			+ "  and g1.hdp_genocluster_key = g2.hdp_genocluster_key "
-			+ "  and g1.hdp_annotation_key != g2.hdp_annotation_key";
+				+ "  select distinct on (ha.hdp_annotation_key) ha.hdp_annotation_key, "
+				+ "    gg.hdp_genocluster_key "
+				+ "  from hdp_annotation ha, "
+				+ "    hdp_genocluster_genotype gg "
+				+ "  where ha.genotype_key = gg.genotype_key) "
+				+ "select h1.hdp_annotation_key as annotKey1, "
+				+ "  g2.hdp_annotation_key as annotKey2 "
+				+ "from hdp_annotation h1, genoclusters g1, genoclusters g2 "
+				+ "where h1.hdp_annotation_key = g1.hdp_annotation_key "
+				+ "  and g1.hdp_genocluster_key = g2.hdp_genocluster_key "
+				+ "  and g1.hdp_annotation_key != g2.hdp_annotation_key";
 
 		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);
 		while (rs.next()) {
 			Integer annotKey1 = rs.getInt("annotKey1");
-			
+
 			if (!relatedAnnotations.containsKey(annotKey1)) {
 				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
 			}
 			relatedAnnotations.get(annotKey1).add(rs.getInt("annotKey2"));
 		}
 		rs.close();
-			
+
 		int mouseCount = relatedAnnotations.size();
 		logger.info("Got relationships for " + mouseCount + " mouse annotations)" + Timer.getElapsedMessage());
-		
-/* Commented out this section, ensuring that we do NOT bring back additional diseases for
-*  human markers.  We only want to bring back the disease that matches the user's query.
-* 		Timer.reset();
-*		String humanQuery = "select ha1.hdp_annotation_key as annotKey1, "
-*			+ "  ha2.hdp_annotation_key as annotKey2 "
-*			+ "from hdp_annotation ha1, "
-*			+ "  hdp_annotation ha2 "
-*			+ "where ha1.term_id != ha2.term_id "
-*			+ "  and ha1.marker_key = ha2.marker_key "
-*			+ "  and ha1.organism_key = 2 "
-*			+ "  and ha2.organism_key = 2";
-*
-*		ResultSet rs2 = ex.executeProto(humanQuery, cursorLimit);
-*		while (rs2.next()) {
-*			Integer annotKey1 = rs2.getInt("annotKey1");
-*			
-*			if (!relatedAnnotations.containsKey(annotKey1)) {
-*				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
-*			}
-*			relatedAnnotations.get(annotKey1).add(rs2.getInt("annotKey2"));
-*		}
-*		rs2.close();
-*			
-*		logger.info("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
-*/
+
+		/* Commented out this section, ensuring that we do NOT bring back additional diseases for
+		 *  human markers.  We only want to bring back the disease that matches the user's query.
+		 * 		Timer.reset();
+		 *		String humanQuery = "select ha1.hdp_annotation_key as annotKey1, "
+		 *			+ "  ha2.hdp_annotation_key as annotKey2 "
+		 *			+ "from hdp_annotation ha1, "
+		 *			+ "  hdp_annotation ha2 "
+		 *			+ "where ha1.term_id != ha2.term_id "
+		 *			+ "  and ha1.marker_key = ha2.marker_key "
+		 *			+ "  and ha1.organism_key = 2 "
+		 *			+ "  and ha2.organism_key = 2";
+		 *
+		 *		ResultSet rs2 = ex.executeProto(humanQuery, cursorLimit);
+		 *		while (rs2.next()) {
+		 *			Integer annotKey1 = rs2.getInt("annotKey1");
+		 *			
+		 *			if (!relatedAnnotations.containsKey(annotKey1)) {
+		 *				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
+		 *			}
+		 *			relatedAnnotations.get(annotKey1).add(rs2.getInt("annotKey2"));
+		 *		}
+		 *		rs2.close();
+		 *			
+		 *		logger.info("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
+		 */
 	}
 
 	/* get the set of annotation keys that are related to the given hdp_annotation_key, based on
@@ -1177,7 +1177,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* get the set of IDs and/or terms connected to the given annotation through our set of
 	 * "related annotations".  Boolean flags indicate whether to return terms or IDs or both,
 	 * and whether to bring back diseases or phenotypes or both.  Returns null if no related
@@ -1189,9 +1189,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		Set<Integer> relatedAnnot = getRelatedAnnotations(annotationKey);
 		if (relatedAnnot == null) { return null; }
-		
+
 		Set<String> out = new HashSet<String>();		// set of strings to return
-		
+
 		for (Integer annotKey : relatedAnnot) {
 			Integer termKey = getAnnotatedTermKey(annotKey);
 			String vocab = getVocabulary(termKey);
@@ -1213,14 +1213,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 				if (getIds) {
 					String termId = getTermId(termKey);
 					if (termId != null) { out.add(termId); }
-					
+
 					// need to add both alternate IDs and ancestor IDs
 
 					if (termId != null) {
 						Set<String> altIds = getAlternateTermIds(termId);
 						if (altIds != null) { out.addAll(altIds); }
 					}
-					
+
 					Set<String> ancestorIds = getTermAncestorIDs(termKey);
 					if (ancestorIds != null) { out.addAll(ancestorIds); }
 				}
@@ -1278,7 +1278,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*-----------------------------------------------*/
 	/*--- public methods for building temp tables ---*/
 	/*-----------------------------------------------*/
-	
+
 	/* returns the name of the table which maps each annotation to its genocluster,
 	 * building the table if necessary
 	 */
@@ -1289,7 +1289,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 			this.annotationToGenocluster = "tmp_ha_genocluster";
 			logger.info("creating " + this.annotationToGenocluster + " (temp table of hdp_annotation to hdp_genocluster_key)");
-			
+
 			// The 'distinct on' keeps the first record seen for each distinct hdp_annotation_key.
 			String genoClusterKeyQuery = "select distinct on(hdp_annotation_key) hdp_annotation_key, hdp_genocluster_key\n" + 
 					"into temp " + this.annotationToGenocluster + " \n" + 
@@ -1301,12 +1301,12 @@ public abstract class HdpIndexerSQL extends Indexer {
 			createTempIndex(this.annotationToGenocluster, "hdp_annotation_key");
 			createTempIndex(this.annotationToGenocluster, "hdp_genocluster_key");
 			analyze(this.annotationToGenocluster);
-			
+
 			logger.info("done creating " + this.annotationToGenocluster + Timer.getElapsedMessage());
 		}
 		return this.annotationToGenocluster;
 	}
-	
+
 	/* returns the name of the table which contains non-normal annotations,
 	 * building the table if necessary
 	 */
@@ -1330,12 +1330,12 @@ public abstract class HdpIndexerSQL extends Indexer {
 			createTempIndex(this.nonNormalAnnotations, "term_key");
 			createTempIndex(this.nonNormalAnnotations, "term_id");
 			analyze(this.nonNormalAnnotations);
-			
+
 			logger.info("done creating " + this.nonNormalAnnotations + Timer.getElapsedMessage());
 		}
 		return this.nonNormalAnnotations;
 	}
-	
+
 	/* returns the name of the table with the cross-product of annotations
 	 * (each annotation for a genocluster related to every other annotation
 	 * in the genocluster)
@@ -1347,10 +1347,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 			this.annotationCrossProduct = "tmp_ha_cross";
 			Timer.reset();
 			logger.info("creating " + this.annotationCrossProduct + "(hdp_annotation cross hdp_annotation via genocluster)");
-			
+
 			// two-column temp table (hdp_annotation_key, hdp_genocluster_key)
 			String gcTable = this.getAnnotationToGenoclusterTable();
-			
+
 			// first add mouse annotations (via genoclusters) to the temp table
 			String hdpMouseAnnotationCrossQuery ="select ha1.hdp_annotation_key ha_key1,\n" + 
 					"ha1.term_id term_id1,\n" + 
@@ -1360,28 +1360,28 @@ public abstract class HdpIndexerSQL extends Indexer {
 					"ha2.term_id term_id2,\n" + 
 					"ha2.term term2,\n" + 
 					"ha2.vocab_name vocab2\n" + 
-				"into temp " + this.annotationCrossProduct + "\n" +
-				"from hdp_annotation ha1,\n" + 
+					"into temp " + this.annotationCrossProduct + "\n" +
+					"from hdp_annotation ha1,\n" + 
 					gcTable + " gc1,\n" + 
 					"hdp_annotation ha2,\n" + 
 					gcTable + " gc2\n" + 
-				"where ha1.hdp_annotation_key = gc1.hdp_annotation_key\n" + 
+					"where ha1.hdp_annotation_key = gc1.hdp_annotation_key\n" + 
 					"and ha2.hdp_annotation_key = gc2.hdp_annotation_key\n" +  
 					"and ha1.term_id != ha2.term_id "+
 					"and gc1.hdp_genocluster_key = gc2.hdp_genocluster_key";
 			fillTempTable(hdpMouseAnnotationCrossQuery);
 
 			// then add human annotations (direct to markers) to the temp table
-	    	String hdpHumanAnnotationCrossQuery = "insert into " + this.annotationCrossProduct + " " +
-	    		"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, " +
-	    			"ha2.hdp_annotation_key ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 " +
-	    		"from hdp_annotation ha1, hdp_annotation ha2 " +
-	    		"where ha1.term_id != ha2.term_id " +
-	    			"and ha1.marker_key = ha2.marker_key " +
-	    			"and ha1.organism_key=2 and ha2.organism_key=2";
-	    	fillTempTable(hdpHumanAnnotationCrossQuery);
-			
-	    	// only two fields are used in WHERE clauses, so we'll index just those
+			String hdpHumanAnnotationCrossQuery = "insert into " + this.annotationCrossProduct + " " +
+					"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, " +
+					"ha2.hdp_annotation_key ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 " +
+					"from hdp_annotation ha1, hdp_annotation ha2 " +
+					"where ha1.term_id != ha2.term_id " +
+					"and ha1.marker_key = ha2.marker_key " +
+					"and ha1.organism_key=2 and ha2.organism_key=2";
+			fillTempTable(hdpHumanAnnotationCrossQuery);
+
+			// only two fields are used in WHERE clauses, so we'll index just those
 			createTempIndex(this.annotationCrossProduct, "vocab1");
 			createTempIndex(this.annotationCrossProduct, "vocab2");
 			analyze(this.annotationCrossProduct);
@@ -1401,7 +1401,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String crossTable = this.getAnnotationCrossProductTable();
 			this.diseaseToDisease = "tmp_disease_to_disease";
 			logger.info("creating " + this.diseaseToDisease + "(diseases to diseases via genocluster)");
-			
+
 			String diseaseToDiseaseQuery = "select hc.term_id1 omim_id, \n" + 
 					"        	hc.term1 omim_term, \n" + 
 					"			hc.ha_key2 hdp_annotation_key \n" + 
@@ -1416,7 +1416,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return this.diseaseToDisease;
 	}
-	
+
 	/* returns the name of the table with the mapping from each disease annotation
 	 * to all phenotypes for the same genocluster
 	 */
@@ -1443,7 +1443,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return this.diseaseToPhenotype;
 	}
-	
+
 	/* returns the name of the table with the mapping from each phenotype annotation
 	 * to disease annotations for the same genocluster
 	 */
@@ -1469,7 +1469,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return this.phenotypeToDiseaseViaGenocluster;
 	}
-	
+
 	/* returns the name of the table with the mapping from each phenotype annotation
 	 * to disease annotations for the same genotype
 	 */
@@ -1525,11 +1525,11 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return this.phenotypeToDiseaseViaGenotype;
 	}
-	
+
 	/*------------------------------------------------*/
 	/*--- methods relating to annotation retrieval ---*/
 	/*------------------------------------------------*/
-	
+
 	/* get the maximum annotation_key from the hdp_annotation table (to use in stepping
 	 * through chunks of annotations)
 	 */
@@ -1541,57 +1541,57 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("Got max annotation key: " + i);
 		return i;
 	}
-	
+
 	/* get a ResultSet with annotation data, from the given start key (exclusive) to
 	 * the given end key (inclusive).  See SQL included below for list of columns.
 	 */
 	public ResultSet getAnnotations(int startKey, int endKey) throws SQLException {
 		String cmd = "select ha.hdp_annotation_key, " +
-					"ha.marker_key, " +
-					"ha.genotype_key, " +
-					"ha.term, " +
-					"ha.term_id, " +
-					"ha.vocab_name, " +
-					"ha.genotype_type, " +
-					"ha.header as term_header, " +
-					"ha.qualifier_type, " +
-					"ha.term_seq, " +
-					"ha.term_depth, " +
-					"m.organism, " +
-					"m.symbol as marker_symbol, " +
-					"m.primary_id as marker_id, " +
-					"m.name as marker_name, " +
-					"m.marker_subtype as feature_type, " +
-					"m.location_display, " +
-					"m.coordinate_display, " +
-					"m.build_identifier, " +
-					"msqn.by_organism, " +
-					"msqn.by_symbol, " +
-					"msqn.by_marker_subtype, " +
-					"msqn.by_location, " +
-					"mc.reference_count, " +
-					"mc.disease_relevant_reference_count, " +
-					"gcm.hdp_gridcluster_key, " +
-					"gcg.hdp_genocluster_key, " +
-					"gsn.by_hdp_rules by_genocluster "+
+				"ha.marker_key, " +
+				"ha.genotype_key, " +
+				"ha.term, " +
+				"ha.term_id, " +
+				"ha.vocab_name, " +
+				"ha.genotype_type, " +
+				"ha.header as term_header, " +
+				"ha.qualifier_type, " +
+				"ha.term_seq, " +
+				"ha.term_depth, " +
+				"m.organism, " +
+				"m.symbol as marker_symbol, " +
+				"m.primary_id as marker_id, " +
+				"m.name as marker_name, " +
+				"m.marker_subtype as feature_type, " +
+				"m.location_display, " +
+				"m.coordinate_display, " +
+				"m.build_identifier, " +
+				"msqn.by_organism, " +
+				"msqn.by_symbol, " +
+				"msqn.by_marker_subtype, " +
+				"msqn.by_location, " +
+				"mc.reference_count, " +
+				"mc.disease_relevant_reference_count, " +
+				"gcm.hdp_gridcluster_key, " +
+				"gcg.hdp_genocluster_key, " +
+				"gsn.by_hdp_rules by_genocluster "+
 				"from hdp_annotation ha " +
-					"left outer join hdp_gridcluster_marker gcm on gcm.marker_key=ha.marker_key " +
-					"left outer join hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key " +
-					"left outer join genotype_sequence_num gsn on gsn.genotype_key=ha.genotype_key, " +
-					"marker m, " +
-					"marker_sequence_num msqn, " +
-					"marker_counts mc " +
+				"left outer join hdp_gridcluster_marker gcm on gcm.marker_key=ha.marker_key " +
+				"left outer join hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key " +
+				"left outer join genotype_sequence_num gsn on gsn.genotype_key=ha.genotype_key, " +
+				"marker m, " +
+				"marker_sequence_num msqn, " +
+				"marker_counts mc " +
 				"where m.marker_key=ha.marker_key " +
-					"and m.marker_key=msqn.marker_key " +
-					"and m.marker_key=mc.marker_key " +
-					"and ha.hdp_annotation_key > " + startKey +
-					" and ha.hdp_annotation_key <= " + endKey;
+				"and m.marker_key=msqn.marker_key " +
+				"and m.marker_key=mc.marker_key " +
+				"and ha.hdp_annotation_key > " + startKey +
+				" and ha.hdp_annotation_key <= " + endKey;
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.info("  - Got annotations for keys " + (startKey + 1) + " to " + endKey);
 		return rs;
 	}
-	
+
 	/* fill the set of caches needed to populate the standard search fields (in the
 	 * addStandardFields method).
 	 */
@@ -1614,7 +1614,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		String qualifier = rs.getString("term_qualifier");
 		Integer markerKey = rs.getInt("marker_key");
 		Integer gridClusterKey = rs.getInt("hdp_gridcluster_key");
-		
+
 		// tweaks for the local variables
 		if (qualifier == null) { qualifier = ""; }
 
@@ -1622,15 +1622,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// override with hybrid homology-based cluster key
 			gridClusterKey = homologyMap.get(markerKey);
 		}
-		
+
 		if ("OMIM".equalsIgnoreCase(vocabName) && (termHeader == null || "".equals(termHeader))) {
 			termHeader = term;
 		}
-		
+
 		// document-identification fields
 		uniqueKey += 1;
 		doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
-		
+
 		// term-related fields
 		doc.addField(DiseasePortalFields.TERM, term);
 		doc.addField(DiseasePortalFields.TERM_ID, termID);
@@ -1638,7 +1638,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		doc.addField(DiseasePortalFields.TERM_HEADER, termHeader);
 		doc.addField(DiseasePortalFields.TERM_TYPE, vocabName);
 		addAllFromLookup(doc, DiseasePortalFields.TERM_SYNONYM, termID, termSynonymMap);
-		
+
 		// marker-related fields
 		if ((markerKey != null) && (markerKey >= 0)) {
 			doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
@@ -1661,7 +1661,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 * subclasses, if any memory caches are necessary.
 	 */
 	public void fillCachesForAnnotations(int startKey, int endKey) throws SQLException {}
-	
+
 	/* build and return a SolrInputDocument based on the current record in the
 	 * given ResultSet.  Override this method in subclasses.
 	 */
@@ -1675,15 +1675,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 		int maxAnnotationKey = this.getMaxAnnotationKey();
 		int start = 0;					// start annotation key for the current chunk
 		int end = start + dbChunkSize;	// end annotation key for the current chunk
-		
+
 		logger.info("Processing annotations 1 to " + maxAnnotationKey);
 		List<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-		
+
 		while (start < maxAnnotationKey) {
 			fillStandardCaches(start, end);
 			fillCachesForAnnotations(start, end);
 			ResultSet rs = getAnnotations(start, end);
-			
+
 			while (rs.next()) {
 				docs.add(buildDocument(rs));
 				if (docs.size() >= solrBatchSize) {
@@ -1698,18 +1698,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 			end = end + dbChunkSize;
 		}
 
-		if (!docs.isEmpty()) {
-			server.add(docs);
-			logger.info("  - sent final batch of docs to Solr");
-		}
-		server.commit();
+		writeDocs(docs);
+		commit();
 		logger.info("Done processing annotations 1 to " + maxAnnotationKey);
 	}
-	
+
 	/*---------------------------------------------------------------------*/
 	/*--- methods dealing with "basic search units" (BSUs) for the grid ---*/
 	/*---------------------------------------------------------------------*/
-	
+
 	/* cache the human and mouse marker data for each grid cluster
 	 */
 	protected void cacheGridClusterMarkers() throws Exception {
@@ -1720,13 +1717,13 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		gcToHumanMarkers = new HashMap<Integer,String>();
 		gcToMouseMarkers = new HashMap<Integer,String>();
-		
+
 		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, "
-			+ "  m.primary_id, ms.by_symbol "
-			+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
-			+ "where gcm.marker_key = m.marker_key "
-			+ "  and m.marker_key = ms.marker_key "
-			+ "order by ms.by_symbol";
+				+ "  m.primary_id, ms.by_symbol "
+				+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
+				+ "where gcm.marker_key = m.marker_key "
+				+ "  and m.marker_key = ms.marker_key "
+				+ "order by ms.by_symbol";
 
 		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
 		while (rs.next()) {
@@ -1734,7 +1731,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String organism = rs.getString("organism");
 			String symbol = rs.getString("symbol");
 			String accId = rs.getString("primary_id");
-				
+
 			if ("human".equals(organism)) {
 				if (!gcToHumanMarkers.containsKey(gcKey)) {
 					gcToHumanMarkers.put(gcKey, symbol + "|" + accId);
@@ -1752,7 +1749,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("  - retrieved marker data for gridclusters " + Timer.getElapsedMessage());
 	}
-	
+
 	/* get the mouse marker data for the given grid cluster key, formatted as:
 	 *   Symbol1|ID1, Symbol2|ID2, ...
 	 * returns null if no mouse markers or unknown grid cluster key
@@ -1764,7 +1761,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* get the human marker data for the given grid cluster key, formatted as:
 	 *   Symbol1|ID1, Symbol2|ID2, ...
 	 * returns null if no human markers or unknown grid cluster key
@@ -1776,25 +1773,25 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* cache the allele pairs in memory for each genocluster
 	 */
 	protected void cacheAllelePairs() throws Exception {
 		if (allelePairs != null) { return; }
-		
+
 		logger.info("retrieving allele pairs for genoclusters");
 		Timer.reset();
 
 		// grab the allele combination from the first genotype for each genocluster
 		String allelePairQuery = "select distinct on (gc1.hdp_genocluster_key) "
-			+ "  gc1.hdp_genocluster_key, g1.combination_1, g1.is_conditional "
-			+ "from hdp_genocluster_genotype gc1, "
-			+ "  genotype g1 "
-			+ "where gc1.genotype_key = g1.genotype_key";
+				+ "  gc1.hdp_genocluster_key, g1.combination_1, g1.is_conditional "
+				+ "from hdp_genocluster_genotype gc1, "
+				+ "  genotype g1 "
+				+ "where gc1.genotype_key = g1.genotype_key";
 
 		allelePairs = new HashMap<Integer,String>();
 		conditionalGenoclusters = new HashSet<Integer>();
-		
+
 		ResultSet rs = ex.executeProto(allelePairQuery, cursorLimit);
 		while (rs.next()) {
 			allelePairs.put(rs.getInt("hdp_genocluster_key"), rs.getString("combination_1"));
@@ -1807,7 +1804,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("finished retrieving allele pairs for " + allelePairs.size() + " genoclusters " + Timer.getElapsedMessage());
 		logger.info("found " + conditionalGenoclusters.size() + " conditional genoclusters");
 	}
-	
+
 	/* get the allele pairs for the specified genocluster as a String with embedded
 	 * \Allele() tags, suitable for formatting by the fewi's NotesTagConverter.  Returns
 	 * null if no allele pairs for the specified genocluster key.
@@ -1819,7 +1816,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* returns true if the specified genocluster is condtional, false if not
 	 */
 	protected boolean isConditional(int genoClusterKey) throws Exception {
@@ -1833,7 +1830,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected void cacheBsus() throws Exception {
 		logger.info("entered cacheBsus()");
 		if (bsuMap != null) { return; }
-		
+
 		// We need the 'condtionalGenotypes' to determine which genoclusters are conditional.
 		if (conditionalGenoclusters == null) { cacheAllelePairs(); }
 
@@ -1842,14 +1839,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 		int bsuKey = 0;					// incremental key, identifying each BSU
 		bsuMap = new HashMap<Integer,BSU>();
 		humanBsuMap = new HashMap<Integer,Map<Integer,Integer>>();
-		
+
 		/* Of note:
 		 *   1. No genoclusters have human markers.
 		 *   2. Many genoclusters have multiple mouse markers.
 		 *   3. No markers are in more than one gridcluster.
 		 *   4. A small number of markers are not in a homology cluster.
 		 */
-		
+
 		// human marker/disease data, plus homology cluster key
 		String humanQuery = "select gcm.hdp_gridcluster_key, gcm.marker_key, " 
 				+ "  ha.term_key, hc.cluster_key "
@@ -1861,18 +1858,18 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "left outer join homology_cluster hc on ( "
 				+ "  gcm.hdp_gridcluster_key = hc.cluster_key) "
 				+ "order by gcm.marker_key, ha.term_key";
-		
+
 		ResultSet rs = ex.executeProto(humanQuery, cursorLimit);
 		while (rs.next()) {
 			bsuKey++;
 			BSU bsu = new BSU(bsuKey);
-			
+
 			Integer markerKey = rs.getInt("marker_key");
 			Integer termKey = rs.getInt("term_key");
-			
+
 			bsu.setHumanData(rs.getInt("hdp_gridcluster_key"), markerKey, termKey, rs.getInt("cluster_key"));
 			bsuMap.put(bsuKey, bsu);
-			
+
 			if (!humanBsuMap.containsKey(markerKey)) {
 				humanBsuMap.put(markerKey, new HashMap<Integer,Integer>());
 			}
@@ -1889,22 +1886,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 		Timer.reset();
 
 		mouseBsuMap = new HashMap<Integer,Integer>();
-		
+
 		String mouseQuery = "select distinct g.hdp_genocluster_key, gcm.hdp_gridcluster_key "
-			+ "from hdp_genocluster_genotype g "
-			+ "left outer join hdp_genocluster gc on (g.hdp_genocluster_key = gc.hdp_genocluster_key) "
-			+ "left outer join hdp_gridcluster_marker gcm on (gc.marker_key = gcm.marker_key) "
-			+ "order by g.hdp_genocluster_key";
+				+ "from hdp_genocluster_genotype g "
+				+ "left outer join hdp_genocluster gc on (g.hdp_genocluster_key = gc.hdp_genocluster_key) "
+				+ "left outer join hdp_gridcluster_marker gcm on (gc.marker_key = gcm.marker_key) "
+				+ "order by g.hdp_genocluster_key";
 
 		ResultSet rs2 = ex.executeProto(mouseQuery, cursorLimit);
 		while (rs2.next()) {
 			bsuKey++;
 			BSU bsu = new BSU(bsuKey);
-			
+
 			Integer genoclusterKey = rs2.getInt("hdp_genocluster_key");
 			Integer gridclusterKey = rs2.getInt("hdp_gridcluster_key");
 			boolean isConditional = this.isConditional(genoclusterKey);
-			
+
 			bsu.setMouseData(gridclusterKey, genoclusterKey, isConditional);
 			bsuMap.put(bsuKey, bsu);
 			mouseBsuMap.put(genoclusterKey, bsuKey);
@@ -1912,7 +1909,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		rs2.close();
 		logger.info("Cached " + (bsuMap.size() - humanCount) + " mouse genocluster BSUs " + Timer.getElapsedMessage());
 	}
-	
+
 	/* get the BSU for the given human marker key and disease term key.  Returns null
 	 * if there is no BSU for the pair.
 	 */
@@ -1937,7 +1934,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-	
+
 	/* get the list of assigned BSU keys, caching the data if we don't have it yet.
 	 */
 	protected List<Integer> getBsuKeys() throws Exception {
@@ -1951,7 +1948,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("Sorted " + bsuKeys.size() + " BSU keys");
 		return bsuKeys;
 	}
-	
+
 	/* private inner class, used to hold the data for a "basic search unit" for the grid --
 	 * either a genocluster for mouse data or a marker/disease pair for human data.  BSU class
 	 * is available within the package.
@@ -1965,20 +1962,20 @@ public abstract class HdpIndexerSQL extends Indexer {
 		public boolean isMouseData = true;		// is this mouse data (true) or human (false)?
 		public boolean isConditional = false;	// conditional mouse genocluster (true) or not (false)?
 		public Integer homologyClusterKey;		// key of homology cluster for human data
-		
+
 		private BSU() {}
-		
+
 		public BSU(int bsuKey) {
 			this.bsuKey = bsuKey;
 		}
-		
+
 		public void setMouseData(int gridclusterKey, int genoclusterKey, boolean isConditional) {
 			this.gridclusterKey = gridclusterKey;
 			this.genoclusterKey = genoclusterKey;
 			this.isConditional = isConditional;
 			this.isMouseData = true;
 		}
-		
+
 		public void setHumanData(int gridclusterKey, int humanMarkerKey, int diseaseKey, int homologyClusterKey) {
 			this.gridclusterKey = gridclusterKey;
 			this.humanMarkerKey = humanMarkerKey;

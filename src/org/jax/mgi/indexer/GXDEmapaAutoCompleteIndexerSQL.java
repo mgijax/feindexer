@@ -22,14 +22,14 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
 public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 {
-    public GXDEmapaAutoCompleteIndexerSQL ()
-    { super("index.url.gxdEmapaAC"); }
+	public GXDEmapaAutoCompleteIndexerSQL ()
+	{ super("index.url.gxdEmapaAC"); }
 
-    public void index() throws Exception
-    {
-    	Set<String> uniqueIds = new HashSet<String>();
-    	Map<String,Integer> termSort = new HashMap<String,Integer>();
-    	ArrayList<String> termsToSort = new ArrayList<String>();
+	public void index() throws Exception
+	{
+		Set<String> uniqueIds = new HashSet<String>();
+		Map<String,Integer> termSort = new HashMap<String,Integer>();
+		ArrayList<String> termsToSort = new ArrayList<String>();
 
 		logger.info("Gathering distinct structures & synonyms");
 		String query = "WITH anatomy_synonyms as "
@@ -61,39 +61,39 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "from anatomy_synonyms a1 "
 				+ "order by a1.structure ";
 
-        ResultSet rs = ex.executeProto(query);
+		ResultSet rs = ex.executeProto(query);
 
-        Collection<SolrInputDocument> docs =
-	    new ArrayList<SolrInputDocument>();
+		Collection<SolrInputDocument> docs =
+				new ArrayList<SolrInputDocument>();
 
 		// need to gather the terms and synonyms that will appear in the pick
 		// list, so we can compute an ordering for them
-        logger.info("calculating sorts");
-        while(rs.next())
-        {
-		    String term = rs.getString("structure");
-		    String synonym = rs.getString("synonym");
-		 	termsToSort.add(term);
-	 	    termsToSort.add(synonym);
+		logger.info("calculating sorts");
+		while(rs.next())
+		{
+			String term = rs.getString("structure");
+			String synonym = rs.getString("synonym");
+			termsToSort.add(term);
+			termsToSort.add(synonym);
 		}
 
-        // sort the terms and assign a sort value for each in termSort
-        Collections.sort(termsToSort,new SmartAlphaComparator());
+		// sort the terms and assign a sort value for each in termSort
+		Collections.sort(termsToSort,new SmartAlphaComparator());
 
-        for (int i=0; i < termsToSort.size(); i++)
-        {
-        	termSort.put(termsToSort.get(i), i);
-        }
+		for (int i=0; i < termsToSort.size(); i++)
+		{
+			termSort.put(termsToSort.get(i), i);
+		}
 
-        logger.info("Creating the documents");
-        rs = ex.executeProto(query);
+		logger.info("Creating the documents");
+		rs = ex.executeProto(query);
 
-        while (rs.next())
-        {
-            // add the synonym structure combo
-		    String structure = rs.getString("structure");
-		    String synonym = rs.getString("synonym");
-		    Boolean hasCre = rs.getBoolean("has_cre");
+		while (rs.next())
+		{
+			// add the synonym structure combo
+			String structure = rs.getString("structure");
+			String synonym = rs.getString("synonym");
+			Boolean hasCre = rs.getBoolean("has_cre");
 			String startStage = rs.getString("start_stage");
 			String endStage = rs.getString("end_stage");
 			String accID = rs.getString("primary_id");
@@ -103,31 +103,31 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 			String tag = "-" + startStage + "-" + accID;
 			String structure_key = structure + "-" + synonym + "-" + tag;
 
-		    // add an entry for the synonym, if it is defined
-            if (synonym != null && !synonym.equals("") && !uniqueIds.contains(structure_key))
-            {
-            	// strict synonym means that this term only exists as a synonym
-                Boolean isStrictSynonym = rs.getBoolean("is_strict_synonym");
+			// add an entry for the synonym, if it is defined
+			if (synonym != null && !synonym.equals("") && !uniqueIds.contains(structure_key))
+			{
+				// strict synonym means that this term only exists as a synonym
+				Boolean isStrictSynonym = rs.getBoolean("is_strict_synonym");
 
-                uniqueIds.add(structure_key);
-                SolrInputDocument doc = new SolrInputDocument();
-                doc.addField(IndexConstants.STRUCTUREAC_STRUCTURE, structure);
-                doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, synonym);
-                doc.addField(IndexConstants.STRUCTUREAC_QUERYTEXT, synonym);
+				uniqueIds.add(structure_key);
+				SolrInputDocument doc = new SolrInputDocument();
+				doc.addField(IndexConstants.STRUCTUREAC_STRUCTURE, structure);
+				doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, synonym);
+				doc.addField(IndexConstants.STRUCTUREAC_QUERYTEXT, synonym);
 				doc.addField(IndexConstants.GXD_START_STAGE, startStage);
 				doc.addField(IndexConstants.GXD_END_STAGE, endStage);
 				doc.addField(IndexConstants.ACC_ID, accID);
-		        doc.addField(IndexConstants.STRUCTUREAC_BY_SYNONYM, termSort.get(synonym));
-		        doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
-		        doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
-		        doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
-		        docs.add(doc);
-            }
+				doc.addField(IndexConstants.STRUCTUREAC_BY_SYNONYM, termSort.get(synonym));
+				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
+				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
+				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+				docs.add(doc);
+			}
 
 
-            structure_key = structure + "-" + structure + "-" + tag;
-            if (!uniqueIds.contains(structure_key))
-            {
+			structure_key = structure + "-" + structure + "-" + tag;
+			if (!uniqueIds.contains(structure_key))
+			{
 				uniqueIds.add(structure_key);
 				SolrInputDocument doc = new SolrInputDocument();
 				doc.addField(IndexConstants.STRUCTUREAC_STRUCTURE, structure);
@@ -140,11 +140,11 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, false);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
 				docs.add(doc);
-            }
-        } // end while loop
+			}
+		} // end while loop
 
-        logger.info("Adding the documents to the index.");
-        server.add(docs);
-        server.commit();
-    }
+		logger.info("Adding the documents to the index.");
+		writeDocs(docs);
+		commit();
+	}
 }

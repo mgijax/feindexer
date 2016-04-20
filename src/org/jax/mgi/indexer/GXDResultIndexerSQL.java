@@ -37,31 +37,31 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * the structure noted in the result
 	 */
 	private Map<String, List<String>> getAnatomicalSystemMap()
-		throws Exception {
+			throws Exception {
 		logger.info ("building map of high-level EMAPA terms");
 
 		Map<String, List<String>> systemMap =
-			new HashMap<String, List<String>>();
+				new HashMap<String, List<String>>();
 
 		String systemQuery = "select result_key, anatomical_system, "
-			+ "emapa_id "
-			+ "from expression_result_anatomical_systems";
+				+ "emapa_id "
+				+ "from expression_result_anatomical_systems";
 
 		ResultSet rs = ex.executeProto(systemQuery);
 
 		while (rs.next()) {
 			String resultKey = rs.getString("result_key");
 			String system = rs.getString("anatomical_system")
-				+ "_" + rs.getString("emapa_id");
+					+ "_" + rs.getString("emapa_id");
 
 			if (!systemMap.containsKey(resultKey)) {
 				systemMap.put(resultKey,
-					new ArrayList<String>());
+						new ArrayList<String>());
 			}
 			systemMap.get(resultKey).add(system);
 		}
 		logger.info(" - gathered EMAPA terms for "
-			+ systemMap.size() + " results");
+				+ systemMap.size() + " results");
 
 		return systemMap;
 	}
@@ -267,7 +267,7 @@ public class GXDResultIndexerSQL extends Indexer {
 		// which are associated with mouse markers via homology
 
 		ResultSet rs2 = ex.executeProto(
-			SharedQueries.GXD_OMIM_HOMOLOGY_QUERY);
+				SharedQueries.GXD_OMIM_HOMOLOGY_QUERY);
 		int i = 0;
 
 		while (rs2.next()) {
@@ -276,7 +276,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 			if (!markerVocabMap.containsKey(mkey)) {
 				markerVocabMap.put(mkey,
-					new ArrayList<String>());
+						new ArrayList<String>());
 			}
 			if (!markerVocabMap.get(mkey).contains(termId)) {
 				markerVocabMap.get(mkey).add(termId);
@@ -285,8 +285,8 @@ public class GXDResultIndexerSQL extends Indexer {
 		}
 
 		logger.info(" - added " + i
-			+ " annotations to OMIM via homology");
-		
+				+ " annotations to OMIM via homology");
+
 		return markerVocabMap;
 	}
 
@@ -420,7 +420,7 @@ public class GXDResultIndexerSQL extends Indexer {
 		// mapping from result key to List of high-level EMAPA
 		// structures for each result
 		Map<String, List<String>> systemMap =
-			getAnatomicalSystemMap();
+				getAnatomicalSystemMap();
 
 		// mapping from marker key to List of synonyms for each marker
 		Map<String, List<String>> markerNomenMap = getMarkerNomenMap();
@@ -595,7 +595,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				String spatialString = new String("");
 				if ((start_coord != null) && (end_coord != null)) {
 					spatialString = SolrLocationTranslator.getIndexValue(
-					chr,Long.parseLong(start_coord),Long.parseLong(end_coord),true);
+							chr,Long.parseLong(start_coord),Long.parseLong(end_coord),true);
 				}
 				// result sorts
 				String r_by_assay_type = rs.getString("r_by_assay_type");
@@ -874,10 +874,8 @@ public class GXDResultIndexerSQL extends Indexer {
 			} // while loop (stepping through rows for this chunk)
 
 			// add and commit
-			if (!docs.isEmpty()) {
-				server.add(docs);
-			}
-			server.commit();
+			writeDocs(docs);
+			commit();
 
 		} // for loop (stepping through chunks)
 	}

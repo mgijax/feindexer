@@ -27,14 +27,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
-	
+
 	// genocluster key -> [ marker key 1, marker key 2, ... ]
 	protected Map<Integer,List<Integer>> markersPerGenocluster = null;
 
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
-	
+
 	public HdpGridIndexerSQL() {
 		super("index.url.diseasePortalGrid");
 	}
@@ -42,7 +42,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/*-----------------------*/
 	/*--- private methods ---*/
 	/*-----------------------*/
-	
+
 	/* cache the markers associated with each genocluster
 	 */
 	protected void cacheMarkersPerGenocluster() throws Exception {
@@ -52,14 +52,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		Timer.reset();
 
 		String markerQuery = "select hdp_genocluster_key, marker_key "
-			+ "from hdp_genocluster";
+				+ "from hdp_genocluster";
 
 		markersPerGenocluster = new HashMap<Integer,List<Integer>>();
-		
+
 		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
 		while (rs.next()) {
 			Integer gcKey = rs.getInt("hdp_genocluster_key");
-				
+
 			if (!markersPerGenocluster.containsKey(gcKey)) {
 				markersPerGenocluster.put(gcKey, new ArrayList<Integer>());
 			}
@@ -69,7 +69,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 		logger.info("finished retrieving markers for " + markersPerGenocluster.size() + " genoclusters " + Timer.getElapsedMessage());
 	}
-	
+
 	/* retrieve the marker keys associated with the given genocluster key
 	 */
 	protected List<Integer> getMarkers(int genoclusterKey) throws Exception {
@@ -79,7 +79,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		}
 		return null;
 	}
-	
+
 	/* add data for the given marker key to the Solr document
 	 */
 	protected void addMarkerData(DistinctSolrInputDocument doc, int markerKey) throws Exception {
@@ -89,13 +89,13 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addDistinctField(DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
 		doc.addAllDistinct(DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
 		doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM, getMarkerSynonyms(markerKey));
-		
+
 		if (this.isHuman(markerKey)) {
 			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
 		} else {
 			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
 		}
-					
+
 	}
 
 	/* look up the grid cluster for the given marker and add its associated data to the
@@ -107,12 +107,12 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		Integer gck;
 		if (gridclusterKey != null) { gck = gridclusterKey; }
 		else { gck = getGridClusterKey(markerKey); }
-		
+
 		doc.addDistinctField(DiseasePortalFields.GRID_CLUSTER_KEY, gck);
-		
+
 		// only update the homology cluster key (single-valued) if we've not yet defined one
 		doc.addDistinctField(DiseasePortalFields.HOMOLOGY_CLUSTER_KEY, gck);
-		
+
 		// add feature types for all markers in the gridcluster (if there is one) or
 		// for just this marker (if not)
 		Set<String> featureTypes = null;
@@ -129,14 +129,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		}
 		doc.addAllDistinct(DiseasePortalFields.FILTERABLE_FEATURE_TYPES, featureTypes);
 	}
-	
+
 	/* look up orthology data for the given marker and add it to the Solr document
 	 */
 	protected void addOrthologyData(DistinctSolrInputDocument doc, int markerKey) throws Exception {
 		// add data for orthologs of this marker
 		Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
 		if (orthologousMarkerKeys != null) {
-			
+
 			// collect the orthologs' data in sets to avoid duplication in the index
 			Set<String> orthologNomen = new HashSet<String>();
 			Set<String> orthologIds = new HashSet<String>();
@@ -149,7 +149,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			}
 		}
 	}
-	
+
 	/* add data for the given term key to the Solr document
 	 */
 	protected void addTermData(DistinctSolrInputDocument doc, Integer termKey, String termType) throws Exception {
@@ -163,7 +163,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_HEADER, getHeadersByDisease(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
 	}
-	
+
 	/* retrieve the human marker/disease annotations and write the appropriate data
 	 * to the grid index
 	 */
@@ -172,14 +172,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		// returned together.  (This is so our document for the BSU can be built at
 		// one time, rather than requiring all BSUs to be cached in memory for the
 		// entire run of the indexer.
-		
+
 		logger.info("processing human annotations");
 
 		String humanQuery = "select distinct marker_key, term_key, qualifier_type "
-			+ "from hdp_annotation "
-			+ "where annotation_type = 1006 "
-			+ "order by marker_key, term_key";
-		
+				+ "from hdp_annotation "
+				+ "where annotation_type = 1006 "
+				+ "order by marker_key, term_key";
+
 		int lastBsuKey = -1;		// last BSU key that was saved as a document
 
 		DistinctSolrInputDocument doc = null;
@@ -217,15 +217,15 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			// the document for the same BSU as before)
 			addTermData(doc, termKey, omim);
 		}
-		
+
 		// need to push final documents to the server
 		if (doc != null) { docs.add(doc); }
-		if (!docs.isEmpty()) { server.add(docs); }
+		writeDocs(docs);
 		rs.close();
-		
+
 		logger.info("finished processing human annotations");
 	}
-	
+
 	/* retrieve the mouse genocluster disease and phenotype annotations, and write the
 	 * appropriate data to the grid index
 	 */
@@ -234,14 +234,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		// returned together.  (This is so our document for the BSU can be built at
 		// one time, rather than requiring all BSUs to be cached in memory for the
 		// entire run of the indexer.
-		
+
 		logger.info("processing mouse annotations");
 
 		String mouseQuery = "select a.hdp_genocluster_key, a.term_key, a.annotation_type, "
-			+ "  a.qualifier_type, a.term_type "
-			+ "from hdp_genocluster_annotation a "
-			+ "order by a.hdp_genocluster_key";
-		
+				+ "  a.qualifier_type, a.term_type "
+				+ "from hdp_genocluster_annotation a "
+				+ "order by a.hdp_genocluster_key";
+
 		int lastBsuKey = -1;		// last BSU key that was saved as a document
 
 		DistinctSolrInputDocument doc = null;
@@ -251,7 +251,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		while (rs.next()) {
 			Integer genoclusterKey = rs.getInt("hdp_genocluster_key");
 			BSU bsu = getMouseBsu(genoclusterKey);
-			
+
 			Integer termKey = rs.getInt("term_key");
 
 			// assume MP annotation, as those are more common; correct if needed
@@ -297,15 +297,15 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			if (bsu.gridclusterKey != null) { addGridClusterData(doc, null, bsu.gridclusterKey); }
 			addTermData(doc, termKey, annotationType);
 		}
-		
+
 		// need to push final documents to the server
 		if (doc != null) { docs.add(doc); }
-		if (!docs.isEmpty()) { server.add(docs); }
+		writeDocs(docs);
 		rs.close();
-		
+
 		logger.info("finished processing mouse annotations");
 	}
-	
+
 	/* walk through the basic units for searching (genoclusters for mouse data,
 	 * marker/disease pairs for human data), collate the data for each, and send
 	 * them to the index.
@@ -318,10 +318,10 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
-	
+
 	@Override
 	public void index() throws Exception {
 		processGridData();
-		server.commit();
+		commit();
 	}
 }
