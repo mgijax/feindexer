@@ -12,6 +12,7 @@ import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.reporting.Timer;
+import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 
 /* Is: an indexer that builds the index supporting the Grid tab of the HMDC summary
@@ -81,18 +82,18 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	
 	/* add data for the given marker key to the Solr document
 	 */
-	protected void addMarkerData(SolrInputDocument doc, int markerKey) throws Exception {
+	protected void addMarkerData(DistinctSolrInputDocument doc, int markerKey) throws Exception {
 		// add data for this marker
-		doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
-		addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, getMarkerSymbol(markerKey));
-		addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
-		addAll(doc, DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
-		addAll(doc, DiseasePortalFields.MARKER_SYNONYM, getMarkerSynonyms(markerKey));
+		doc.addDistinctField(DiseasePortalFields.MARKER_KEY, markerKey);
+		doc.addDistinctField(DiseasePortalFields.MARKER_SYMBOL, getMarkerSymbol(markerKey));
+		doc.addDistinctField(DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
+		doc.addAllDistinct(DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
+		doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM, getMarkerSynonyms(markerKey));
 		
 		if (this.isHuman(markerKey)) {
-			addAll(doc, DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
+			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
 		} else {
-			addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
+			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
 		}
 					
 	}
@@ -100,19 +101,17 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/* look up the grid cluster for the given marker and add its associated data to the
 	 * Solr document
 	 */
-	protected void addGridClusterData(SolrInputDocument doc, Integer markerKey, Integer gridclusterKey) throws Exception {
+	protected void addGridClusterData(DistinctSolrInputDocument doc, Integer markerKey, Integer gridclusterKey) throws Exception {
 
 		// if given the grid cluster key, go with it.  if not, look it up based on marker.
 		Integer gck;
 		if (gridclusterKey != null) { gck = gridclusterKey; }
 		else { gck = getGridClusterKey(markerKey); }
 		
-		addIfNotNull(doc, DiseasePortalFields.GRID_CLUSTER_KEY, gck);
+		doc.addDistinctField(DiseasePortalFields.GRID_CLUSTER_KEY, gck);
 		
 		// only update the homology cluster key (single-valued) if we've not yet defined one
-		if (!doc.containsKey(DiseasePortalFields.HOMOLOGY_CLUSTER_KEY)) {
-			addIfNotNull(doc, DiseasePortalFields.HOMOLOGY_CLUSTER_KEY, gck);
-		}
+		doc.addDistinctField(DiseasePortalFields.HOMOLOGY_CLUSTER_KEY, gck);
 		
 		// add feature types for all markers in the gridcluster (if there is one) or
 		// for just this marker (if not)
@@ -122,18 +121,18 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			if (!(doc.containsKey(DiseasePortalFields.GRID_HUMAN_SYMBOLS) ||
 					doc.containsKey(DiseasePortalFields.GRID_MOUSE_SYMBOLS))) {
 				featureTypes = getFeatureTypes(gck);
-				addIfNotNull(doc, DiseasePortalFields.GRID_HUMAN_SYMBOLS, getHumanMarkers(gck));
-				addIfNotNull(doc, DiseasePortalFields.GRID_MOUSE_SYMBOLS, getMouseMarkers(gck));
+				doc.addField(DiseasePortalFields.GRID_HUMAN_SYMBOLS, getHumanMarkers(gck));
+				doc.addField(DiseasePortalFields.GRID_MOUSE_SYMBOLS, getMouseMarkers(gck));
 			}
 		} else {
 			featureTypes = getMarkerFeatureTypes(markerKey);
 		}
-		addAll(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, featureTypes);
+		doc.addAllDistinct(DiseasePortalFields.FILTERABLE_FEATURE_TYPES, featureTypes);
 	}
 	
 	/* look up orthology data for the given marker and add it to the Solr document
 	 */
-	protected void addOrthologyData(SolrInputDocument doc, int markerKey) throws Exception {
+	protected void addOrthologyData(DistinctSolrInputDocument doc, int markerKey) throws Exception {
 		// add data for orthologs of this marker
 		Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
 		if (orthologousMarkerKeys != null) {
@@ -143,39 +142,26 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			Set<String> orthologIds = new HashSet<String>();
 
 			for (Integer orthoMarkerKey : orthologousMarkerKeys) {
-				String orthoSymbol = getMarkerSymbol(orthoMarkerKey);
-				String orthoName = getMarkerName(orthoMarkerKey);
-				Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
-				Set<String> orthoSynonyms = getMarkerSynonyms(orthoMarkerKey);
-							
-				if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
-				if (orthoName != null) { orthologNomen.add(orthoName); }
-				if (orthoSynonyms != null) { orthologNomen.addAll(orthoSynonyms); }
-				if (orthoIds != null) { orthologIds.addAll(orthoIds); }
-			}
-
-			
-			if (orthologNomen.size() > 0) {
-				addAll(doc, DiseasePortalFields.ORTHOLOG_NOMEN, orthologNomen);
-			}
-			if (orthologIds.size() > 0) {
-				addAll(doc, DiseasePortalFields.ORTHOLOG_ID, orthologIds);
+				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerSymbol(orthoMarkerKey));
+				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerName(orthoMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerSynonyms(orthoMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.ORTHOLOG_ID, getMarkerIds(orthoMarkerKey));
 			}
 		}
 	}
 	
 	/* add data for the given term key to the Solr document
 	 */
-	protected void addTermData(SolrInputDocument doc, Integer termKey, String termType) throws Exception {
+	protected void addTermData(DistinctSolrInputDocument doc, Integer termKey, String termType) throws Exception {
 		if (termKey == null) { return; }
-		addIfNotNull(doc, DiseasePortalFields.TERM, getTerm(termKey));
-		addIfNotNull(doc, DiseasePortalFields.TERM_ID, getTermId(termKey));
-		addIfNotNull(doc, DiseasePortalFields.TERM_TYPE, termType); 
-		addAll(doc, DiseasePortalFields.TERM_SYNONYM, getTermSynonyms(termKey));
-		addAll(doc, DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
-		addAll(doc, DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
-		addAll(doc, DiseasePortalFields.TERM_HEADER, getHeadersByDisease(termKey));
-		addAll(doc, DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
+		doc.addDistinctField(DiseasePortalFields.TERM, getTerm(termKey));
+		doc.addDistinctField(DiseasePortalFields.TERM_ID, getTermId(termKey));
+		doc.addDistinctField(DiseasePortalFields.TERM_TYPE, termType); 
+		doc.addAllDistinct(DiseasePortalFields.TERM_SYNONYM, getTermSynonyms(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_HEADER, getHeadersByDisease(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
 	}
 	
 	/* retrieve the human marker/disease annotations and write the appropriate data
@@ -196,7 +182,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		
 		int lastBsuKey = -1;		// last BSU key that was saved as a document
 
-		SolrInputDocument doc = null;
+		DistinctSolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 		ResultSet rs = ex.executeProto(humanQuery, cursorLimit);
@@ -217,7 +203,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				lastBsuKey = bsu.bsuKey;
 
 				// need to start a new document...
-				doc = new SolrInputDocument();
+				doc = new DistinctSolrInputDocument();
 				doc.addField(DiseasePortalFields.UNIQUE_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
@@ -258,7 +244,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		
 		int lastBsuKey = -1;		// last BSU key that was saved as a document
 
-		SolrInputDocument doc = null;
+		DistinctSolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);
@@ -284,11 +270,11 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				lastBsuKey = bsu.bsuKey;
 
 				// need to start a new document...
-				doc = new SolrInputDocument();
+				doc = new DistinctSolrInputDocument();
 				doc.addField(DiseasePortalFields.UNIQUE_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
-				addIfNotNull(doc, DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
+				doc.addField(DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
 
 				if (isConditional(genoclusterKey)) {
 					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 1);
