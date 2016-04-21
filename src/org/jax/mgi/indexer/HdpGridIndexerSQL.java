@@ -11,9 +11,11 @@ import java.util.Set;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
+import org.jax.org.mgi.shr.fe.util.GridMarker;
 
 /* Is: an indexer that builds the index supporting the Grid tab of the HMDC summary
  *		page.  Each document in the index represents a basic unit of HMDC searching:
@@ -31,6 +33,9 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	// genocluster key -> [ marker key 1, marker key 2, ... ]
 	protected Map<Integer,List<Integer>> markersPerGenocluster = null;
 
+	// single instance shared for converting objects into JSON
+	protected ObjectMapper mapper = new ObjectMapper();
+	
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -122,8 +127,16 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			if (!(doc.containsKey(DiseasePortalFields.GRID_HUMAN_SYMBOLS) ||
 					doc.containsKey(DiseasePortalFields.GRID_MOUSE_SYMBOLS))) {
 				featureTypes = getFeatureTypes(gck);
-				doc.addField(DiseasePortalFields.GRID_HUMAN_SYMBOLS, getHumanMarkers(gck));
-				doc.addField(DiseasePortalFields.GRID_MOUSE_SYMBOLS, getMouseMarkers(gck));
+				
+				List<GridMarker> humanGM = getHumanMarkers(gck);
+				if ((humanGM != null) && (humanGM.size() > 0)) {
+					doc.addField(DiseasePortalFields.GRID_HUMAN_SYMBOLS, mapper.writeValueAsString(humanGM));
+				}
+
+				List<GridMarker> mouseGM = getMouseMarkers(gck);
+				if ((mouseGM != null) && (mouseGM.size() > 0)) {
+					doc.addField(DiseasePortalFields.GRID_MOUSE_SYMBOLS, mapper.writeValueAsString(mouseGM));
+				}
 			}
 		} else {
 			featureTypes = getMarkerFeatureTypes(markerKey);

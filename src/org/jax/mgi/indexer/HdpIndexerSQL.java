@@ -17,6 +17,7 @@ import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
+import org.jax.org.mgi.shr.fe.util.GridMarker;
 
 /* Is: parent class of the various HMDC-related indexers (Hdp*)
  * Has: knowledge of how to produce various temp tables, mappings, and such
@@ -81,8 +82,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	Map<Integer,Map<Integer,Integer>> humanBsuMap = null;	// marker key -> disease key -> BSU key
 	Map<Integer,Map<Integer,Integer>> mouseBsuMap = null;	// genocluster key -> gridcluster key -> BSU key
 
-	Map<Integer,String> gcToHumanMarkers = null;	// maps gridcluster key to human marker data
-	Map<Integer,String> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data
+	Map<Integer,List<GridMarker>> gcToHumanMarkers = null;	// maps gridcluster key to human marker data
+	Map<Integer,List<GridMarker>> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data
 	Map<Integer,String> allelePairs = null;			// maps genocluster key to allele pair data
 	Set<Integer> conditionalGenoclusters = null;	// set of conditional genocluster keys
 
@@ -1755,8 +1756,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("retrieving gridcluster markers");
 		Timer.reset();
 
-		gcToHumanMarkers = new HashMap<Integer,String>();
-		gcToMouseMarkers = new HashMap<Integer,String>();
+		gcToHumanMarkers = new HashMap<Integer,List<GridMarker>>();
+		gcToMouseMarkers = new HashMap<Integer,List<GridMarker>>();
 
 		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, "
 				+ "  m.primary_id, ms.by_symbol, m.marker_type, m.marker_subtype, m.name "
@@ -1766,6 +1767,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "order by ms.by_symbol";
 
 		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
+		
+		List<GridMarker> humanGM = new ArrayList<GridMarker>();
+		List<GridMarker> mouseGM = new ArrayList<GridMarker>();
+		
 		while (rs.next()) {
 			Integer gcKey = rs.getInt("hdp_gridcluster_key");
 			String organism = rs.getString("organism");
@@ -1776,18 +1781,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String markerSubType = rs.getString("marker_subtype");
 
 			if ("human".equals(organism)) {
-				String info = symbol + "|" + accId + "|" + name + "|" + markerType;
+				humanGM.add(new GridMarker(symbol, accId, name, markerType));
 				if (!gcToHumanMarkers.containsKey(gcKey)) {
-					gcToHumanMarkers.put(gcKey, info);
-				} else {
-					gcToHumanMarkers.put(gcKey, gcToHumanMarkers.get(gcKey) + ", " + info);
+					gcToHumanMarkers.put(gcKey, humanGM);
 				}
 			} else {
-				String info = symbol + "|" + accId + "|" + name + "|" + markerSubType;
+				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType));
 				if (!gcToMouseMarkers.containsKey(gcKey)) {
-					gcToMouseMarkers.put(gcKey, info);
-				} else {
-					gcToMouseMarkers.put(gcKey, gcToMouseMarkers.get(gcKey) + ", " + info);
+					gcToMouseMarkers.put(gcKey, mouseGM);
 				}
 			}
 		}
@@ -1795,11 +1796,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("  - retrieved marker data for gridclusters " + Timer.getElapsedMessage());
 	}
 
-	/* get the mouse marker data for the given grid cluster key, formatted as:
-	 *   Symbol1|ID1, Symbol2|ID2, ...
+	/* get the mouse marker data for the given grid cluster key;
 	 * returns null if no mouse markers or unknown grid cluster key
 	 */
-	protected String getMouseMarkers(int gridClusterKey) throws Exception {
+	protected List<GridMarker> getMouseMarkers(int gridClusterKey) throws Exception {
 		if (gcToMouseMarkers == null) { cacheGridClusterMarkers(); }
 		if (gcToMouseMarkers.containsKey(gridClusterKey)) {
 			return gcToMouseMarkers.get(gridClusterKey);
@@ -1807,11 +1807,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
-	/* get the human marker data for the given grid cluster key, formatted as:
-	 *   Symbol1|ID1, Symbol2|ID2, ...
+	/* get the human marker data for the given grid cluster key;
 	 * returns null if no human markers or unknown grid cluster key
 	 */
-	protected String getHumanMarkers(int gridClusterKey) throws Exception {
+	protected List<GridMarker> getHumanMarkers(int gridClusterKey) throws Exception {
 		if (gcToHumanMarkers == null) { cacheGridClusterMarkers(); }
 		if (gcToHumanMarkers.containsKey(gridClusterKey)) {
 			return gcToHumanMarkers.get(gridClusterKey);
