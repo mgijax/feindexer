@@ -45,6 +45,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 	/* cache the markers associated with each genocluster
 	 */
+	/*
 	protected void cacheMarkersPerGenocluster() throws Exception {
 		if (markersPerGenocluster != null) { return; }
 
@@ -69,9 +70,8 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 		logger.info("finished retrieving markers for " + markersPerGenocluster.size() + " genoclusters " + Timer.getElapsedMessage());
 	}
-
+*/
 	/* retrieve the marker keys associated with the given genocluster key
-	 */
 	protected List<Integer> getMarkers(int genoclusterKey) throws Exception {
 		if (markersPerGenocluster == null) { cacheMarkersPerGenocluster(); }
 		if (markersPerGenocluster.containsKey(genoclusterKey)) {
@@ -79,6 +79,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		}
 		return null;
 	}
+	*/
 
 	/* add data for the given marker key to the Solr document
 	 */
@@ -243,12 +244,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 		logger.info("processing mouse annotations");
 
-		String mouseQuery = "select a.hdp_genocluster_key, a.term_key, a.annotation_type, "
-				+ "  a.qualifier_type, a.term_type "
-				+ "from hdp_genocluster_annotation a "
-				+ "order by a.hdp_genocluster_key";
+		String mouseQuery = "select a.hdp_genocluster_key, gc.marker_key, "
+				+ "  a.term_key, a.annotation_type, a.qualifier_type, a.term_type "
+				+ "from hdp_genocluster_annotation a, "
+				+ "  hdp_genocluster gc "
+				+ "where a.hdp_genocluster_key = gc.hdp_genocluster_key "
+				+ "order by a.hdp_genocluster_key, gc.marker_key";
 
-		int lastGenoclusterKey = -1;		// last GC key that was saved as a document
+		int lastBsuKey = -1;		// last BSU key that was saved as a document
 
 		DistinctSolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
@@ -256,40 +259,38 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);
 		while (rs.next()) {
 			Integer genoclusterKey = rs.getInt("hdp_genocluster_key");
+			Integer markerKey = rs.getInt("marker_key");
 			Integer termKey = rs.getInt("term_key");
 
-			BSU bsu = getMouseBsu(genoclusterKey);
-			if (bsu == null) {
-				logger.info("null BSU for genocluster key: " + genoclusterKey);
-			}
+			// Note that we skip any genoclusters that cannot be tied to a gridcluster.
+			Integer gridclusterKey = getGridClusterKey(markerKey);
+			if (gridclusterKey == null) { continue; }
+
+			BSU bsu = getMouseBsu(genoclusterKey, gridclusterKey);
+			if (bsu == null) { continue; }
 
 			// assume MP annotation, as those are more common; correct if needed
 			String annotationType = mp;
 			if (1005 == rs.getInt("annotation_type")) { annotationType = omim; }
 
-			/* a genocluster can be associated with multiple gridclusters, which means that
-			 * we need to handle multiple gridcluster keys in the BSU.
-			 */
-			if (lastGenoclusterKey != genoclusterKey) {
-				if (lastGenoclusterKey >= 0) {
-					// only save this document if it can be tied to a gridcluster
-					if (doc.containsKey(DiseasePortalFields.GRID_CLUSTER_KEY)) {
-						// save this document and write to the server if our queue is big enough
-						docs.add(doc);
-						if (docs.size() >= solrBatchSize) {
-							writeDocs(docs);
-							docs = new ArrayList<SolrInputDocument>();
-						}
+			if (lastBsuKey != bsu.bsuKey) {
+				if (lastBsuKey >= 0) {
+					// save this document and write to the server if our queue is big enough
+					docs.add(doc);
+					if (docs.size() >= solrBatchSize) {
+						writeDocs(docs);
+						docs = new ArrayList<SolrInputDocument>();
 					}
 				}
-				lastGenoclusterKey = genoclusterKey;
+				lastBsuKey = bsu.bsuKey;
 
 				// need to start a new document...
 				doc = new DistinctSolrInputDocument();
 				doc.addField(DiseasePortalFields.UNIQUE_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
-				doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
 				doc.addField(DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
+				doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
+				addGridClusterData(doc, null, gridclusterKey);
 
 				if (isConditional(genoclusterKey)) {
 					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 1);
@@ -297,22 +298,19 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
 				}
 
-				List<Integer> markerKeys = getMarkers(genoclusterKey);
-				if (markerKeys != null) {
-					for (Integer markerKey : markerKeys) {
-						addMarkerData(doc, markerKey); 
-						addOrthologyData(doc, markerKey);
-					}
-				}
+//				List<Integer> markerKeys = getMarkers(genoclusterKey);
+//				if (markerKeys != null) {
+//					for (Integer mrkKey : markerKeys) {
+				addMarkerData(doc, markerKey); 
+				addOrthologyData(doc, markerKey);
+//					}
+//				}
 			}
 
 			// fields to add to the current document (whether new or continuing to fill
 			// the document for the same BSU as before)
 
 			addTermData(doc, termKey, annotationType);
-			for (Integer gridclusterKey : bsu.gridclusterKeys) {
-				addGridClusterData(doc, null, gridclusterKey);
-			}
 		}
 
 		// add the final doc, if it can be tied to a gridcluster

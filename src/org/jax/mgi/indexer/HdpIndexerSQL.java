@@ -27,6 +27,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 * should be defined in any concrete subclasses.
 	 *    abstract void index() throws Exception {}
 	 */
+	
 
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -78,7 +79,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Map<Integer,BSU> bsuMap = null;				// maps BSU key to its cached data
 	Map<Integer,Map<Integer,Integer>> humanBsuMap = null;	// marker key -> disease key -> BSU key
-	Map<Integer,Integer> mouseBsuMap = null;				// genocluster key -> BSU key
+	Map<Integer,Map<Integer,Integer>> mouseBsuMap = null;	// genocluster key -> gridcluster key -> BSU key
 
 	Map<Integer,String> gcToHumanMarkers = null;	// maps gridcluster key to human marker data
 	Map<Integer,String> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data
@@ -574,11 +575,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Timer.reset();
 			homologyMap = new HashMap<Integer,Integer>();
 
-			String homologyQuery = "select m.marker_key, m.hdp_gridcluster_key "
-					+ "from hdp_gridcluster g, hdp_gridcluster_marker m "
-					+ "where g.hdp_gridcluster_key = m.hdp_gridcluster_key "
-					+ " and g.source is not null";
-
+			String homologyQuery = "select gcm.marker_key, gcm.hdp_gridcluster_key "
+				+ "from hdp_gridcluster_marker gcm";
+			
 			ResultSet rs = ex.executeProto(homologyQuery, cursorLimit);
 			while (rs.next()) {
 				homologyMap.put(rs.getInt("marker_key"), rs.getInt("hdp_gridcluster_key"));
@@ -1760,7 +1759,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		gcToMouseMarkers = new HashMap<Integer,String>();
 
 		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, "
-				+ "  m.primary_id, ms.by_symbol "
+				+ "  m.primary_id, ms.by_symbol, m.marker_type, m.marker_subtype, m.name "
 				+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
 				+ "where gcm.marker_key = m.marker_key "
 				+ "  and m.marker_key = ms.marker_key "
@@ -1771,19 +1770,24 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Integer gcKey = rs.getInt("hdp_gridcluster_key");
 			String organism = rs.getString("organism");
 			String symbol = rs.getString("symbol");
+			String name = rs.getString("name");
 			String accId = rs.getString("primary_id");
+			String markerType = rs.getString("marker_type");
+			String markerSubType = rs.getString("marker_subtype");
 
 			if ("human".equals(organism)) {
+				String info = symbol + "|" + accId + "|" + name + "|" + markerType;
 				if (!gcToHumanMarkers.containsKey(gcKey)) {
-					gcToHumanMarkers.put(gcKey, symbol + "|" + accId);
+					gcToHumanMarkers.put(gcKey, info);
 				} else {
-					gcToHumanMarkers.put(gcKey, gcToHumanMarkers.get(gcKey) + ", " + symbol + "|" + accId);
+					gcToHumanMarkers.put(gcKey, gcToHumanMarkers.get(gcKey) + ", " + info);
 				}
 			} else {
+				String info = symbol + "|" + accId + "|" + name + "|" + markerSubType;
 				if (!gcToMouseMarkers.containsKey(gcKey)) {
-					gcToMouseMarkers.put(gcKey, symbol + "|" + accId);
+					gcToMouseMarkers.put(gcKey, info);
 				} else {
-					gcToMouseMarkers.put(gcKey, gcToMouseMarkers.get(gcKey) + ", " + symbol + "|" + accId);
+					gcToMouseMarkers.put(gcKey, gcToMouseMarkers.get(gcKey) + ", " + info);
 				}
 			}
 		}
@@ -1866,7 +1870,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 
 	/* look up data for the BSUs and cache them in memory, assigning a new integer key
-	 * to each BSU.
+	 * to each BSU.  Each BSU's uniqueness is defined by:
+	 *		1. marker/disease pair for human data
+	 *		2. genocluster/gridcluster pair for mouse data
 	 */
 	protected void cacheBsus() throws Exception {
 		logger.info("entered cacheBsus()");
@@ -1886,7 +1892,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 		 *   2. Many genoclusters have multiple mouse markers.
 		 *   3. No markers are in more than one gridcluster.
 		 *   4. A small number of markers are not in a homology cluster.
-		 *   5. It is possible for a genocluster to have more than one gridcluster.
+		 *   5. It is possible for a genocluster to have more than one gridcluster,
+		 *   	happening often for transgenes.  (in 900+ genoclusters currently)
 		 */
 
 		// human marker/disease data, plus homology cluster key
@@ -1928,7 +1935,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		Timer.reset();
 
-		mouseBsuMap = new HashMap<Integer,Integer>();
+		mouseBsuMap = new HashMap<Integer,Map<Integer,Integer>>();
 
 		String mouseQuery = "select distinct gg.hdp_genocluster_key, gcm.hdp_gridcluster_key "
 			+ "from hdp_genocluster_genotype gg "
@@ -1936,29 +1943,24 @@ public abstract class HdpIndexerSQL extends Indexer {
 			+ "left outer join hdp_gridcluster_marker gcm on (gc.marker_key = gcm.marker_key) "
 			+ "order by gg.hdp_genocluster_key, gcm.hdp_gridcluster_key";
 
-		int lastGenoclusterKey = -1;
-		
 		ResultSet rs2 = ex.executeProto(mouseQuery, cursorLimit);
-		BSU bsu = null;
 		
 		while (rs2.next()) {
 			Integer genoclusterKey = rs2.getInt("hdp_genocluster_key");
 			Integer gridclusterKey = rs2.getInt("hdp_gridcluster_key");
 			
-			if (genoclusterKey != lastGenoclusterKey) {
-				bsuKey++;
-				bsu = new BSU(bsuKey);
+			bsuKey++;
+			BSU bsu = new BSU(bsuKey);
 
-				boolean isConditional = this.isConditional(genoclusterKey);
+			boolean isConditional = this.isConditional(genoclusterKey);
 
-				bsu.setMouseData(gridclusterKey, genoclusterKey, isConditional);
-				bsuMap.put(bsuKey, bsu);
-				mouseBsuMap.put(genoclusterKey, bsuKey);
-
-				lastGenoclusterKey = genoclusterKey;
-			} else {
-				bsu.addGridClusterKey(gridclusterKey);
+			bsu.setMouseData(gridclusterKey, genoclusterKey, isConditional);
+			bsuMap.put(bsuKey, bsu);
+			
+			if (!mouseBsuMap.containsKey(genoclusterKey)) {
+				mouseBsuMap.put(genoclusterKey, new HashMap<Integer,Integer>());
 			}
+			mouseBsuMap.get(genoclusterKey).put(gridclusterKey, bsuKey);
 		}
 		rs2.close();
 		logger.info("Cached " + (bsuMap.size() - humanCount) + " mouse genocluster BSUs " + Timer.getElapsedMessage());
@@ -1978,39 +1980,27 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
-	/* get the BSU for the given mouse genocluster key.  Returns null if there is no
-	 * corresponding BSU for that key.
+	/* get the BSU for the given mouse genocluster/gridcluster pair.  Returns null
+	 * if there is no corresponding BSU for that pair.
 	 */
-	protected BSU getMouseBsu(int genoclusterKey) throws Exception {
+	protected BSU getMouseBsu(int genoclusterKey, int gridclusterKey) throws Exception {
 		if (mouseBsuMap == null) { cacheBsus(); }
 		if (mouseBsuMap.containsKey(genoclusterKey)) {
-			return bsuMap.get(mouseBsuMap.get(genoclusterKey));
+			if (mouseBsuMap.get(genoclusterKey).containsKey(gridclusterKey)) {
+				return bsuMap.get(mouseBsuMap.get(genoclusterKey).get(gridclusterKey));
+			}
 		}
 		return null;
 	}
 
-	/* get the list of assigned BSU keys, caching the data if we don't have it yet.
-	 */
-	protected List<Integer> getBsuKeys() throws Exception {
-		if (bsuMap == null) { cacheBsus(); }
-
-		List<Integer> bsuKeys = new ArrayList<Integer>();
-		bsuKeys.addAll(bsuMap.keySet());
-		logger.info("Retrieved " + bsuKeys.size() + " BSU keys");
-
-		Collections.sort(bsuKeys);
-		logger.info("Sorted " + bsuKeys.size() + " BSU keys");
-		return bsuKeys;
-	}
-
 	/* private inner class, used to hold the data for a "basic search unit" for the grid --
-	 * either a genocluster for mouse data or a marker/disease pair for human data.  BSU class
-	 * is available within the package.
+	 * either a genocluster/gridcluster pair for mouse data or a marker/disease pair for
+	 * human data.  BSU class is available within the package.
 	 */
 	class BSU {
 		public int bsuKey;						// unique key for this BSU
 		public Integer genoclusterKey;			// key of genocluster for mouse data (optional)
-		public Set<Integer> gridclusterKeys;		// set of gridcluster keys (each a grid row)
+		public Integer gridclusterKey;			// gridcluster key (identifies a grid row)
 		public Integer humanMarkerKey;			// key of marker for human data 
 		public Integer diseaseKey;				// key of disease term for human data 
 		public boolean isMouseData = true;		// is this mouse data (true) or human (false)?
@@ -2021,29 +2011,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		public BSU(int bsuKey) {
 			this.bsuKey = bsuKey;
-			this.gridclusterKeys = new HashSet<Integer>();
 		}
 
 		public void setMouseData(Integer gridclusterKey, int genoclusterKey, boolean isConditional) {
-			this.addGridClusterKey(gridclusterKey);
+			this.gridclusterKey = gridclusterKey;
 			this.genoclusterKey = genoclusterKey;
 			this.isConditional = isConditional;
 			this.isMouseData = true;
 		}
 
 		public void setHumanData(Integer gridclusterKey, int humanMarkerKey, int diseaseKey, int homologyClusterKey) {
-			this.addGridClusterKey(gridclusterKey);
+			this.gridclusterKey = gridclusterKey;
 			this.humanMarkerKey = humanMarkerKey;
 			this.diseaseKey = diseaseKey;
 			this.homologyClusterKey = homologyClusterKey;
 			this.isMouseData = false;
 			this.isConditional = false;
-		}
-		
-		public void addGridClusterKey(Integer gridclusterKey) {
-			if ((gridclusterKey != null) && (gridclusterKey > 0)) {
-				this.gridclusterKeys.add(gridclusterKey);
-			}
 		}
 	}
 }
