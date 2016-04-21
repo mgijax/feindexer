@@ -193,11 +193,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 			if (lastBsuKey != bsu.bsuKey) {
 				if (lastBsuKey >= 0) {
-					// need to save this document; write to the server if our queue is big enough
-					docs.add(doc);
-					if (docs.size() >= solrBatchSize) {
-						writeDocs(docs);
-						docs = new ArrayList<SolrInputDocument>();
+					// only save this document if it can be tied to a gridcluster
+					if (doc.containsKey(DiseasePortalFields.GRID_CLUSTER_KEY)) {
+						// save this document and write to the server if our queue is big enough
+						docs.add(doc);
+						if (docs.size() >= solrBatchSize) {
+							writeDocs(docs);
+							docs = new ArrayList<SolrInputDocument>();
+						}
 					}
 				}
 				lastBsuKey = bsu.bsuKey;
@@ -218,8 +221,11 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			addTermData(doc, termKey, omim);
 		}
 
+		// save the final doc, if it can be tied to a gridcluster
 		// need to push final documents to the server
-		if (doc != null) { docs.add(doc); }
+		if ((doc != null) && (doc.containsKey(DiseasePortalFields.GRID_CLUSTER_KEY))) {
+			docs.add(doc); 
+		}
 		writeDocs(docs);
 		rs.close();
 
@@ -266,11 +272,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			 */
 			if (lastGenoclusterKey != genoclusterKey) {
 				if (lastGenoclusterKey >= 0) {
-					// need to save this document; write to the server if our queue is big enough
-					docs.add(doc);
-					if (docs.size() >= solrBatchSize) {
-						writeDocs(docs);
-						docs = new ArrayList<SolrInputDocument>();
+					// only save this document if it can be tied to a gridcluster
+					if (doc.containsKey(DiseasePortalFields.GRID_CLUSTER_KEY)) {
+						// save this document and write to the server if our queue is big enough
+						docs.add(doc);
+						if (docs.size() >= solrBatchSize) {
+							writeDocs(docs);
+							docs = new ArrayList<SolrInputDocument>();
+						}
 					}
 				}
 				lastGenoclusterKey = genoclusterKey;
@@ -306,8 +315,11 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			}
 		}
 
+		// add the final doc, if it can be tied to a gridcluster
+		if ((doc != null) && (doc.containsKey(DiseasePortalFields.GRID_CLUSTER_KEY))) {
+			docs.add(doc); 
+		}
 		// need to push final documents to the server
-		if (doc != null) { docs.add(doc); }
 		writeDocs(docs);
 		rs.close();
 
