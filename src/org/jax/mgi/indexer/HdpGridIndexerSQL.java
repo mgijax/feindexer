@@ -102,11 +102,11 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	 * Solr document
 	 */
 	protected void addGridClusterData(DistinctSolrInputDocument doc, Integer markerKey, Integer gridclusterKey) throws Exception {
-
 		// if given the grid cluster key, go with it.  if not, look it up based on marker.
 		Integer gck;
 		if (gridclusterKey != null) { gck = gridclusterKey; }
-		else { gck = getGridClusterKey(markerKey); }
+		else if (markerKey != null) { gck = getGridClusterKey(markerKey); }
+		else { return; }
 
 		doc.addDistinctField(DiseasePortalFields.GRID_CLUSTER_KEY, gck);
 
@@ -242,7 +242,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				+ "from hdp_genocluster_annotation a "
 				+ "order by a.hdp_genocluster_key";
 
-		int lastBsuKey = -1;		// last BSU key that was saved as a document
+		int lastGenoclusterKey = -1;		// last GC key that was saved as a document
 
 		DistinctSolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
@@ -250,16 +250,22 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);
 		while (rs.next()) {
 			Integer genoclusterKey = rs.getInt("hdp_genocluster_key");
-			BSU bsu = getMouseBsu(genoclusterKey);
-
 			Integer termKey = rs.getInt("term_key");
+
+			BSU bsu = getMouseBsu(genoclusterKey);
+			if (bsu == null) {
+				logger.info("null BSU for genocluster key: " + genoclusterKey);
+			}
 
 			// assume MP annotation, as those are more common; correct if needed
 			String annotationType = mp;
 			if (1005 == rs.getInt("annotation_type")) { annotationType = omim; }
 
-			if (lastBsuKey != bsu.bsuKey) {
-				if (lastBsuKey >= 0) {
+			/* a genocluster can be associated with multiple gridclusters, which means that
+			 * we need to handle multiple gridcluster keys in the BSU.
+			 */
+			if (lastGenoclusterKey != genoclusterKey) {
+				if (lastGenoclusterKey >= 0) {
 					// need to save this document; write to the server if our queue is big enough
 					docs.add(doc);
 					if (docs.size() >= solrBatchSize) {
@@ -267,7 +273,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 						docs = new ArrayList<SolrInputDocument>();
 					}
 				}
-				lastBsuKey = bsu.bsuKey;
+				lastGenoclusterKey = genoclusterKey;
 
 				// need to start a new document...
 				doc = new DistinctSolrInputDocument();
@@ -294,8 +300,10 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			// fields to add to the current document (whether new or continuing to fill
 			// the document for the same BSU as before)
 
-			if (bsu.gridclusterKey != null) { addGridClusterData(doc, null, bsu.gridclusterKey); }
 			addTermData(doc, termKey, annotationType);
+			for (Integer gridclusterKey : bsu.gridclusterKeys) {
+				addGridClusterData(doc, null, gridclusterKey);
+			}
 		}
 
 		// need to push final documents to the server
