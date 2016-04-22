@@ -33,9 +33,6 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	// genocluster key -> [ marker key 1, marker key 2, ... ]
 	protected Map<Integer,List<Integer>> markersPerGenocluster = null;
 
-	// single instance shared for converting objects into JSON
-	protected ObjectMapper mapper = new ObjectMapper();
-	
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -128,14 +125,14 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 					doc.containsKey(DiseasePortalFields.GRID_MOUSE_SYMBOLS))) {
 				featureTypes = getFeatureTypes(gck);
 				
-				List<GridMarker> humanGM = getHumanMarkers(gck);
-				if ((humanGM != null) && (humanGM.size() > 0)) {
-					doc.addField(DiseasePortalFields.GRID_HUMAN_SYMBOLS, mapper.writeValueAsString(humanGM));
+				String humanGM = getHumanMarkers(gck);
+				if ((humanGM != null) && (humanGM.length() > 0)) {
+					doc.addField(DiseasePortalFields.GRID_HUMAN_SYMBOLS, humanGM);
 				}
 
-				List<GridMarker> mouseGM = getMouseMarkers(gck);
-				if ((mouseGM != null) && (mouseGM.size() > 0)) {
-					doc.addField(DiseasePortalFields.GRID_MOUSE_SYMBOLS, mapper.writeValueAsString(mouseGM));
+				String mouseGM = getMouseMarkers(gck);
+				if ((mouseGM != null) && (mouseGM.length() > 0)) {
+					doc.addField(DiseasePortalFields.GRID_MOUSE_SYMBOLS, mouseGM);
 				}
 			}
 		} else {

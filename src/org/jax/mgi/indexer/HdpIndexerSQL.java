@@ -13,6 +13,7 @@ import java.util.Set;
 
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrInputDocument;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
@@ -34,6 +35,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*--- instance variables ---*/
 	/*--------------------------*/
 
+	// single instance shared for converting objects into JSON
+	protected ObjectMapper mapper = new ObjectMapper();
+	
 	protected int cursorLimit = 10000;				// number of records to retrieve at once
 
 	protected int uniqueKey = 0;					// (incremental) unique key for index documents
@@ -82,8 +86,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	Map<Integer,Map<Integer,Integer>> humanBsuMap = null;	// marker key -> disease key -> BSU key
 	Map<Integer,Map<Integer,Integer>> mouseBsuMap = null;	// genocluster key -> gridcluster key -> BSU key
 
-	Map<Integer,List<GridMarker>> gcToHumanMarkers = null;	// maps gridcluster key to human marker data
-	Map<Integer,List<GridMarker>> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data
+	Map<Integer,String> gcToHumanMarkers = null;	// maps gridcluster key to human marker data as JSON
+	Map<Integer,String> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data as JSON
 	Map<Integer,String> allelePairs = null;			// maps genocluster key to allele pair data
 	Set<Integer> conditionalGenoclusters = null;	// set of conditional genocluster keys
 
@@ -1756,20 +1760,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("retrieving gridcluster markers");
 		Timer.reset();
 
-		gcToHumanMarkers = new HashMap<Integer,List<GridMarker>>();
-		gcToMouseMarkers = new HashMap<Integer,List<GridMarker>>();
+		gcToHumanMarkers = new HashMap<Integer,String>();
+		gcToMouseMarkers = new HashMap<Integer,String>();
 
 		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, "
 				+ "  m.primary_id, ms.by_symbol, m.marker_type, m.marker_subtype, m.name "
 				+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
 				+ "where gcm.marker_key = m.marker_key "
 				+ "  and m.marker_key = ms.marker_key "
-				+ "order by ms.by_symbol";
+				+ "order by gcm.hdp_gridcluster_key, m.organism, ms.by_symbol";
 
 		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
 		
-		List<GridMarker> humanGM = new ArrayList<GridMarker>();
-		List<GridMarker> mouseGM = new ArrayList<GridMarker>();
+		List<GridMarker> humanGM = null;
+		List<GridMarker> mouseGM = null;
+		
+		Integer lastGcKey = -1;
 		
 		while (rs.next()) {
 			Integer gcKey = rs.getInt("hdp_gridcluster_key");
@@ -1780,26 +1786,39 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String markerType = rs.getString("marker_type");
 			String markerSubType = rs.getString("marker_subtype");
 
+			// beginning to collect for a new gridcluster
+			if (lastGcKey != gcKey) {
+				// need to save the old gridcluster data, if there is any
+				if (lastGcKey >= 0) {
+					gcToHumanMarkers.put(lastGcKey, mapper.writeValueAsString(humanGM));
+					gcToMouseMarkers.put(lastGcKey, mapper.writeValueAsString(mouseGM));
+				}
+				humanGM = new ArrayList<GridMarker>();
+				mouseGM = new ArrayList<GridMarker>();
+				lastGcKey = gcKey;
+			}
+
 			if ("human".equals(organism)) {
 				humanGM.add(new GridMarker(symbol, accId, name, markerType));
-				if (!gcToHumanMarkers.containsKey(gcKey)) {
-					gcToHumanMarkers.put(gcKey, humanGM);
-				}
 			} else {
 				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType));
-				if (!gcToMouseMarkers.containsKey(gcKey)) {
-					gcToMouseMarkers.put(gcKey, mouseGM);
-				}
 			}
 		}
+		
+		// add the last ones found
+		if (lastGcKey >= 0) {
+			if (humanGM.size() > 0) { gcToHumanMarkers.put(lastGcKey, mapper.writeValueAsString(humanGM)); }
+			if (mouseGM.size() > 0) { gcToMouseMarkers.put(lastGcKey, mapper.writeValueAsString(mouseGM)); }
+		}
+
 		rs.close();
 		logger.info("  - retrieved marker data for gridclusters " + Timer.getElapsedMessage());
 	}
 
-	/* get the mouse marker data for the given grid cluster key;
+	/* get the mouse marker data (as JSON) for the given grid cluster key;
 	 * returns null if no mouse markers or unknown grid cluster key
 	 */
-	protected List<GridMarker> getMouseMarkers(int gridClusterKey) throws Exception {
+	protected String getMouseMarkers(int gridClusterKey) throws Exception {
 		if (gcToMouseMarkers == null) { cacheGridClusterMarkers(); }
 		if (gcToMouseMarkers.containsKey(gridClusterKey)) {
 			return gcToMouseMarkers.get(gridClusterKey);
@@ -1807,10 +1826,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
-	/* get the human marker data for the given grid cluster key;
+	/* get the human marker data (as JSON) for the given grid cluster key;
 	 * returns null if no human markers or unknown grid cluster key
 	 */
-	protected List<GridMarker> getHumanMarkers(int gridClusterKey) throws Exception {
+	protected String getHumanMarkers(int gridClusterKey) throws Exception {
 		if (gcToHumanMarkers == null) { cacheGridClusterMarkers(); }
 		if (gcToHumanMarkers.containsKey(gridClusterKey)) {
 			return gcToHumanMarkers.get(gridClusterKey);
