@@ -98,9 +98,11 @@ public class Main
         			SPECIFIED_INDEXERS.add(arg);
         			logger.info("adding user specified index: "+arg+" to list of indexers to run.");
         		}
-        		else if("hmdc".equalsIgnoreCase(arg)) {
-				SPECIFIED_INDEXERS.add("diseasePortal");
-				SPECIFIED_INDEXERS.add("diseasePortalAnnotation");
+        		else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
+//        			SPECIFIED_INDEXERS.add("hdpMarker");
+        			SPECIFIED_INDEXERS.add("hdpDisease");
+        			SPECIFIED_INDEXERS.add("hdpGrid");
+        			SPECIFIED_INDEXERS.add("hdpGridAnnotation");
 			}
 			else if ("list".equalsIgnoreCase(arg)) {
 				// only show the list of possible indexers,
