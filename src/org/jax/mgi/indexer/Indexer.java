@@ -453,4 +453,7 @@ public abstract class Indexer {
 		logger.debug("  - analyzed " + tableName + " in " + ex.getTimestamp());
 	}
 
+	protected void logFreeMemory() {
+		logger.info("  - free memory: " + Runtime.getRuntime().freeMemory() + " bytes");
+	}
 }
