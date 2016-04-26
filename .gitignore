@@ -5,3 +5,4 @@ unittest-results/
 dist/
 bin/buildAllIndexes
 conf/config.props
+*~
