@@ -189,7 +189,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 
 		// note that the genocluster tables already exclude annotation type 1006 (human
 		// marker/disease annotations)
-		String mouseQuery = "select m.marker_key, gg.genotype_key, ga.term_key, ga.qualifier_type, "
+		String mouseQuery = "select distinct m.marker_key, gg.genotype_key, ga.term_key, ga.qualifier_type, "
 			+ "  ha.header, ga.genotermref_count "
 			+ "from hdp_genocluster m, "
 			+ "  hdp_genocluster_genotype gg, "
