@@ -1775,7 +1775,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		List<GridMarker> humanGM = null;
 		List<GridMarker> mouseGM = null;
 		
-		Integer lastGcKey = -1;
+		int lastGcKey = -1;
 		
 		while (rs.next()) {
 			Integer gcKey = rs.getInt("hdp_gridcluster_key");
@@ -1787,15 +1787,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String markerSubType = rs.getString("marker_subtype");
 
 			// beginning to collect for a new gridcluster
-			if (lastGcKey != gcKey) {
+			if (lastGcKey != gcKey.intValue()) {
 				// need to save the old gridcluster data, if there is any
 				if (lastGcKey >= 0) {
-					gcToHumanMarkers.put(lastGcKey, mapper.writeValueAsString(humanGM));
-					gcToMouseMarkers.put(lastGcKey, mapper.writeValueAsString(mouseGM));
+					if (humanGM.size() > 0) { gcToHumanMarkers.put(lastGcKey, mapper.writeValueAsString(humanGM)); }
+					if (mouseGM.size() > 0) { gcToMouseMarkers.put(lastGcKey, mapper.writeValueAsString(mouseGM)); }
 				}
 				humanGM = new ArrayList<GridMarker>();
 				mouseGM = new ArrayList<GridMarker>();
-				lastGcKey = gcKey;
+				lastGcKey = gcKey.intValue();
 			}
 
 			if ("human".equals(organism)) {

@@ -151,7 +151,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		logger.info("processing human annotations");
 		int mouseCount = uniqueKey;
 
-		String humanQuery = "select distinct marker_key, term_key, header, qualifier_type "
+		String humanQuery = "select marker_key, term_key, header, qualifier_type "
 				+ "from hdp_annotation "
 				+ "where annotation_type = 1006";		// only human marker/disease annotations
 
@@ -187,9 +187,18 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		logger.info("processing mouse annotations");
 		int humanCount = uniqueKey;
 
-		String mouseQuery = "select distinct marker_key, genotype_key, term_key, header, qualifier_type "
-				+ "from hdp_annotation "
-				+ "where annotation_type != 1006";		// skip human marker/disease annotations
+		// note that the genocluster tables already exclude annotation type 1006 (human
+		// marker/disease annotations)
+		String mouseQuery = "select m.marker_key, gg.genotype_key, ga.term_key, ga.qualifier_type, "
+			+ "  ha.header, ga.genotermref_count "
+			+ "from hdp_genocluster m, "
+			+ "  hdp_genocluster_genotype gg, "
+			+ "  hdp_genocluster_annotation ga, "
+			+ "  hdp_annotation ha "
+			+ "where m.hdp_genocluster_key = gg.hdp_genocluster_key "
+			+ "  and gg.hdp_genocluster_key = ga.hdp_genocluster_key "
+			+ "  and ga.term_key = ha.term_key "
+			+ "  and gg.genotype_key = ha.genotype_key";
 
 		SolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
@@ -198,6 +207,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		while (rs.next()) {
 			Integer markerKey = rs.getInt("marker_key");
 			Integer genotypeKey = rs.getInt("genotype_key");
+			Integer refCount = rs.getInt("genotermref_count");
 
 			Integer gridclusterKey = getGridClusterKey(markerKey);
 			Integer genoclusterKey = getGenocluster(genotypeKey);
@@ -209,9 +219,14 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			BSU bsu = getMouseBsu(genoclusterKey, gridclusterKey);
 			if (bsu == null) { continue; }
 
-			// need to save this document; write to the server if our queue is big enough
-			docs.add(this.buildDocument(bsu, rs.getInt("term_key"), rs.getString("header"),
+			// To account for multiple references (and their influences as multiple annotations
+			// on the cell coloring in the grid), we add a unique document for each
+			// annotation/reference pair.
+			for (int i = 0; i < refCount; i++) {
+				// need to save this document; write to the server if our queue is big enough
+				docs.add(this.buildDocument(bsu, rs.getInt("term_key"), rs.getString("header"),
 					rs.getString("qualifier_type")));
+			}
 
 			if (docs.size() >= solrBatchSize) {
 				writeDocs(docs);
