@@ -41,48 +41,6 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		super("index.url.diseasePortalGrid");
 	}
 
-	/*-----------------------*/
-	/*--- private methods ---*/
-	/*-----------------------*/
-
-	/* cache the markers associated with each genocluster
-	 */
-	/*
-	protected void cacheMarkersPerGenocluster() throws Exception {
-		if (markersPerGenocluster != null) { return; }
-
-		logger.info("retrieving markers per genocluster");
-		Timer.reset();
-
-		String markerQuery = "select hdp_genocluster_key, marker_key "
-				+ "from hdp_genocluster";
-
-		markersPerGenocluster = new HashMap<Integer,List<Integer>>();
-
-		ResultSet rs = ex.executeProto(markerQuery, cursorLimit);
-		while (rs.next()) {
-			Integer gcKey = rs.getInt("hdp_genocluster_key");
-
-			if (!markersPerGenocluster.containsKey(gcKey)) {
-				markersPerGenocluster.put(gcKey, new ArrayList<Integer>());
-			}
-			markersPerGenocluster.get(gcKey).add(rs.getInt("marker_key"));
-		}
-		rs.close();
-
-		logger.info("finished retrieving markers for " + markersPerGenocluster.size() + " genoclusters " + Timer.getElapsedMessage());
-	}
-*/
-	/* retrieve the marker keys associated with the given genocluster key
-	protected List<Integer> getMarkers(int genoclusterKey) throws Exception {
-		if (markersPerGenocluster == null) { cacheMarkersPerGenocluster(); }
-		if (markersPerGenocluster.containsKey(genoclusterKey)) {
-			return markersPerGenocluster.get(genoclusterKey);
-		}
-		return null;
-	}
-	*/
-
 	/* add data for the given marker key to the Solr document
 	 */
 	protected void addMarkerData(DistinctSolrInputDocument doc, int markerKey) throws Exception {
@@ -175,6 +133,25 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
 	}
 
+	/* add to the Solr document the data for the HPO terms associated with the given OMIM term key;
+	 * only for use in human marker/disease annotations.
+	 */
+	protected void addHpoData(DistinctSolrInputDocument doc, Integer omimTermKey) throws Exception {
+		if (omimTermKey == null) { return; }
+
+		Set<Integer> hpoTermKeys = getHpoTermKeys(omimTermKey);
+		if (hpoTermKeys == null) { hpoTermKeys = new HashSet<Integer>(); }
+		hpoTermKeys.add(omimTermKey);
+		
+		for (Integer termKey : hpoTermKeys) {
+			doc.addDistinctField(DiseasePortalFields.HPO_ID, getTermId(termKey));
+			doc.addAllDistinct(DiseasePortalFields.HPO_ID, getAlternateTermIds(termKey));
+			doc.addAllDistinct(DiseasePortalFields.HPO_ID, getTermAncestorIDs(termKey));
+			doc.addDistinctField(DiseasePortalFields.HPO_TEXT, getTerm(termKey));
+			doc.addAllDistinct(DiseasePortalFields.HPO_TEXT, getTermAncestorText(termKey));
+		}
+	}
+	
 	/* retrieve the human marker/disease annotations and write the appropriate data
 	 * to the grid index
 	 */
@@ -230,6 +207,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 			// fields to add to the current document (whether new or continuing to fill
 			// the document for the same BSU as before)
 			addTermData(doc, termKey, omim);
+			addHpoData(doc, termKey);
 		}
 
 		// save the final doc, if it can be tied to a gridcluster
@@ -308,13 +286,8 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
 				}
 
-//				List<Integer> markerKeys = getMarkers(genoclusterKey);
-//				if (markerKeys != null) {
-//					for (Integer mrkKey : markerKeys) {
 				addMarkerData(doc, markerKey); 
 				addOrthologyData(doc, markerKey);
-//					}
-//				}
 			}
 
 			// fields to add to the current document (whether new or continuing to fill

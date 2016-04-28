@@ -44,7 +44,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 	protected String omim = "OMIM";					// vocab name for disease terms
 	protected String mp = "Mammalian Phenotype";	// vocab name for mouse phenotype terms
-	protected String hpo = "HPO";					// vocab name for human phenotype terms
+	protected String hpo = "Human Phenotype Ontology";	// vocab name for human phenotype terms
 
 	protected int dbChunkSize = 30000;				// number of annotations to process in each batch
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
@@ -69,6 +69,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<String,Set<String>> termAlternateIds = null;	// term ID -> alternate term IDs
 	protected Set<Integer> omimTerms = null;					// set of term keys for OMIM terms
 	protected Set<Integer> mpTerms = null;						// set of term keys for MP terms
+	protected Set<Integer> hpoTerms = null;						// set of term keys for HPO terms
 	protected Map<Integer,String> terms = null;					// term key -> term
 	protected Map<Integer,String> termIds = null;				// term key -> primary term ID
 	protected Map<Integer,Set<Integer>> relatedAnnotations = null;	// annot key -> set of related annot keys
@@ -77,6 +78,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
 
+	protected Map<Integer,Set<Integer>> omimToHpo = null;		// OMIM term key -> set of HPO term keys
+	protected Map<Integer,Set<Integer>> hpoHeaderToMp = null;	// HPO header key -> set of MP header keys
+	
 	/* We use the term "basic search units" for the grid, referring to the basic unit that we
 	 * are searching for -- genoclusters for mouse data and marker/disease pairs for human
 	 * data.  If our search matches a BSU, then all of its annotations are returned.  If a BSU
@@ -164,7 +168,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		String ancestorQuery = "select ta.term_key, ta.ancestor_term_key "
 				+ "from term_ancestor ta "
 				+ "where exists (select 1 from term t "
-				+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
+				+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype', 'Human Phenotype Ontology') "
 				+ "    and t.term_key = ta.term_key)";
 
 		termAncestors = new HashMap<Integer,Set<Integer>>();
@@ -205,7 +209,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "  ta.child_term_key as child_key "
 				+ "from term_child ta "
 				+ "where exists (select 1 from term t "
-				+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype') "
+				+ "  where t.vocab_name in ('OMIM', 'Mammalian Phenotype', 'Human Phenotype Ontology') "
 				+ "    and t.term_key = ta.term_key)";
 
 		childToParents = new HashMap<Integer,Set<Integer>>();
@@ -280,15 +284,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return out;
 	}
 
-	/* get the terms and their synonyms that are ancestors of the given term key, or
-	 * null if there are none or if the term key is unknown
+	/* get the primary and secondary IDs associated with the ancestors of the given term key,
+	 * or null if there are none or if the term key is unknown
 	 */
 	protected Set<String> getTermAncestorIDs(Integer termKey) throws Exception {
 		return getTermAncestorData(termKey, false, false, true);
 	}
 
-	/* get the primary and secondary IDs associated with the ancestors of the given term key,
-	 * or null if there are none or if the term key is unknown
+	/* get the terms and their synonyms that are ancestors of the given term key, or
+	 * null if there are none or if the term key is unknown
 	 */
 	protected Set<String> getTermAncestorText(Integer termKey) throws Exception {
 		return getTermAncestorData(termKey, true, true, false);
@@ -345,7 +349,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String termIdQuery="select t.primary_id as term_id, ti.acc_id as alt_id "
 					+ "from term t, term_id ti "
 					+ "where t.term_key = ti.term_key "
-					+ "  and t.vocab_name in ('Mammalian Phenotype', 'OMIM') ";
+					+ "  and t.vocab_name in ('Mammalian Phenotype', 'OMIM', 'Human Phenotype Ontology') ";
 
 			termAlternateIds = populateLookup(termIdQuery,"term_id","alt_id","alternate IDs to term IDs");
 
@@ -384,7 +388,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String termSynonymQuery="select t.primary_id term_id,ts.synonym "+
 					"from term t,term_synonym ts "+
 					"where t.term_key=ts.term_key " +
-					"and t.vocab_name in ('OMIM','Mammalian Phenotype') ";
+					"and t.vocab_name in ('OMIM','Mammalian Phenotype', 'Human Phenotype Ontology') ";
 			termSynonymMap = populateLookup(termSynonymQuery,"term_id","synonym","disease + MP synonyms to term IDs");
 
 			logger.info("finished retrieving synonyms for diseases and phenotypes" + Timer.getElapsedMessage());
@@ -507,7 +511,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		ArrayList<String> termsToSort = new ArrayList<String>();
 		String query = "select distinct term " +
 				"from term " +
-				"where vocab_name in ('OMIM','Mammalian Phenotype') ";
+				"where vocab_name in ('OMIM','Mammalian Phenotype', 'Human Phenotype Ontology') ";
 		ResultSet rs = ex.executeProto(query, cursorLimit);
 		while(rs.next()) {
 			termsToSort.add(rs.getString("term"));
@@ -1026,7 +1030,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 
 	/* load data from the database to populate several caches stored as instance variables;
-	 * specifically populates omimTerms, mpTerms, terms, and termIds.
+	 * specifically populates omimTerms, mpTerms, hpoTerms, terms, and termIds.
 	 */
 	protected void cacheBasicTermData() throws Exception {
 		if (omimTerms != null) { return; }
@@ -1036,12 +1040,13 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		omimTerms = new HashSet<Integer>();
 		mpTerms = new HashSet<Integer>();
+		hpoTerms = new HashSet<Integer>();
 		terms = new HashMap<Integer,String>();
 		termIds = new HashMap<Integer,String>();
 
 		String termQuery = "select term_key, term, primary_id, vocab_name "
 				+ "from term "
-				+ "where vocab_name in ('OMIM', 'Mammalian Phenotype')";
+				+ "where vocab_name in ('OMIM', 'Mammalian Phenotype', 'Human Phenotype Ontology')";
 
 		ResultSet rs = ex.executeProto(termQuery, cursorLimit);
 		while (rs.next()) {
@@ -1049,7 +1054,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 			terms.put(termKey, rs.getString("term"));
 			termIds.put(termKey, rs.getString("primary_id"));
 
-			if ("OMIM".equals(rs.getString("vocab_name"))) { omimTerms.add(termKey); }
+			if (omim.equals(rs.getString("vocab_name"))) { omimTerms.add(termKey); }
+			else if (hpo.equals(rs.getString("vocab_name"))) { hpoTerms.add(termKey); }
 			else { mpTerms.add(termKey); }
 		}
 		rs.close();
@@ -1063,6 +1069,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (omimTerms == null) { cacheBasicTermData(); }
 		if (omimTerms.contains(termKey)) { return omim; }
 		if (mpTerms.contains(termKey)) { return mp; }
+		if (hpoTerms.contains(termKey)) { return hpo; }
 		return null;
 	}
 
@@ -1887,6 +1894,133 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return conditionalGenoclusters.contains(genoClusterKey);
 	}
 
+//	protected Map<Integer,Set<Integer>> omimToHpo = null;		// OMIM term key -> set of HPO term keys
+//	protected Map<Integer,Set<Integer>> hpoHeaderToMp = null;	// HPO term key -> set of MP header keys
+	
+	/* populate the caches of OMIM terms to HPO terms and of HPO header terms to MP header terms
+	 */
+	protected void cacheHpoMaps() throws Exception {
+		// get the mapping from OMIM term to HPO terms
+
+		logger.info("retrieving HPO mappings");
+		Timer.reset();
+
+		String omimToHpoQuery = "select term_key_1 as omim_key, term_key_2 as hpo_key "
+			+ "from term_to_term tt "
+			+ "where tt.relationship_type = 'OMIM to HPO'";
+		
+		omimToHpo = new HashMap<Integer,Set<Integer>>();
+
+		ResultSet rs = ex.executeProto(omimToHpoQuery, cursorLimit);
+		while (rs.next()) {
+			Integer omimKey = rs.getInt("omim_key");
+			Integer hpoKey = rs.getInt("hpo_key");
+			
+			if (!omimToHpo.containsKey(omimKey)) {
+				omimToHpo.put(omimKey, new HashSet<Integer>());
+			}
+			omimToHpo.get(omimKey).add(hpoKey);
+		}
+		rs.close();
+		logger.info(" - got HPO terms for " + omimToHpo.size() + " OMIM terms " + Timer.getElapsedMessage());
+		
+		// get the mapping from HPO high-level terms to MP headers
+		String hpoHeaderToMpQuery = "select term_key_1 as mp_key, term_key_2 as hpo_key "
+			+ "from term_to_term tt "
+			+ "where tt.relationship_type = 'MP header to HPO high-level'";
+
+		hpoHeaderToMp = new HashMap<Integer,Set<Integer>>();
+
+		ResultSet rs2 = ex.executeProto(hpoHeaderToMpQuery, cursorLimit);
+		while (rs2.next()) {
+			Integer mpKey = rs2.getInt("mp_key");
+			Integer hpoKey = rs2.getInt("hpo_key");
+			
+			if (!hpoHeaderToMp.containsKey(hpoKey)) {
+				hpoHeaderToMp.put(hpoKey, new HashSet<Integer>());
+			}
+			hpoHeaderToMp.get(hpoKey).add(mpKey);
+		}
+		rs2.close();
+		logger.info(" - got MP headers for " + hpoHeaderToMp.size() + " HPO terms " + Timer.getElapsedMessage());
+		logger.info("finished retrieving HPO mappings ");
+	}
+
+	/* get the term keys for the HPO terms associated with the given OMIM term key;
+	 * null if there are none.
+	 */
+	protected Set<Integer> getHpoTermKeys(Integer omimTermKey) throws Exception {
+		if (omimToHpo == null) { cacheHpoMaps(); }
+		if (omimToHpo.containsKey(omimTermKey)) { return omimToHpo.get(omimTermKey); }
+		return null;
+	}
+	
+	/* get the term keys for the MP headers associated with the given HPO high-level term key;
+	 * null if there are none.
+	 */
+	private Set<Integer> getDirectMpHeaderKeys(Integer hpoTermKey) throws Exception {
+		if (hpoHeaderToMp == null) { cacheHpoMaps(); }
+		if (hpoHeaderToMp.containsKey(hpoTermKey)) { return hpoHeaderToMp.get(hpoTermKey); }
+		return null;
+	}
+	
+	/* returns true if the given key is for an HPO high-level term, false if not
+	 */
+	private boolean isHighLevelHpo(Integer hpoTermKey) throws Exception {
+		if (hpoHeaderToMp == null) { cacheHpoMaps(); }
+		return hpoHeaderToMp.containsKey(hpoTermKey);
+	}
+	
+	/* get the term keys for the MP headers associated with any HPO high-level terms that are
+	 * ancestors of the given HPO term (or are the term itself). returns empty set if none.
+	 */
+	protected Set<Integer> getMpHeaderKeys(Integer hpoTermKey) throws Exception {
+		Set<Integer> union = new HashSet<Integer>();
+		
+		// check the term itself, to see if it is an HPO high-level term
+		Set<Integer> headerKeys = getDirectMpHeaderKeys(hpoTermKey);
+		if (headerKeys != null) {
+			union.addAll(headerKeys);
+		}
+		
+		// now check the ancestors of the term and pick up any of their headers
+		for (Integer termKey : getTermAncestors(hpoTermKey)) {
+			if (isHighLevelHpo(termKey)) {
+				headerKeys = getDirectMpHeaderKeys(termKey);
+				if (headerKeys != null) {
+					union.addAll(headerKeys);
+				}
+			}
+		}
+		return union;
+	}
+
+	/* get the terms for the MP headers that are associated with the high-level HPO terms
+	 * that are ancestors of the given HPO term (including the term itself). returns empty
+	 * set if none.
+	 */
+/*	protected Set<String> getMpHeaders(Integer hpoTermKey) throws Exception {
+		Set<String> headers = new HashSet<String>();
+		for (Integer termKey : getAncestorMpHeaderKeys(hpoTermKey)) {
+			String header = getTerm(termKey);
+			if (header != null) { headers.add(header); }
+		}
+		return headers;
+	}
+*/
+	/* get the IDs for the MP headers that are associated with the high-level HPO terms
+	 * that are ancestors of the given HPO term (including the term itself). returns empty
+	 * set if none.
+	 */
+/*	protected Set<String> getMpHeaderIds(Integer hpoTermKey) throws Exception {
+		Set<String> ids = new HashSet<String>();
+		for (Integer termKey : getAncestorMpHeaderKeys(hpoTermKey)) {
+			String id = getTermId(termKey);
+			if (id != null) { ids.add(id); }
+		}
+		return ids;
+	}
+*/
 	/* look up data for the BSUs and cache them in memory, assigning a new integer key
 	 * to each BSU.  Each BSU's uniqueness is defined by:
 	 *		1. marker/disease pair for human data

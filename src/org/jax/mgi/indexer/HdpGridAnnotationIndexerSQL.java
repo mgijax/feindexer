@@ -160,11 +160,20 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		ResultSet rs = ex.executeProto(humanQuery, cursorLimit);
 		while (rs.next()) {
 			Integer termKey = rs.getInt("term_key");
+			String qualifier = rs.getString("qualifier_type");
 			BSU bsu = this.getHumanBsu(rs.getInt("marker_key"), termKey);
 
 			// need to save this document; write to the server if our queue is big enough
-			docs.add(buildDocument(bsu, termKey, rs.getString("header"),
-					rs.getString("qualifier_type")));
+			docs.add(buildDocument(bsu, termKey, rs.getString("header"), qualifier));
+
+			Set<Integer> hpoTermKeys = getHpoTermKeys(termKey);
+			if (hpoTermKeys != null) {
+				for (Integer hpoTermKey : hpoTermKeys) {
+					for (Integer mpHeaderKey : this.getMpHeaderKeys(hpoTermKey)) {
+						docs.add(buildDocument(bsu, hpoTermKey, getTerm(mpHeaderKey), qualifier));
+					}
+				}
+			}
 
 			if (docs.size() >= solrBatchSize) {
 				writeDocs(docs);
@@ -210,7 +219,6 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			Integer refCount = rs.getInt("genotermref_count");
 
 			Integer gridclusterKey = getGridClusterKey(markerKey);
-//			Integer genoclusterKey = getGenocluster(genotypeKey);
 			
 			// if we can't find a corresponding genocluster or gridcluster, skip this one
 			if ((gridclusterKey == null) || (genoclusterKey == null)) { continue; }
