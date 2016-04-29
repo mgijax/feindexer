@@ -129,7 +129,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_SYNONYM, getTermSynonyms(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
-		doc.addAllDistinct(DiseasePortalFields.TERM_HEADER, getHeadersByDisease(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_HEADER, getHeadersPerTerm(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
 	}
 
@@ -141,7 +141,6 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 		Set<Integer> hpoTermKeys = getHpoTermKeys(omimTermKey);
 		if (hpoTermKeys == null) { hpoTermKeys = new HashSet<Integer>(); }
-		hpoTermKeys.add(omimTermKey);
 		
 		for (Integer termKey : hpoTermKeys) {
 			doc.addDistinctField(DiseasePortalFields.HPO_ID, getTermId(termKey));
