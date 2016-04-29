@@ -62,7 +62,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;	// marker key -> set of ortholog marker keys
 
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
-	protected Map<String,Set<String>> headersPerDisease = null;	// disease ID -> header terms
+	protected Map<String,Set<String>> headersPerTerm = null;	// disease ID -> header terms
 	protected Map<String,Integer> refCountPerDisease = null;	// disease ID -> count of refs
 	protected Map<String,Integer> modelCountPerDisease = null;	// disease ID -> count of models
 
@@ -747,39 +747,38 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 	/* get a mapping from (String) disease ID to a Set of (String) header terms.
 	 */
-	protected Map<String,Set<String>> getHeadersPerDisease() throws Exception {
-		if (headersPerDisease == null) {
-			logger.info("Retrieving headers per disease");
+	protected Map<String,Set<String>> cacheHeadersPerTerm() throws Exception {
+		if (headersPerTerm == null) {
+			logger.info("Retrieving headers per term");
 			Timer.reset();
 
 			String headerQuery = "select distinct term_id, header "
 					+ "from hdp_annotation "
-					+ "where vocab_name = '" + omim + "' "
 					+ "order by term_id, header";
-			headersPerDisease = populateLookupOrdered(headerQuery, "term_id", "header", "diseases to headers");
+			headersPerTerm = populateLookupOrdered(headerQuery, "term_id", "header", "terms to headers");
 
-			logger.info("Finished retrieving headers for (" + headersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
+			logger.info("Finished retrieving headers for (" + headersPerTerm.size() + " diseases)" + Timer.getElapsedMessage());
 		}
-		return headersPerDisease;
+		return headersPerTerm;
 	}
 
 	/* get the headers for the disease specified by 'diseaseID'
 	 */
-	protected Set<String> getHeadersByDisease (String diseaseID) throws Exception {
-		if (headersPerDisease == null) { getHeadersPerDisease(); }
-		if (headersPerDisease.containsKey(diseaseID)) {
-			return headersPerDisease.get(diseaseID);
+	protected Set<String> getHeadersPerTerm (String diseaseID) throws Exception {
+		if (headersPerTerm == null) { cacheHeadersPerTerm(); }
+		if (headersPerTerm.containsKey(diseaseID)) {
+			return headersPerTerm.get(diseaseID);
 		}
 		return null;
 	}
 
 	/* get the headers for the disease specified by the given term key
 	 */
-	protected Set<String> getHeadersByDisease (Integer diseaseKey) throws Exception {
+	protected Set<String> getHeadersPerTerm (Integer diseaseKey) throws Exception {
 		if (diseaseKey == null) { return null; }
 		String termId = getTermId(diseaseKey);
 		if (termId == null) { return null; }
-		return getHeadersByDisease(termId);
+		return getHeadersPerTerm(termId);
 	}
 
 	/* get a mapping from (String) disease ID to an (Integer) count of references
@@ -1894,9 +1893,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return conditionalGenoclusters.contains(genoClusterKey);
 	}
 
-//	protected Map<Integer,Set<Integer>> omimToHpo = null;		// OMIM term key -> set of HPO term keys
-//	protected Map<Integer,Set<Integer>> hpoHeaderToMp = null;	// HPO term key -> set of MP header keys
-	
 	/* populate the caches of OMIM terms to HPO terms and of HPO header terms to MP header terms
 	 */
 	protected void cacheHpoMaps() throws Exception {

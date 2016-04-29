@@ -75,8 +75,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			addAll(doc, DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termId));
 
 			// add term headers for the disease
-			if (headersPerDisease.containsKey(termId)) {
-				addAllFromLookup(doc, DiseasePortalFields.TERM_HEADER, termId, headersPerDisease);
+			if (headersPerTerm.containsKey(termId)) {
+				addAllFromLookup(doc, DiseasePortalFields.TERM_HEADER, termId, headersPerTerm);
 			} else {
 				doc.addField(DiseasePortalFields.TERM_HEADER, term);
 			}
@@ -208,7 +208,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		getTermSynonymMap();		// term IDs to term synonyms
 		getMarkerSynonymMap();		// marker keys to marker synonyms
 		getMarkerCoordinateMap();	// coordinates per marker
-		getHeadersPerDisease();		// disease IDs to term headers
+		cacheHeadersPerTerm();		// disease IDs to term headers
 		getMarkerAllIdMap();		// marker key to searchable marker IDs
 
 		processDiseases();
