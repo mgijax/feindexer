@@ -15,6 +15,7 @@ import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
+import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
@@ -2140,6 +2141,24 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 		}
 		return null;
+	}
+
+	/* add to the Solr document the data for the HPO terms associated with the given OMIM term key;
+	 * only for use in human marker/disease annotations.
+	 */
+	protected void addHpoData(DistinctSolrInputDocument doc, Integer omimTermKey) throws Exception {
+		if (omimTermKey == null) { return; }
+	
+		List<Integer> hpoTermKeys = getHpoTermKeys(omimTermKey);
+		if (hpoTermKeys == null) { return; }
+		
+		for (Integer termKey : hpoTermKeys) {
+			doc.addDistinctField(DiseasePortalFields.HPO_ID, getTermId(termKey));
+			doc.addAllDistinct(DiseasePortalFields.HPO_ID, getAlternateTermIds(termKey));
+			doc.addAllDistinct(DiseasePortalFields.HPO_ID, getTermAncestorIDs(termKey));
+			doc.addDistinctField(DiseasePortalFields.HPO_TEXT, getTerm(termKey));
+			doc.addAllDistinct(DiseasePortalFields.HPO_TEXT, getTermAncestorText(termKey));
+		}
 	}
 
 	/* private inner class, used to hold the data for a "basic search unit" for the grid --

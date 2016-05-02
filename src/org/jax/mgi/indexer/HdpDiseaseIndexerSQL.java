@@ -1,14 +1,13 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 
 /* Is: an indexer that builds the index supporting the Disease tab of the 
@@ -60,11 +59,14 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			String term = rs.getString("term");
 			String termId = rs.getString("primary_id");
 
-			SolrInputDocument doc = new SolrInputDocument();
+			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			doc.addField(DiseasePortalFields.UNIQUE_KEY, termKey);
 			doc.addField(DiseasePortalFields.TERM, term);
 			doc.addField(DiseasePortalFields.TERM_ID, termId);
 			doc.addField(DiseasePortalFields.TERM_TYPE, omim);
+
+			// add the corresponding HPO terms, their synonyms, their IDs, and the same data for their ancestors
+			addHpoData(doc, termKey);
 
 			// find sort for the term name
 			int termSort = getTermSequenceNum(term);

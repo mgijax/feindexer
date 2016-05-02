@@ -133,24 +133,6 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
 	}
 
-	/* add to the Solr document the data for the HPO terms associated with the given OMIM term key;
-	 * only for use in human marker/disease annotations.
-	 */
-	protected void addHpoData(DistinctSolrInputDocument doc, Integer omimTermKey) throws Exception {
-		if (omimTermKey == null) { return; }
-
-		List<Integer> hpoTermKeys = getHpoTermKeys(omimTermKey);
-		if (hpoTermKeys == null) { return; }
-		
-		for (Integer termKey : hpoTermKeys) {
-			doc.addDistinctField(DiseasePortalFields.HPO_ID, getTermId(termKey));
-			doc.addAllDistinct(DiseasePortalFields.HPO_ID, getAlternateTermIds(termKey));
-			doc.addAllDistinct(DiseasePortalFields.HPO_ID, getTermAncestorIDs(termKey));
-			doc.addDistinctField(DiseasePortalFields.HPO_TEXT, getTerm(termKey));
-			doc.addAllDistinct(DiseasePortalFields.HPO_TEXT, getTermAncestorText(termKey));
-		}
-	}
-	
 	/* retrieve the human marker/disease annotations and write the appropriate data
 	 * to the grid index
 	 */
