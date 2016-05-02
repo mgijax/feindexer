@@ -166,7 +166,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			// need to save this document; write to the server if our queue is big enough
 			docs.add(buildDocument(bsu, termKey, rs.getString("header"), qualifier));
 
-			Set<Integer> hpoTermKeys = getHpoTermKeys(termKey);
+			List<Integer> hpoTermKeys = getHpoTermKeys(termKey);
 			if (hpoTermKeys != null) {
 				for (Integer hpoTermKey : hpoTermKeys) {
 					for (Integer mpHeaderKey : this.getMpHeaderKeys(hpoTermKey)) {

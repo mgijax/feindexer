@@ -139,8 +139,8 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	protected void addHpoData(DistinctSolrInputDocument doc, Integer omimTermKey) throws Exception {
 		if (omimTermKey == null) { return; }
 
-		Set<Integer> hpoTermKeys = getHpoTermKeys(omimTermKey);
-		if (hpoTermKeys == null) { hpoTermKeys = new HashSet<Integer>(); }
+		List<Integer> hpoTermKeys = getHpoTermKeys(omimTermKey);
+		if (hpoTermKeys == null) { return; }
 		
 		for (Integer termKey : hpoTermKeys) {
 			doc.addDistinctField(DiseasePortalFields.HPO_ID, getTermId(termKey));

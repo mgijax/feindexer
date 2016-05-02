@@ -78,7 +78,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
 
-	protected Map<Integer,Set<Integer>> omimToHpo = null;		// OMIM term key -> set of HPO term keys
+	protected Map<Integer,List<Integer>> omimToHpo = null;		// OMIM term key -> List of HPO term keys
 	protected Map<Integer,Set<Integer>> hpoHeaderToMp = null;	// HPO header key -> set of MP header keys
 	
 	/* We use the term "basic search units" for the grid, referring to the basic unit that we
@@ -1901,11 +1901,12 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("retrieving HPO mappings");
 		Timer.reset();
 
+		// do not make this distinct, as duplicates are intentional and important
 		String omimToHpoQuery = "select term_key_1 as omim_key, term_key_2 as hpo_key "
 			+ "from term_to_term tt "
 			+ "where tt.relationship_type = 'OMIM to HPO'";
 		
-		omimToHpo = new HashMap<Integer,Set<Integer>>();
+		omimToHpo = new HashMap<Integer,List<Integer>>();
 
 		ResultSet rs = ex.executeProto(omimToHpoQuery, cursorLimit);
 		while (rs.next()) {
@@ -1913,7 +1914,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			Integer hpoKey = rs.getInt("hpo_key");
 			
 			if (!omimToHpo.containsKey(omimKey)) {
-				omimToHpo.put(omimKey, new HashSet<Integer>());
+				omimToHpo.put(omimKey, new ArrayList<Integer>());
 			}
 			omimToHpo.get(omimKey).add(hpoKey);
 		}
@@ -1945,7 +1946,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/* get the term keys for the HPO terms associated with the given OMIM term key;
 	 * null if there are none.
 	 */
-	protected Set<Integer> getHpoTermKeys(Integer omimTermKey) throws Exception {
+	protected List<Integer> getHpoTermKeys(Integer omimTermKey) throws Exception {
 		if (omimToHpo == null) { cacheHpoMaps(); }
 		if (omimToHpo.containsKey(omimTermKey)) { return omimToHpo.get(omimTermKey); }
 		return null;
