@@ -78,6 +78,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,Set<Integer>> termKeyToAnnotations = null;	// term key -> set of annotation keys
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
+	protected Map<Integer,String> mpHeaderText = null;			// MP header term key -> string to display
 
 	protected Map<Integer,List<Integer>> omimToHpo = null;		// OMIM term key -> List of HPO term keys
 	protected Map<Integer,Set<Integer>> hpoHeaderToMp = null;	// HPO header key -> set of MP header keys
@@ -187,14 +188,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		logger.info("finished retrieving ancestors for " + termAncestors.size() + " terms " + Timer.getElapsedMessage());
 		return termAncestors;
-	}
-
-	/* get the ancestor term keys for the given term key, or null if there are no ancestors
-	 */
-	protected Set<Integer> getTermAncestorsold(Integer termKey) throws Exception {
-		if (termAncestors == null) { getTermAncestors(); }
-		if (termAncestors.containsKey(termKey)) { return termAncestors.get(termKey); }
-		return null;
 	}
 
 	protected Map<Integer,Set<Integer>> childToParents = null;	// child term key -> parent term keys
@@ -1061,8 +1054,33 @@ public abstract class HdpIndexerSQL extends Indexer {
 		rs.close();
 
 		logger.info("Finished retrieving basic term data (" + terms.size() + " terms)" + Timer.getElapsedMessage());
+		
+		mpHeaderText = new HashMap<Integer,String>();
+		
+		String headerQuery = "select t.term_key, s.synonym "
+			+ "from term t, term_synonym s "
+			+ "where t.vocab_name = 'Mammalian Phenotype' "
+			+ "  and t.term_key = s.term_key "
+			+ "  and s.synonym_type = 'Synonym Type 1'";
+		
+		rs = ex.executeProto(headerQuery);
+		
+		while (rs.next()) {
+			mpHeaderText.put(rs.getInt("term_key"), rs.getString("synonym"));
+		}
+		rs.close();
+		
+		logger.info("Finished retrieving MP header display strings " + Timer.getElapsedMessage());
 	}
 
+	/* get the display string for the given MP header term key; null if key is not for an MP header
+	 */
+	protected String getMpHeaderDisplay(int mpHeaderKey) throws Exception {
+		if (mpHeaderText == null) { cacheBasicTermData(); }
+		if (mpHeaderText.containsKey(mpHeaderKey)) { return mpHeaderText.get(mpHeaderKey); }
+		return null;
+	}
+	
 	/* get the vocabulary name for the given term key, or null if key is unknown
 	 */
 	protected String getVocabulary(Integer termKey) throws Exception {

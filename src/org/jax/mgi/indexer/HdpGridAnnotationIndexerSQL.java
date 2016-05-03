@@ -170,7 +170,9 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			if (hpoTermKeys != null) {
 				for (Integer hpoTermKey : hpoTermKeys) {
 					for (Integer mpHeaderKey : this.getMpHeaderKeys(hpoTermKey)) {
-						docs.add(buildDocument(bsu, hpoTermKey, getTerm(mpHeaderKey), qualifier));
+						String headerDisplay = getMpHeaderDisplay(mpHeaderKey);
+						if (headerDisplay == null) { headerDisplay = getTerm(mpHeaderKey); }
+						docs.add(buildDocument(bsu, hpoTermKey, headerDisplay, qualifier));
 					}
 				}
 			}
