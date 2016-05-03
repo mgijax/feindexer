@@ -13,6 +13,7 @@ import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.reporting.Timer;
+import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
@@ -130,7 +131,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		String term = getTerm(termKey);
 
 		// need to start a new document...
-		SolrInputDocument doc = new SolrInputDocument();
+		DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 		doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
 		doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
 		doc.addField(DiseasePortalFields.TERM, term);
@@ -140,6 +141,12 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		doc.addField(DiseasePortalFields.TERM_QUALIFIER, qualifier);
 		doc.addField(DiseasePortalFields.BY_TERM_NAME, getTermSequenceNum(term));
 		doc.addField(DiseasePortalFields.BY_TERM_HEADER, getHeaderSequenceNum(header));
+
+		// add fields to help with highlighting
+		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_SYNONYM, getTermSynonyms(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
+		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
 		
 		return doc;
 	}
