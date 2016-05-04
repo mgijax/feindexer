@@ -1,6 +1,5 @@
 package org.jax.mgi.indexer;
 
-import java.io.IOException;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -11,8 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
@@ -26,12 +23,6 @@ import org.jax.org.mgi.shr.fe.util.GridMarker;
  *   that are useful across the suite of HMDC-related indexers
  */
 public abstract class HdpIndexerSQL extends Indexer {
-	/* This abstract method is inherited from the parent class (Indexer) and
-	 * should be defined in any concrete subclasses.
-	 *    abstract void index() throws Exception {}
-	 */
-	
-
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
@@ -102,41 +93,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 	
 	// gridcluster key to feature types for mouse markers in the cluster
 	protected Map<String,Set<String>> featureTypeMap = null;
-
-	// name of table mapping annotations to genoclusters
-	protected String annotationToGenocluster = null;
-
-	// name of table like hdp_annotation table, but with only non-normal annotations
-	protected String nonNormalAnnotations = null;
-
-	// name of table which joins each annotation in a genocluster to each other
-	// annotation for the genocluster, to allow display of all annotations for
-	// the genocluster, even if only a subset matched
-	protected String annotationCrossProduct = null;
-
-	// name of table which maps from a disease annotation to all other diseases for
-	// that genocluster
-	protected String diseaseToDisease = null;
-
-	// name of the table which maps from a disease annotation to all phenotypes for
-	// that genocluster
-	protected String diseaseToPhenotype = null;
-
-	// name of the table which maps from a phenotype annotation to all diseases for
-	// that genocluster
-	protected String phenotypeToDisease = null;
-
-	// name of the table which maps from a phenotype annotation to disease annotations
-	// for the same genocluster
-	protected String phenotypeToDiseaseViaGenocluster = null;
-
-	// name of the table which maps from a phenotype annotation to disease annotations
-	// for the same genotype (not genocluster)
-	protected String phenotypeToDiseaseViaGenotype = null;
-
-	// name of the table which maps from a phenotype annotation to other phenotype
-	// annotations for the same genocluster
-	protected String phenotypeToPhenotype = null;
 
 	// maps from each disease and phenotype term to its smart-alpha sequence number
 	protected Map<String,Integer> termSortMap = null;
@@ -1208,32 +1164,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		int mouseCount = relatedAnnotations.size();
 		logger.info("Got relationships for " + mouseCount + " mouse annotations)" + Timer.getElapsedMessage());
-
-		/* Commented out this section, ensuring that we do NOT bring back additional diseases for
-		 *  human markers.  We only want to bring back the disease that matches the user's query.
-		 * 		Timer.reset();
-		 *		String humanQuery = "select ha1.hdp_annotation_key as annotKey1, "
-		 *			+ "  ha2.hdp_annotation_key as annotKey2 "
-		 *			+ "from hdp_annotation ha1, "
-		 *			+ "  hdp_annotation ha2 "
-		 *			+ "where ha1.term_id != ha2.term_id "
-		 *			+ "  and ha1.marker_key = ha2.marker_key "
-		 *			+ "  and ha1.organism_key = 2 "
-		 *			+ "  and ha2.organism_key = 2";
-		 *
-		 *		ResultSet rs2 = ex.executeProto(humanQuery, cursorLimit);
-		 *		while (rs2.next()) {
-		 *			Integer annotKey1 = rs2.getInt("annotKey1");
-		 *			
-		 *			if (!relatedAnnotations.containsKey(annotKey1)) {
-		 *				relatedAnnotations.put(annotKey1, new HashSet<Integer>());
-		 *			}
-		 *			relatedAnnotations.get(annotKey1).add(rs2.getInt("annotKey2"));
-		 *		}
-		 *		rs2.close();
-		 *			
-		 *		logger.info("Got relationships for " + (relatedAnnotations.size() - mouseCount) + " human annotations)" + Timer.getElapsedMessage());
-		 */
 	}
 
 	/* get the set of annotation keys that are related to the given hdp_annotation_key, based on
@@ -1344,438 +1274,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
-
-	/*-----------------------------------------------*/
-	/*--- public methods for building temp tables ---*/
-	/*-----------------------------------------------*/
-
-	/* returns the name of the table which maps each annotation to its genocluster,
-	 * building the table if necessary
-	 */
-	public String getAnnotationToGenoclusterTable() {
-		if (this.annotationToGenocluster == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			this.annotationToGenocluster = "tmp_ha_genocluster";
-			logger.info("creating " + this.annotationToGenocluster + " (temp table of hdp_annotation to hdp_genocluster_key)");
-
-			// The 'distinct on' keeps the first record seen for each distinct hdp_annotation_key.
-			String genoClusterKeyQuery = "select distinct on(hdp_annotation_key) hdp_annotation_key, hdp_genocluster_key\n" + 
-					"into temp " + this.annotationToGenocluster + " \n" + 
-					"from hdp_annotation ha,\n" + 
-					"	hdp_genocluster_genotype gcg\n" + 
-					"where ha.genotype_key=gcg.genotype_key";
-
-			fillTempTable(genoClusterKeyQuery);
-			createTempIndex(this.annotationToGenocluster, "hdp_annotation_key");
-			createTempIndex(this.annotationToGenocluster, "hdp_genocluster_key");
-			analyze(this.annotationToGenocluster);
-
-			logger.info("done creating " + this.annotationToGenocluster + Timer.getElapsedMessage());
-		}
-		return this.annotationToGenocluster;
-	}
-
-	/* returns the name of the table which contains non-normal annotations,
-	 * building the table if necessary
-	 */
-	public String getNonNormalAnnotationsTable() {
-		if (this.nonNormalAnnotations == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			this.nonNormalAnnotations = "tmp_hdp_annotation_nn";
-			logger.info("creating " + this.nonNormalAnnotations + " (temp table of hdp_annotation minus normals)");
-
-			String noNormalsHdpQuery="select * " +
-					"INTO TEMP " + this.nonNormalAnnotations + " " +
-					"from hdp_annotation " +
-					"where qualifier_type is null ";
-
-			fillTempTable(noNormalsHdpQuery);
-			createTempIndex(this.nonNormalAnnotations, "hdp_annotation_key");
-			createTempIndex(this.nonNormalAnnotations, "genotype_key");
-			createTempIndex(this.nonNormalAnnotations, "marker_key");
-			createTempIndex(this.nonNormalAnnotations, "term_key");
-			createTempIndex(this.nonNormalAnnotations, "term_id");
-			analyze(this.nonNormalAnnotations);
-
-			logger.info("done creating " + this.nonNormalAnnotations + Timer.getElapsedMessage());
-		}
-		return this.nonNormalAnnotations;
-	}
-
-	/* returns the name of the table with the cross-product of annotations
-	 * (each annotation for a genocluster related to every other annotation
-	 * in the genocluster)
-	 */
-	public String getAnnotationCrossProductTable() {
-		if (this.annotationCrossProduct == null) {
-			// need to build the temp table and index it appropriately
-
-			this.annotationCrossProduct = "tmp_ha_cross";
-			Timer.reset();
-			logger.info("creating " + this.annotationCrossProduct + "(hdp_annotation cross hdp_annotation via genocluster)");
-
-			// two-column temp table (hdp_annotation_key, hdp_genocluster_key)
-			String gcTable = this.getAnnotationToGenoclusterTable();
-
-			// first add mouse annotations (via genoclusters) to the temp table
-			String hdpMouseAnnotationCrossQuery ="select ha1.hdp_annotation_key ha_key1,\n" + 
-					"ha1.term_id term_id1,\n" + 
-					"ha1.term term1,\n" + 
-					"ha1.vocab_name vocab1,\n" + 
-					"ha2.hdp_annotation_key ha_key2,\n" + 
-					"ha2.term_id term_id2,\n" + 
-					"ha2.term term2,\n" + 
-					"ha2.vocab_name vocab2\n" + 
-					"into temp " + this.annotationCrossProduct + "\n" +
-					"from hdp_annotation ha1,\n" + 
-					gcTable + " gc1,\n" + 
-					"hdp_annotation ha2,\n" + 
-					gcTable + " gc2\n" + 
-					"where ha1.hdp_annotation_key = gc1.hdp_annotation_key\n" + 
-					"and ha2.hdp_annotation_key = gc2.hdp_annotation_key\n" +  
-					"and ha1.term_id != ha2.term_id "+
-					"and gc1.hdp_genocluster_key = gc2.hdp_genocluster_key";
-			fillTempTable(hdpMouseAnnotationCrossQuery);
-
-			// then add human annotations (direct to markers) to the temp table
-			String hdpHumanAnnotationCrossQuery = "insert into " + this.annotationCrossProduct + " " +
-					"select ha1.hdp_annotation_key ha_key1, ha1.term_id term_id1, ha1.term term1, ha1.vocab_name vocab1, " +
-					"ha2.hdp_annotation_key ha_key2, ha2.term_id term_id2, ha2.term term2, ha2.vocab_name vocab2 " +
-					"from hdp_annotation ha1, hdp_annotation ha2 " +
-					"where ha1.term_id != ha2.term_id " +
-					"and ha1.marker_key = ha2.marker_key " +
-					"and ha1.organism_key=2 and ha2.organism_key=2";
-			fillTempTable(hdpHumanAnnotationCrossQuery);
-
-			// only two fields are used in WHERE clauses, so we'll index just those
-			createTempIndex(this.annotationCrossProduct, "vocab1");
-			createTempIndex(this.annotationCrossProduct, "vocab2");
-			analyze(this.annotationCrossProduct);
-			logger.info("done creating " + this.annotationCrossProduct + Timer.getElapsedMessage());
-		}
-		return this.annotationCrossProduct;
-	}
-
-	/* returns the name of the table with the mapping from each disease annotation
-	 * to all other diseases for the same genocluster
-	 */
-	public String getDiseaseToDiseaseTable() {
-		if (this.diseaseToDisease == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			String crossTable = this.getAnnotationCrossProductTable();
-			this.diseaseToDisease = "tmp_disease_to_disease";
-			logger.info("creating " + this.diseaseToDisease + "(diseases to diseases via genocluster)");
-
-			String diseaseToDiseaseQuery = "select hc.term_id1 omim_id, \n" + 
-					"        	hc.term1 omim_term, \n" + 
-					"			hc.ha_key2 hdp_annotation_key \n" + 
-					"		into temp " + this.diseaseToDisease + " \n" + 
-					"			from " + crossTable + " \n" + 
-					"			where hc.vocab1='OMIM' \n" + 
-					"				and hc.vocab2='OMIM' ";
-			fillTempTable(diseaseToDiseaseQuery);
-			createTempIndex(this.diseaseToDisease, "hdp_annotation_key");			
-			analyze(this.diseaseToDisease);
-			logger.info("done creating " + this.diseaseToDisease + Timer.getElapsedMessage());
-		}
-		return this.diseaseToDisease;
-	}
-
-	/* returns the name of the table with the mapping from each disease annotation
-	 * to all phenotypes for the same genocluster
-	 */
-	public String getDiseaseToPhenotypeTable() {
-		if (this.diseaseToPhenotype == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			String crossTable = this.getAnnotationCrossProductTable();
-			this.diseaseToPhenotype = "tmp_disease_to_mp";
-			logger.info("creating " + this.diseaseToPhenotype + "(diseases to phenotypes via genocluster)");
-
-			String diseaseToMpQuery = "select hc.term_id2 omim_id, \n" + 
-					"        	hc.term2 omim_term, \n" + 
-					"			hc.ha_key1 hdp_annotation_key\n" + 
-					"		into temp " + this.diseaseToPhenotype + " \n" + 
-					"			from " + crossTable + " hc \n" + 
-					"			where hc.vocab1='Mammalian Phenotype' \n" + 
-					"				and hc.vocab2='OMIM'";
-			fillTempTable(diseaseToMpQuery);
-			createTempIndex(this.diseaseToPhenotype, "hdp_annotation_key");
-			analyze(this.diseaseToPhenotype);
-			logger.info("done creating " + this.diseaseToPhenotype + Timer.getElapsedMessage());
-		}
-		return this.diseaseToPhenotype;
-	}
-
-	/* returns the name of the table with the mapping from each phenotype annotation
-	 * to disease annotations for the same genocluster
-	 */
-	public String getPhenotypeToDiseaseViaGenocluster() {
-		if (this.phenotypeToDiseaseViaGenocluster == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			String crossTable = this.getAnnotationCrossProductTable();
-			this.phenotypeToDiseaseViaGenocluster = "tmp_mp_to_ss_disease";
-			logger.info("creating " + this.phenotypeToDiseaseViaGenocluster + "(phenotypes to diseases via genocluster)");
-			String mpToSSDiseaseQuery = "select hc.term_id1 mp_id, \n" + 
-					"        	hc.term1 mp_term, \n" + 
-					"			hc.ha_key2 hdp_annotation_key\n" + 
-					"		into temp " + this.phenotypeToDiseaseViaGenocluster + " \n" + 
-					"			from " + crossTable + " \n" + 
-					"			where hc.vocab1='Mammalian Phenotype' \n" + 
-					"				and hc.vocab2='OMIM'";
-			fillTempTable(mpToSSDiseaseQuery);
-			createTempIndex(this.phenotypeToDiseaseViaGenocluster, "hdp_annotation_key");
-			analyze(this.phenotypeToDiseaseViaGenocluster);
-			logger.info("done creating " + this.phenotypeToDiseaseViaGenocluster + Timer.getElapsedMessage());
-		}
-		return this.phenotypeToDiseaseViaGenocluster;
-	}
-
-	/* returns the name of the table with the mapping from each phenotype annotation
-	 * to disease annotations for the same genotype
-	 */
-	public String getPhenotypeToDiseaseViaGenotype() {
-		if (this.phenotypeToDiseaseViaGenotype == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			this.phenotypeToDiseaseViaGenotype = "tmp_mp_to_disease";
-			logger.info("creating " + this.phenotypeToDiseaseViaGenotype + "(phenotypes to diseases via genotype)");
-			String mpToDiseaseQuery = "select distinct ha_mp.term_id mp_id, \n" + 
-					"        	ha_mp.term mp_term, \n" + 
-					"			ha_omim.hdp_annotation_key \n" + 
-					"		into temp " + this.phenotypeToDiseaseViaGenotype + " \n" + 
-					"			from hdp_annotation ha_mp, \n" + 
-					"				hdp_annotation ha_omim\n" + 
-					"			where ha_mp.genotype_key=ha_omim.genotype_key \n" + 
-					"				and (ha_mp.genotype_type!='complex' or ha_mp.genotype_type is null) \n" + 
-					"				and (ha_omim.genotype_type!='complex' or ha_omim.genotype_type is null) \n" + 
-					"				and ha_mp.vocab_name='Mammalian Phenotype' \n" + 
-					"				and ha_omim.vocab_name='OMIM'";
-			fillTempTable(mpToDiseaseQuery);
-			createTempIndex(this.phenotypeToDiseaseViaGenotype, "hdp_annotation_key");
-			analyze(this.phenotypeToDiseaseViaGenotype);
-			logger.info("done creating " + this.phenotypeToDiseaseViaGenotype + Timer.getElapsedMessage());
-		}
-		return this.phenotypeToDiseaseViaGenotype;
-	}
-
-	/* returns the name of the table with the mapping from each phenotype annotation
-	 * to other phenotype annotations for the same genocluster
-	 */
-	public String getPhenotypeToPhenotype() {
-		if (this.phenotypeToPhenotype == null) {
-			// need to build the temp table and index it appropriately
-
-			Timer.reset();
-			String crossTable = this.getAnnotationCrossProductTable();
-			this.phenotypeToPhenotype = "tmp_mp_to_mp";
-			logger.info("creating " + this.phenotypeToPhenotype + "(phenotypes to phenotypes via genocluster)");
-
-			String mpToMpQuery = "select hc.term_id1 mp_id, \n" +
-					"        	hc.term1 mp_term, \n" +
-					"			hc.ha_key2 hdp_annotation_key\n" +
-					"		into temp " + this.phenotypeToPhenotype + " \n" +
-					"			from " + crossTable + " hc \n" +
-					"			where hc.vocab1='Mammalian Phenotype' \n" +
-					"				and hc.vocab2='Mammalian Phenotype'";
-			fillTempTable(mpToMpQuery);
-			createTempIndex(this.phenotypeToPhenotype, "hdp_annotation_key");
-			analyze(this.phenotypeToPhenotype);
-			logger.info("done creating " + this.phenotypeToPhenotype + Timer.getElapsedMessage());
-		}
-		return this.phenotypeToDiseaseViaGenotype;
-	}
-
-	/*------------------------------------------------*/
-	/*--- methods relating to annotation retrieval ---*/
-	/*------------------------------------------------*/
-
-	/* get the maximum annotation_key from the hdp_annotation table (to use in stepping
-	 * through chunks of annotations)
-	 */
-	public int getMaxAnnotationKey() throws SQLException {
-		ResultSet rs_tmp = ex.executeProto("select max(hdp_annotation_key) as max_hdp_key from hdp_annotation", cursorLimit);
-		rs_tmp.next();
-		int i = rs_tmp.getInt("max_hdp_key");
-		rs_tmp.close();
-		logger.info("Got max annotation key: " + i);
-		return i;
-	}
-
-	/* get a ResultSet with annotation data, from the given start key (exclusive) to
-	 * the given end key (inclusive).  See SQL included below for list of columns.
-	 */
-	public ResultSet getAnnotations(int startKey, int endKey) throws SQLException {
-		String cmd = "select ha.hdp_annotation_key, " +
-				"ha.marker_key, " +
-				"ha.genotype_key, " +
-				"ha.term, " +
-				"ha.term_id, " +
-				"ha.vocab_name, " +
-				"ha.genotype_type, " +
-				"ha.header as term_header, " +
-				"ha.qualifier_type, " +
-				"ha.term_seq, " +
-				"ha.term_depth, " +
-				"m.organism, " +
-				"m.symbol as marker_symbol, " +
-				"m.primary_id as marker_id, " +
-				"m.name as marker_name, " +
-				"m.marker_subtype as feature_type, " +
-				"m.location_display, " +
-				"m.coordinate_display, " +
-				"m.build_identifier, " +
-				"msqn.by_organism, " +
-				"msqn.by_symbol, " +
-				"msqn.by_marker_subtype, " +
-				"msqn.by_location, " +
-				"mc.reference_count, " +
-				"mc.disease_relevant_reference_count, " +
-				"gcm.hdp_gridcluster_key, " +
-				"gcg.hdp_genocluster_key, " +
-				"gsn.by_hdp_rules by_genocluster "+
-				"from hdp_annotation ha " +
-				"left outer join hdp_gridcluster_marker gcm on gcm.marker_key=ha.marker_key " +
-				"left outer join hdp_genocluster_genotype gcg on gcg.genotype_key=ha.genotype_key " +
-				"left outer join genotype_sequence_num gsn on gsn.genotype_key=ha.genotype_key, " +
-				"marker m, " +
-				"marker_sequence_num msqn, " +
-				"marker_counts mc " +
-				"where m.marker_key=ha.marker_key " +
-				"and m.marker_key=msqn.marker_key " +
-				"and m.marker_key=mc.marker_key " +
-				"and ha.hdp_annotation_key > " + startKey +
-				" and ha.hdp_annotation_key <= " + endKey;
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.info("  - Got annotations for keys " + (startKey + 1) + " to " + endKey);
-		return rs;
-	}
-
-	/* fill the set of caches needed to populate the standard search fields (in the
-	 * addStandardFields method).
-	 */
-	protected void fillStandardCaches(int startKey, int endKey) throws Exception {
-		getHomologyMap();
-		getFeatureTypeMap();
-	}
-
-	/* add the standard search fields to the given Solr document, using the
-	 * current record in the given ResultSet as its source data.  This method should
-	 * be called by the buildDocument method of each subclass.  See getAnnotations()
-	 * method for column names in 'rs'.
-	 */
-	protected void addStandardFields(ResultSet rs, SolrInputDocument doc) throws SQLException {
-		// local variables to cache values used multiple times
-		String vocabName = rs.getString("vocab_name");
-		String term = rs.getString("term");
-		String termID = rs.getString("term_id");
-		String termHeader = rs.getString("term_header");
-		String qualifier = rs.getString("term_qualifier");
-		Integer markerKey = rs.getInt("marker_key");
-		Integer gridClusterKey = rs.getInt("hdp_gridcluster_key");
-
-		// tweaks for the local variables
-		if (qualifier == null) { qualifier = ""; }
-
-		if (homologyMap.containsKey(markerKey)) {
-			// override with hybrid homology-based cluster key
-			gridClusterKey = homologyMap.get(markerKey);
-		}
-
-		if ("OMIM".equalsIgnoreCase(vocabName) && (termHeader == null || "".equals(termHeader))) {
-			termHeader = term;
-		}
-
-		// document-identification fields
-		uniqueKey += 1;
-		doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
-
-		// term-related fields
-		doc.addField(DiseasePortalFields.TERM, term);
-		doc.addField(DiseasePortalFields.TERM_ID, termID);
-		doc.addField(DiseasePortalFields.BY_TERM_NAME, getTermSequenceNum(term));
-		doc.addField(DiseasePortalFields.TERM_HEADER, termHeader);
-		doc.addField(DiseasePortalFields.TERM_TYPE, vocabName);
-		addAllFromLookup(doc, DiseasePortalFields.TERM_SYNONYM, termID, termSynonymMap);
-
-		// marker-related fields
-		if ((markerKey != null) && (markerKey >= 0)) {
-			doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
-			doc.addField(DiseasePortalFields.MARKER_SYMBOL, rs.getString("marker_symbol"));
-			doc.addField(DiseasePortalFields.MARKER_NAME, rs.getString("marker_name"));
-		}
-
-		// gridcluster-related fields
-		if ((gridClusterKey != null) && (gridClusterKey >= 0)) {
-			doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY, gridClusterKey);
-			addAllFromLookup(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, gridClusterKey.toString(), featureTypeMap);
-		}
-
-		// other fields
-		doc.addField(DiseasePortalFields.TERM_QUALIFIER, qualifier);
-	}
-
-	/* populate any memory caches needed to process annotations from the given start
-	 * key (exclusive) to the given end key (inclusive).  Override this method in
-	 * subclasses, if any memory caches are necessary.
-	 */
-	public void fillCachesForAnnotations(int startKey, int endKey) throws SQLException {}
-
-	/* build and return a SolrInputDocument based on the current record in the
-	 * given ResultSet.  Override this method in subclasses.
-	 */
-	public SolrInputDocument buildDocument(ResultSet rs) throws SQLException { return null; }
-
-	/* main method for processing disease and phenotype annotations, including
-	 * walking through the results in chunks and using a method that can be 
-	 * overridden in each subclass for specialized document creation.
-	 */
-	public void processAnnotations() throws Exception {
-		int maxAnnotationKey = this.getMaxAnnotationKey();
-		int start = 0;					// start annotation key for the current chunk
-		int end = start + dbChunkSize;	// end annotation key for the current chunk
-
-		logger.info("Processing annotations 1 to " + maxAnnotationKey);
-		List<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-
-		while (start < maxAnnotationKey) {
-			fillStandardCaches(start, end);
-			fillCachesForAnnotations(start, end);
-			ResultSet rs = getAnnotations(start, end);
-
-			while (rs.next()) {
-				docs.add(buildDocument(rs));
-				if (docs.size() >= solrBatchSize) {
-					writeDocs(docs);
-					docs = new ArrayList<SolrInputDocument>();
-					logger.info("  - sent batch of docs to Solr");
-				}
-			}
-
-			rs.close();
-			start = end;
-			end = end + dbChunkSize;
-		}
-
-		writeDocs(docs);
-		commit();
-		logger.info("Done processing annotations 1 to " + maxAnnotationKey);
-	}
-
-	/*---------------------------------------------------------------------*/
-	/*--- methods dealing with "basic search units" (BSUs) for the grid ---*/
-	/*---------------------------------------------------------------------*/
 
 	/* cache the human and mouse marker data for each grid cluster
 	 */
@@ -2011,32 +1509,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return union;
 	}
 
-	/* get the terms for the MP headers that are associated with the high-level HPO terms
-	 * that are ancestors of the given HPO term (including the term itself). returns empty
-	 * set if none.
-	 */
-/*	protected Set<String> getMpHeaders(Integer hpoTermKey) throws Exception {
-		Set<String> headers = new HashSet<String>();
-		for (Integer termKey : getAncestorMpHeaderKeys(hpoTermKey)) {
-			String header = getTerm(termKey);
-			if (header != null) { headers.add(header); }
-		}
-		return headers;
-	}
-*/
-	/* get the IDs for the MP headers that are associated with the high-level HPO terms
-	 * that are ancestors of the given HPO term (including the term itself). returns empty
-	 * set if none.
-	 */
-/*	protected Set<String> getMpHeaderIds(Integer hpoTermKey) throws Exception {
-		Set<String> ids = new HashSet<String>();
-		for (Integer termKey : getAncestorMpHeaderKeys(hpoTermKey)) {
-			String id = getTermId(termKey);
-			if (id != null) { ids.add(id); }
-		}
-		return ids;
-	}
-*/
+	/*---------------------------------------------------------------------*/
+	/*--- methods dealing with "basic search units" (BSUs) for the grid ---*/
+	/*---------------------------------------------------------------------*/
+
 	/* look up data for the BSUs and cache them in memory, assigning a new integer key
 	 * to each BSU.  Each BSU's uniqueness is defined by:
 	 *		1. marker/disease pair for human data
@@ -2192,8 +1668,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		public boolean isMouseData = true;		// is this mouse data (true) or human (false)?
 		public boolean isConditional = false;	// conditional mouse genocluster (true) or not (false)?
 		public Integer homologyClusterKey;		// key of homology cluster for human data
-
-		private BSU() {}
 
 		public BSU(int bsuKey) {
 			this.bsuKey = bsuKey;
