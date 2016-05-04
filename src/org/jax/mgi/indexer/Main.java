@@ -57,11 +57,10 @@ public class Main
 		indexerMap.put("gxdImagePane", new GXDImagePaneIndexerSQL());
 		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
 		indexerMap.put("mpAnnotation", new MPAnnotationIndexerSQL());
-		indexerMap.put("diseasePortal", new DiseasePortalIndexerSQL());
-		indexerMap.put("diseasePortalAnnotation", new DiseasePortalAnnotationIndexerSQL());
 		indexerMap.put("interaction", new InteractionIndexerSQL());
 		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
+		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 	}
 

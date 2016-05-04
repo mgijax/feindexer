@@ -119,7 +119,7 @@ processCommandLine() {
 
 	# if we receive an HMDC flag, then do all the HMDC indexers
 	elif [ "$1" = "hmdc" -o "$1" = "hdp" ]; then
-		INDEXERS="hdpGrid hdpDisease hdpGridAnnotation"
+		INDEXERS="hdpGrid hdpDisease hdpGridAnnotation hdpGene"
 		log "Converted $1 to: ${INDEXERS}"
 
 	# otherwise the user specified one or more indexes; see if there are

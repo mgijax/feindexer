@@ -3,6 +3,7 @@ package org.jax.mgi.shr;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -53,6 +54,15 @@ public class DistinctSolrInputDocument extends SolrInputDocument {
 	/* similar method to above, but for sets of strings
 	 */
 	public void addAllDistinct(String solrField, Set<String> values) {
+		if ((solrField == null) || (values == null)) { return; }
+		for (String value : values) {
+			this.addDistinctField(solrField, value);
+		}
+	}
+
+	/* similar method to above, but for lists of strings
+	 */
+	public void addAllDistinct(String solrField, List<String> values) {
 		if ((solrField == null) || (values == null)) { return; }
 		for (String value : values) {
 			this.addDistinctField(solrField, value);

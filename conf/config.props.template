@@ -23,6 +23,7 @@ index.url.gxdDifferentialMarker={BASE_URL}/gxdDifferentialMarker/
 index.url.diseasePortal={BASE_URL}/diseasePortal/
 index.url.diseasePortalAnnotation={BASE_URL}/diseasePortalAnnotation/
 index.url.diseasePortalDisease={BASE_URL}/diseasePortalDisease/
+index.url.diseasePortalGene={BASE_URL}/diseasePortalGene/
 index.url.diseasePortalGrid={BASE_URL}/diseasePortalGrid/
 index.url.diseasePortalGridAnnotation={BASE_URL}/diseasePortalGridAnnotation/
 
