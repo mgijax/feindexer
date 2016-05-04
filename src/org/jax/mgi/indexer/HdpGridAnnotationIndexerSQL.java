@@ -1,14 +1,11 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
@@ -218,7 +215,6 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			+ "  and ga.term_key = ha.term_key "
 			+ "  and gg.genotype_key = ha.genotype_key";
 
-		SolrInputDocument doc = null;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 		ResultSet rs = ex.executeProto(mouseQuery, cursorLimit);

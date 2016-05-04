@@ -1,21 +1,15 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.codehaus.jackson.map.ObjectMapper;
-import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
-import org.jax.org.mgi.shr.fe.util.GridMarker;
 
 /* Is: an indexer that builds the index supporting the Grid tab of the HMDC summary
  *		page.  Each document in the index represents a basic unit of HMDC searching:
@@ -105,11 +99,6 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		// add data for orthologs of this marker
 		Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
 		if (orthologousMarkerKeys != null) {
-
-			// collect the orthologs' data in sets to avoid duplication in the index
-			Set<String> orthologNomen = new HashSet<String>();
-			Set<String> orthologIds = new HashSet<String>();
-
 			for (Integer orthoMarkerKey : orthologousMarkerKeys) {
 				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerSymbol(orthoMarkerKey));
 				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerName(orthoMarkerKey));

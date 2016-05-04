@@ -195,10 +195,6 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		logger.info("done processing " + uniqueKey + " disease terms");
 	}
 
-	/*
-	 *
-	 */
-
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
