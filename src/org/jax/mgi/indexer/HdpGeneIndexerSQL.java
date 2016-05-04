@@ -60,6 +60,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			+ "  and t.annotation_key = a.annotation_key "
 			+ "  and m.organism in ('human', 'mouse') "
 			+ "  and m.status = 'official' "
+			+ "  and a.qualifier is null "
 			+ "  and m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
 			+ "  and a.vocab_name in ('OMIM', 'Mammalian Phenotype')";
 
@@ -83,7 +84,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		logger.info("Finished caching marker MP/OMIM associations " + Timer.getElapsedMessage());
 	}
 	
-	/* return a Set of term keys for diseases associated with the marker, including
+	/* return a Set of term keys for diseases associated with the marker, excluding
 	 * those with NOT qualifiers.
 	 */
 	protected Set<Integer> getAssociatedDiseases (int markerKey) throws Exception {
@@ -94,7 +95,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		return null;
 	}
 
-	/* return a Set of term keys for phenotypes associated with the marker, including
+	/* return a Set of term keys for phenotypes associated with the marker, excluding
 	 * those with Normal qualifiers.
 	 */
 	protected Set<Integer> getAssociatedPhenotypes (int markerKey) throws Exception {
@@ -262,6 +263,9 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				for (Integer phenotypeKey : phenotypeKeys) {
 					mpHeaders.addAll(getHeadersPerTerm(phenotypeKey));
 					addTermFields(doc, phenotypeKey);
+				}
+				if (mpHeaders.contains("normal phenotype")) {
+					mpHeaders.remove("normal phenotype");
 				}
 				List<String> phenotypes = Arrays.asList(mpHeaders.toArray(new String[0]));
 				Collections.sort(phenotypes);
