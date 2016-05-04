@@ -98,7 +98,7 @@ public class Main
         			logger.info("adding user specified index: "+arg+" to list of indexers to run.");
         		}
         		else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
-//        			SPECIFIED_INDEXERS.add("hdpMarker");
+        			SPECIFIED_INDEXERS.add("hdpGene");
         			SPECIFIED_INDEXERS.add("hdpDisease");
         			SPECIFIED_INDEXERS.add("hdpGrid");
         			SPECIFIED_INDEXERS.add("hdpGridAnnotation");
