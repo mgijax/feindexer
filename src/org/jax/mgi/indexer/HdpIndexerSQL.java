@@ -782,7 +782,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 					+ "  homology_cluster_organism other_o, "
 					+ "  homology_cluster_organism_to_marker other_otm "
 					+ "where other_o.cluster_key=o.cluster_key "
-					+ "  and o.organism in ('mouse', 'human') "
 					+ "  and o.cluster_organism_key=otm.cluster_organism_key "
 					+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
 					+ "  and otm.marker_key!=other_otm.marker_key";

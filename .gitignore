@@ -8,3 +8,4 @@ conf/config.props
 .DS_Store
 build
 config.props
+*~
