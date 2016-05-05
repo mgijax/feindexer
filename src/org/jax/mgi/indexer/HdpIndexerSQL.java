@@ -16,7 +16,7 @@ import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
-import org.jax.org.mgi.shr.fe.util.GridMarker;
+import org.jax.mgi.shr.jsonmodel.GridMarker;
 
 /* Is: parent class of the various HMDC-related indexers (Hdp*)
  * Has: knowledge of how to produce various temp tables, mappings, and such
@@ -51,7 +51,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<String,Set<String>> markerSynonymMap = null;	// marker key -> marker synonyms 
 	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
-	protected Map<Integer,Set<Integer>> markerOrthologs = null;	// marker key -> set of ortholog marker keys
+	protected Map<Integer,Set<Integer>> markerOrthologs = null;		// marker key -> set of ortholog marker keys
+	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> hybrid homology cluster key
 
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerTerm = null;	// disease ID -> header terms
@@ -1274,10 +1275,65 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
+	/* cache the hybrid homology cluster keys for each human and mouse marker that is
+	 * in a cluster.
+	 */
+	protected void cacheHomologyClusterKeys() throws Exception {
+		if (markerToHomologyCluster != null) { return; }
+		
+		logger.info("retrieving homology clusters");
+		Timer.reset();
+
+		markerToHomologyCluster = new HashMap<Integer,Integer>();
+		
+		// need to first hit the hybrid homology to see which source was chosen;
+		// then use that info to hit the homology tables again to get the source
+		// cluster key
+		String homologyQuery = "with hybrid as ("
+			+ "  select otm.marker_key, hc.cluster_key, "
+			+ "    case when hc.secondary_source = 'HomoloGene and HGNC' then 'HGNC' "
+			+ "    else hc.secondary_source "
+			+ "    end secondary_source "
+			+ "  from homology_cluster_organism_to_marker otm, "
+			+ "    homology_cluster_organism hco, homology_cluster hc "
+			+ "  where otm.cluster_organism_key = hco.cluster_organism_key "
+			+ "    and hco.organism in ('human', 'mouse') "
+			+ "    and hco.cluster_key = hc.cluster_key " 
+			+ "    and hc.source = 'HomoloGene and HGNC' "
+			+ ")"
+			+ "select otm.marker_key, hc.cluster_key "
+			+ "from hybrid h, homology_cluster_organism_to_marker otm, "
+			+ "  homology_cluster_organism hco, homology_cluster hc "
+			+ "where otm.cluster_organism_key = hco.cluster_organism_key "
+			+ "  and hco.organism in ('human', 'mouse') "
+			+ "  and hco.cluster_key = hc.cluster_key "
+			+ "  and otm.marker_key = h.marker_key "
+			+ "  and h.secondary_source = hc.source";
+		
+		ResultSet rs = ex.executeProto(homologyQuery, cursorLimit);
+		
+		while (rs.next()) {
+			markerToHomologyCluster.put(rs.getInt("marker_key"), rs.getInt("cluster_key"));
+		}
+		rs.close();
+		logger.info("  - retrieved homology clusters for " + markerToHomologyCluster.size() + " markers " + Timer.getElapsedMessage());
+	}
+	
+	/* get the homology cluster key for the given marker (use hybrid homology)
+	 */
+	protected Integer getHomologyClusterKey(int markerKey) throws Exception {
+		if (markerToHomologyCluster == null) { cacheHomologyClusterKeys(); }
+		if (markerToHomologyCluster.containsKey(markerKey)) {
+			return markerToHomologyCluster.get(markerKey);
+		}
+		return null;
+	}
+	
 	/* cache the human and mouse marker data for each grid cluster
 	 */
 	protected void cacheGridClusterMarkers() throws Exception {
 		if (gcToHumanMarkers != null) { return; }
+		cacheHomologyClusterKeys();
 
 		logger.info("retrieving gridcluster markers");
 		Timer.reset();
@@ -1285,7 +1341,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		gcToHumanMarkers = new HashMap<Integer,String>();
 		gcToMouseMarkers = new HashMap<Integer,String>();
 
-		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, "
+		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, m.marker_key, "
 				+ "  m.primary_id, ms.by_symbol, m.marker_type, m.marker_subtype, m.name "
 				+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
 				+ "where gcm.marker_key = m.marker_key "
@@ -1307,6 +1363,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String accId = rs.getString("primary_id");
 			String markerType = rs.getString("marker_type");
 			String markerSubType = rs.getString("marker_subtype");
+			Integer markerKey = rs.getInt("marker_key");
 
 			// beginning to collect for a new gridcluster
 			if (lastGcKey != gcKey.intValue()) {
@@ -1321,9 +1378,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 
 			if ("human".equals(organism)) {
-				humanGM.add(new GridMarker(symbol, accId, name, markerType));
+				humanGM.add(new GridMarker(symbol, accId, name, markerType, getHomologyClusterKey(markerKey)));
 			} else {
-				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType));
+				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType, getHomologyClusterKey(markerKey)));
 			}
 		}
 		
