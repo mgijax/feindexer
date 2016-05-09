@@ -109,7 +109,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 	
 	/* add fields to 'doc' that relate to the given 'termKey'
 	 */
-	protected void addTermFields (DistinctSolrInputDocument doc, int termKey) throws Exception {
+	protected void addTermFields (DistinctSolrInputDocument doc, int termKey, boolean isHumanMarker) throws Exception {
 		String termId = getTermId(termKey);
 		doc.addDistinctField(DiseasePortalFields.TERM, getTerm(termKey));
 		addAllFromLookup(doc,DiseasePortalFields.TERM_SYNONYM, termId, termSynonymMap);
@@ -120,11 +120,13 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
 		
-		/* For OMIM terms, we need to add the corresponding HPO phenotypes.  For MP terms, we need
-		 * to consider the DAG and add the ancestor data.
+		/* For OMIM terms, if we have a human marker, we need to add the corresponding HPO phenotypes.
+		 * For MP terms, we need to consider the DAG and add the ancestor data.
 		 */
 		if (omim.equals(getVocabulary(termKey))) {
-			addHpoData(doc, termKey);
+			if (isHumanMarker) {
+				addHpoData(doc, termKey);
+			}
 		} else {
 			doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
 			doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
@@ -163,6 +165,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 			Integer markerKey = rs.getInt("marker_key");
 			Integer gridClusterKey = getGridClusterKey(markerKey);
+			boolean isHumanMarker = isHuman(markerKey);
 
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			
@@ -191,7 +194,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			addIfNotNull(doc, DiseasePortalFields.LOCATION_DISPLAY, rs.getString("location_display"));
 			addIfNotNull(doc, DiseasePortalFields.COORDINATE_DISPLAY, rs.getString("coordinate_display"));
 			addIfNotNull(doc, DiseasePortalFields.BUILD_IDENTIFIER, rs.getString("build_identifier"));
-			if (this.isHuman(markerKey)) {
+			if (isHumanMarker) {
 				doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
 			} else {
 				doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
@@ -253,7 +256,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				List<String> diseases = new ArrayList<String>();
 				for (Integer diseaseKey : diseaseKeys) {
 					diseases.add(getTerm(diseaseKey));
-					addTermFields(doc, diseaseKey);
+					addTermFields(doc, diseaseKey, isHumanMarker);
 				}
 				Collections.sort(diseases);
 				doc.addAllDistinct(DiseasePortalFields.MARKER_DISEASE, diseases);
@@ -266,7 +269,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				Set<String> mpHeaders = new HashSet<String>();
 				for (Integer phenotypeKey : phenotypeKeys) {
 					mpHeaders.addAll(getHeadersPerTerm(phenotypeKey));
-					addTermFields(doc, phenotypeKey);
+					addTermFields(doc, phenotypeKey, isHumanMarker);
 				}
 				if (mpHeaders.contains("normal phenotype")) {
 					mpHeaders.remove("normal phenotype");
@@ -274,7 +277,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				List<String> phenotypes = Arrays.asList(mpHeaders.toArray(new String[0]));
 				Collections.sort(phenotypes);
 
-				if (this.isHuman(markerKey)) {
+				if (isHumanMarker) {
 					doc.addAllDistinct(DiseasePortalFields.HUMAN_MARKER_SYSTEM, phenotypes);
 				} else {
 					doc.addAllDistinct(DiseasePortalFields.MOUSE_MARKER_SYSTEM, phenotypes);
