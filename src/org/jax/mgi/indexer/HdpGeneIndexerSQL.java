@@ -54,13 +54,14 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		markerToPheno = new HashMap<Integer,Set<Integer>>();
 		markerToDisease = new HashMap<Integer,Set<Integer>>();
 		
+		// Normal and null qualifiers are okay; NOT qualifiers (for OMIM) are not
 		String assocQuery = "select a.vocab_name, m.marker_key, a.term_key "
 			+ "from marker m, marker_to_annotation t, annotation a "
 			+ "where m.marker_key = t.marker_key "
 			+ "  and t.annotation_key = a.annotation_key "
 			+ "  and m.organism in ('human', 'mouse') "
 			+ "  and m.status = 'official' "
-			+ "  and a.qualifier is null "
+			+ "  and a.qualifier != 'NOT' "
 			+ "  and m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
 			+ "  and a.vocab_name in ('OMIM', 'Mammalian Phenotype')";
 
