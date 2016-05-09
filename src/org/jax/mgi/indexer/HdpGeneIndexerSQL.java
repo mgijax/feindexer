@@ -61,7 +61,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			+ "  and t.annotation_key = a.annotation_key "
 			+ "  and m.organism in ('human', 'mouse') "
 			+ "  and m.status = 'official' "
-			+ "  and a.qualifier != 'NOT' "
+			+ "  and (a.qualifier != 'NOT' or a.qualifier is null) "
 			+ "  and m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
 			+ "  and a.vocab_name in ('OMIM', 'Mammalian Phenotype')";
 
