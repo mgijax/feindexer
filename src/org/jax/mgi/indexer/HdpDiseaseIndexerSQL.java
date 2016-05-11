@@ -43,10 +43,12 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		// main query - OMIM disease terms that are no obsolete.  We don't bother to
 		// specify an order, because we will compute ordering in-memory to ensure it
 		// is smart-alpha.  (The term.sequence_num field is not.)
-		String diseaseTermQuery = "select term_key, term, primary_id "
-				+ "from term "
-				+ "where vocab_name = '" + omim + "' "
-				+ "  and is_obsolete = 0 ";
+		String diseaseTermQuery = "select t.term_key, t.term, t.primary_id, a.marker_key, "
+			+ "  a.genotype_key, a.organism_key "
+			+ "from term t "
+			+ "left outer join hdp_annotation a on (t.term_key = a.term_key) "
+			+ "where t.vocab_name = 'OMIM' "
+			+ "  and t.is_obsolete = 0";
 
 		ResultSet rs = ex.executeProto(diseaseTermQuery, cursorLimit);
 		logger.debug("  - finished disease query in " + ex.getTimestamp());
@@ -58,12 +60,26 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			Integer termKey = rs.getInt("term_key");
 			String term = rs.getString("term");
 			String termId = rs.getString("primary_id");
-
+			Integer markerKey = rs.getInt("marker_key");
+			Integer organismKey = rs.getInt("organism_key");
+			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
-			doc.addField(DiseasePortalFields.UNIQUE_KEY, termKey);
+			doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
 			doc.addField(DiseasePortalFields.TERM, term);
 			doc.addField(DiseasePortalFields.TERM_ID, termId);
 			doc.addField(DiseasePortalFields.TERM_TYPE, omim);
+
+			// need to include the "basic search unit" so we can provide AND matching of multiple query
+			// strings within a single BSU, rather than across the whole disease
+			BSU bsu = null;
+			if (organismKey == 1) {
+				bsu = this.getMouseBsu(getGenocluster(rs.getInt("genotype_key")), getGridClusterKey(markerKey));
+			} else if (organismKey == 2) {
+				bsu = getHumanBsu(markerKey, termKey);
+			}
+			if (bsu != null) {
+				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
+			}
 
 			// add the corresponding HPO terms, their synonyms, their IDs, and the same data for their ancestors
 			addHpoData(doc, termKey);
@@ -98,68 +114,76 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseasesForTerm(termKey, true, false));
 			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseasesForTerm(termKey, false, true));
 
-			// add marker-related fields, if any markers area associated with the disease
-			Set<String> associatedMarkerKeys = this.getMarkersByDisease(termId);
-			if ((associatedMarkerKeys != null) && (associatedMarkerKeys.size() > 0)) {
-				// use sets to collect data prone to redundancy across markers, then add their
-				// contents to the document after getting through all related markers
+			// add marker-related fields, if we have a marker associated with the disease
+			if (markerKey != null) {
 				Set<String> featureTypes = new HashSet<String>();
 				Set<String> markerSynonyms = new HashSet<String>();
 				Set<String> orthologNomen = new HashSet<String>();
 				Set<String> orthologIds = new HashSet<String>();
 
-				for (String stringMarkerKey : associatedMarkerKeys) {
-					Integer markerKey = Integer.parseInt(stringMarkerKey);
-					String markerSymbol = getMarkerSymbol(markerKey);
-					Integer gridClusterKey = getGridClusterKey(markerKey);
+				String markerSymbol = getMarkerSymbol(markerKey);
+				Integer gridClusterKey = getGridClusterKey(markerKey);
 
-					doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
-					addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, markerSymbol);
-					addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
-					addIfNotNull(doc, DiseasePortalFields.MARKER_MGI_ID, getMarkerID(markerKey));
+				doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
+				addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, markerSymbol);
+				addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
+				addIfNotNull(doc, DiseasePortalFields.MARKER_MGI_ID, getMarkerID(markerKey));
 
-					if (markerSynonymMap.containsKey(markerKey.toString())) {
-						markerSynonyms.addAll(markerSynonymMap.get(markerKey.toString()));
+				if (markerSynonymMap.containsKey(markerKey.toString())) {
+					markerSynonyms.addAll(markerSynonymMap.get(markerKey.toString()));
+				}
+				addAll(doc, DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
+
+				// add feature types for all markers in the grid cluster (if the marker is part of one)
+				if (gridClusterKey != null) {
+					String gckString = gridClusterKey.toString();
+					doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY, gckString);
+					if (featureTypeMap.containsKey(gckString)) {
+						featureTypes.addAll(featureTypeMap.get(gckString));
 					}
-					addAll(doc, DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
+				} else {
+					// add feature types for markers not in grid clusters
+					Set<String> mFeatureTypes = getMarkerFeatureTypes(markerKey);
+					if (mFeatureTypes != null) {
+						featureTypes.addAll(mFeatureTypes);
+					}
+				}
 
-					// add feature types for all markers in the grid cluster (if the marker is part of one)
-					if (gridClusterKey != null) {
-						String gckString = gridClusterKey.toString();
-						doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY, gckString);
-						if (featureTypeMap.containsKey(gckString)) {
-							featureTypes.addAll(featureTypeMap.get(gckString));
-						}
-					} else {
-						// add feature types for markers not in grid clusters
-						Set<String> mFeatureTypes = getMarkerFeatureTypes(markerKey);
-						if (mFeatureTypes != null) {
-							featureTypes.addAll(mFeatureTypes);
+				// add this marker's coordinates in the appropriate bin (can be multiple coordinates)
+				if (isHuman(markerKey)) {
+					addAll(doc, DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
+				} else {
+					addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
+				}
+				
+				/* need to add all marker symbols related to the disease, for display purposes
+				 */
+				Set<String> markerKeys = getMarkersByDisease(termId);
+				if (markerKeys != null) {
+					for (String stringMarkerKey : markerKeys) {
+						Integer mkey = Integer.parseInt(stringMarkerKey);
+						String msymbol = getMarkerSymbol(mkey);
+						if (isHuman(mkey)) {
+							doc.addField(DiseasePortalFields.TERM_HUMANSYMBOL, msymbol);
+						} else {
+							doc.addField(DiseasePortalFields.TERM_MOUSESYMBOL, msymbol);
 						}
 					}
+				}
 
-					if (this.isHuman(markerKey)) {
-						doc.addField(DiseasePortalFields.TERM_HUMANSYMBOL, markerSymbol);
-						addAll(doc, DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
-					} else {
-						doc.addField(DiseasePortalFields.TERM_MOUSESYMBOL, markerSymbol);
-						addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
-					}
+				// collect nomen and ID data for orthologs of this marker
+				Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
+				if (orthologousMarkerKeys != null) {
+					for (Integer orthoMarkerKey : orthologousMarkerKeys) {
+						String orthoSymbol = getMarkerSymbol(orthoMarkerKey);
+						String orthoName = getMarkerName(orthoMarkerKey);
+						Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
+						Set<String> orthoSynonyms = getMarkerSynonyms(orthoMarkerKey);
 
-					// collect nomen and ID data for orthologs of this marker
-					Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
-					if (orthologousMarkerKeys != null) {
-						for (Integer orthoMarkerKey : orthologousMarkerKeys) {
-							String orthoSymbol = getMarkerSymbol(orthoMarkerKey);
-							String orthoName = getMarkerName(orthoMarkerKey);
-							Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
-							Set<String> orthoSynonyms = getMarkerSynonyms(orthoMarkerKey);
-
-							if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
-							if (orthoName != null) { orthologNomen.add(orthoName); }
-							if (orthoSynonyms != null) { orthologNomen.addAll(orthoSynonyms); }
-							if (orthoIds != null) { orthologIds.addAll(orthoIds); }
-						}
+						if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
+						if (orthoName != null) { orthologNomen.add(orthoName); }
+						if (orthoSynonyms != null) { orthologNomen.addAll(orthoSynonyms); }
+						if (orthoIds != null) { orthologIds.addAll(orthoIds); }
 					}
 				}
 
@@ -176,7 +200,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				if (orthologIds.size() > 0) {
 					addAll(doc, DiseasePortalFields.ORTHOLOG_ID, orthologIds);
 				}
-			} // end of processing associated markers
+			} // end of processing associated marker
 
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.

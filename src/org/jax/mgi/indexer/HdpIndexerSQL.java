@@ -84,6 +84,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	Map<Integer,Map<Integer,Integer>> humanBsuMap = null;	// marker key -> disease key -> BSU key
 	Map<Integer,Map<Integer,Integer>> mouseBsuMap = null;	// genocluster key -> gridcluster key -> BSU key
 
+	Map<Integer,Integer> genotypeToGenocluster = null;		// genotype key -> genocluster key
+	
 	Map<Integer,String> gcToHumanMarkers = null;	// maps gridcluster key to human marker data as JSON
 	Map<Integer,String> gcToMouseMarkers = null;	// maps gridcluster key to mouse marker data as JSON
 	Map<Integer,String> allelePairs = null;			// maps genocluster key to allele pair data
@@ -116,6 +118,40 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*--- methods for dealing with data cached in memory ---*/
 	/*------------------------------------------------------*/
 
+	/* cache the mapping between genotypes and genoclusters
+	 */
+	protected void cacheGenotypeToGenocluster() throws Exception {
+		if (genotypeToGenocluster != null) { return; }
+		
+		logger.info("retrieving genotype/genocluster pairs");
+		Timer.reset();
+		
+		// We assume each genotype is part of only one genocluster.
+		genotypeToGenocluster = new HashMap<Integer,Integer>();
+		
+		String genotypeQuery = "select genotype_key, hdp_genocluster_key "
+			+ "from hdp_genocluster_genotype";
+		
+		ResultSet rs = ex.executeProto(genotypeQuery, cursorLimit);
+		
+		while (rs.next()) {
+			genotypeToGenocluster.put(rs.getInt("genotype_key"), rs.getInt("hdp_genocluster_key"));
+		}
+		rs.close();
+
+		logger.info("finished retrieving genoclusters for " + genotypeToGenocluster.size() + " genotypes " + Timer.getElapsedMessage());
+	}
+	
+	/* retrieve the genocluster key for the given genotype key
+	 */
+	protected Integer getGenocluster(Integer genotypeKey) throws Exception {
+		if (genotypeToGenocluster == null) { cacheGenotypeToGenocluster(); }
+		if (genotypeToGenocluster.containsKey(genotypeKey)) {
+			return genotypeToGenocluster.get(genotypeKey);
+		}
+		return null;
+	}
+	
 	/* retrieve the mapping from each (Integer) term key to a Set of its (String) ancestor term keys
 	 */
 	protected Map<Integer,Set<Integer>> getTermAncestors() throws Exception {
@@ -659,31 +695,30 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
-	/* get a mapping from (String) disease ID to a Set of (String) marker keys that are
+	/* cache a mapping from (String) disease ID to a Set of (String) marker keys that are
 	 * positively associated with that disease.  (no annotations with a NOT qualifier)
 	 */
-	protected Map<String,Set<String>> getMarkersPerDisease() throws Exception {
-		if (markersPerDisease == null) {
-			logger.info("Retrieving markers per disease");
-			Timer.reset();
+	protected void getMarkersPerDisease() throws Exception {
+		if (markersPerDisease != null) { return; }
 
-			// This had used getNonNormalAnnotationsTable() as a source, but optimizing to
-			// bring the 'where' clause up into this query and simplify.
-			String markerQuery = "select distinct h.term_id, h.marker_key, m.symbol "
-					+ "from hdp_annotation h, marker m "
-					+ "where h.vocab_name='OMIM' "
-					+ "  and h.organism_key in (1, 2) "
-					+ "  and h.marker_key = m.marker_key "
-					+ "  and h.qualifier_type is null "
-					+ "  and (h.genotype_type!='complex' or h.genotype_type is null) "
-					+ "order by h.term_id, m.symbol";
+		logger.info("Retrieving markers per disease");
+		Timer.reset();
 
-			markersPerDisease = populateLookupOrdered(markerQuery,
-					"term_id", "marker_key", "diseases to markers");
+		// This had used getNonNormalAnnotationsTable() as a source, but optimizing to
+		// bring the 'where' clause up into this query and simplify.
+		String markerQuery = "select distinct h.term_id, h.marker_key, m.symbol "
+			+ "from hdp_annotation h, marker m "
+			+ "where h.vocab_name='OMIM' "
+			+ "  and h.organism_key in (1, 2) "
+			+ "  and h.marker_key = m.marker_key "
+			+ "  and h.qualifier_type is null "
+			+ "  and (h.genotype_type!='complex' or h.genotype_type is null) "
+			+ "order by h.term_id, m.symbol";
 
-			logger.info("Finished retrieving markers for (" + markersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
-		}
-		return markersPerDisease;
+		markersPerDisease = populateLookupOrdered(markerQuery, "term_id", "marker_key", "diseases to markers");
+
+		logger.info("Finished retrieving markers for (" + markersPerDisease.size() + " diseases)" + Timer.getElapsedMessage());
+		return;
 	}
 
 	/* get the markers for the disease specified by 'diseaseID'
