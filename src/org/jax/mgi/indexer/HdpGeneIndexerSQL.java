@@ -30,6 +30,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 	private Map<Integer,Set<Integer>> markerToPheno = null;	// marker key -> set of MP term keys
 	private Map<Integer,Set<Integer>> markerToDisease = null;	// marker key -> set of OMIM term keys
+	private Map<Integer,Set<Integer>> genoclusterTerms = null;	// genocluster key -> set of term keys
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -96,6 +97,44 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		return null;
 	}
 
+	/* cache the set of phenotype and disease term keys associated with each genocluster
+	 */
+	protected void cacheGenoclusterTerms() throws Exception {
+		if (genoclusterTerms != null) { return; }
+		
+		logger.info("Caching genocluster MP/OMIM associations");
+		Timer.reset();
+		
+		genoclusterTerms = new HashMap<Integer,Set<Integer>>();
+
+		String gcQuery = "select distinct hdp_genocluster_key, term_key "
+			+ "from hdp_genocluster_annotation "
+			+ "where qualifier_type is null "
+			+ "  and term_key is not null";
+		
+		ResultSet rs = ex.executeProto(gcQuery, cursorLimit);
+		while (rs.next()) {
+			Integer gcKey = rs.getInt("hdp_genocluster_key");
+			if (!genoclusterTerms.containsKey(gcKey)) {
+				genoclusterTerms.put(gcKey, new HashSet<Integer>());
+			}
+			genoclusterTerms.get(gcKey).add(rs.getInt("term_key"));
+		}
+		rs.close();
+		logger.info("Finished caching genocluster MP/OMIM associations " + Timer.getElapsedMessage());
+	}
+	
+	/* get the set of keys for disease and phenotype terms annotated to the given genocluster
+	 */
+	protected Set<Integer> getTermsForGenocluster (Integer genoclusterKey) throws Exception {
+		if (genoclusterKey == null) { return null; }
+		if (genoclusterTerms == null) { cacheGenoclusterTerms(); }
+		if (genoclusterTerms.containsKey(genoclusterKey)) {
+			return genoclusterTerms.get(genoclusterKey);
+		}
+		return null;
+	}
+	
 	/* return a Set of term keys for phenotypes associated with the marker, excluding
 	 * those with Normal qualifiers.
 	 */
@@ -143,15 +182,20 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 		// main query - human and mouse markers with official (not withdrawn) nomenclature, which
 		// are not BAC/YAC ends and are not DNA Segments.  Order by symbol, name, and organism
-		// to ensure a consistent order across runs.
+		// to ensure a consistent order across runs.  We also bring in the genocluster keys 
+		// associated with the markers, so this will lead to multiple rows (and documents)
+		// per marker.
 		String markerQuery = "select n.by_symbol, n.by_name, n.by_organism, n.by_location, "
 			+ "  m.marker_key, m.symbol, m.name, m.primary_id, m.organism, m.marker_type, "
 			+ "  m.location_display, m.coordinate_display, m.build_identifier, m.marker_subtype, "
-			+ "  c.reference_count, c.disease_relevant_reference_count, c.imsr_count "
-			+ "from marker m, marker_sequence_num n, marker_counts c "
-			+ "where m.marker_key = n.marker_key "
-			+ "  and m.marker_key = c.marker_key "
-			+ "  and m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
+			+ "  c.reference_count, c.disease_relevant_reference_count, c.imsr_count, "
+			+ "  gc.hdp_genocluster_key, a.term_key "
+			+ "from marker m "
+			+ "inner join marker_sequence_num n on (m.marker_key = n.marker_key) "
+			+ "inner join marker_counts c on (m.marker_key = c.marker_key) "
+			+ "left outer join hdp_genocluster gc on (m.marker_key = gc.marker_key) "
+			+ "left outer join hdp_annotation a on (m.marker_key = a.marker_key and a.organism_key = 2)"
+			+ "where m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
 			+ "  and m.organism in ('mouse', 'human') "
 			+ "  and m.status = 'official' "
 			+ "order by 1, 2, 3";
@@ -165,13 +209,14 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 			Integer markerKey = rs.getInt("marker_key");
 			Integer gridClusterKey = getGridClusterKey(markerKey);
+			Integer genoClusterKey = rs.getInt("hdp_genocluster_key");
 			boolean isHumanMarker = isHuman(markerKey);
 
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			
 			// basic fields (key, symbol, name, IDs, organism, grid cluster)
 			
-			doc.addField(DiseasePortalFields.UNIQUE_KEY, markerKey);
+			doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
 			doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
 			addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, rs.getString("symbol"));
 			addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, rs.getString("name"));
@@ -248,7 +293,35 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			addIfNotNull(doc, DiseasePortalFields.MARKER_DISEASE_REF_COUNT, rs.getString("disease_relevant_reference_count"));
 			addIfNotNull(doc, DiseasePortalFields.MARKER_IMSR_COUNT, rs.getString("imsr_count"));
 			
-			// diseases associated with the marker
+			// just the diseases and phenotypes associated with this BSU (basic search unit), which is
+			// a genocluster/gridcluster pair for mouse data or a marker/disease pair for human data, plus
+			// the BSU key itself.  These are to allow searching multiple fields AND-ed together within
+			// a genocluster, rather than across them all.
+
+			BSU bsu = null;
+			if ("mouse".equals(rs.getString("organism"))) {
+				if (genoClusterKey != null && gridClusterKey != null) {
+					bsu = getMouseBsu(genoClusterKey, gridClusterKey);
+					Set<Integer> termKeys = getTermsForGenocluster(genoClusterKey);
+					if (termKeys != null) {
+						for (Integer termKey : termKeys) {
+							addTermFields(doc, termKey, isHumanMarker);
+						}
+					}
+				}
+			} else if (isHumanMarker) {
+				Integer termKey = rs.getInt("term_key");
+				if (termKey != null) {
+					bsu = getHumanBsu(markerKey, termKey);
+					addTermFields(doc, termKey, isHumanMarker);
+				}
+			}
+			
+			if (bsu != null) {
+				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
+			}
+			
+			// all diseases associated with the marker (for display)
 			
 			Set<Integer> diseaseKeys = getAssociatedDiseases(markerKey);
 
@@ -256,20 +329,18 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				List<String> diseases = new ArrayList<String>();
 				for (Integer diseaseKey : diseaseKeys) {
 					diseases.add(getTerm(diseaseKey));
-					addTermFields(doc, diseaseKey, isHumanMarker);
 				}
 				Collections.sort(diseases);
 				doc.addAllDistinct(DiseasePortalFields.MARKER_DISEASE, diseases);
 			}
 			
-			// phenotypes associated with the marker
+			// all phenotypes associated with the marker (for display)
 
 			Set<Integer> phenotypeKeys = getAssociatedPhenotypes(markerKey);
 			if (phenotypeKeys != null) {
 				Set<String> mpHeaders = new HashSet<String>();
 				for (Integer phenotypeKey : phenotypeKeys) {
 					mpHeaders.addAll(getHeadersPerTerm(phenotypeKey));
-					addTermFields(doc, phenotypeKey, isHumanMarker);
 				}
 				if (mpHeaders.contains("normal phenotype")) {
 					mpHeaders.remove("normal phenotype");
