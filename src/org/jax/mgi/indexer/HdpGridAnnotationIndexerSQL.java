@@ -122,7 +122,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/* build and return a solr document for the given data
 	 */
 	protected SolrInputDocument buildDocument(BSU bsu, Integer termKey,
-			String header, String qualifier) throws Exception {
+			String header, String qualifier, Integer humanMarkerKey, Integer sourceTermKey) throws Exception {
 
 		uniqueKey += 1;	
 		String term = getTerm(termKey);
@@ -145,6 +145,19 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
 		
+		// optional fields:
+		// 1. human marker symbol + ID, for OMIM annotations to human markers
+		// 2. source term + ID, for the OMIM terms from which HPO annotations were derived (human data)
+		
+		if (humanMarkerKey != null) {
+			doc.addField(DiseasePortalFields.MARKER_SYMBOL, this.getMarkerSymbol(humanMarkerKey));
+			doc.addField(DiseasePortalFields.MARKER_MGI_ID, this.getMarkerID(humanMarkerKey));
+		}
+		
+		if (sourceTermKey != null) {
+			doc.addField(DiseasePortalFields.SOURCE_TERM, this.getTerm(sourceTermKey));
+			doc.addField(DiseasePortalFields.SOURCE_TERM_ID, this.getTermId(sourceTermKey));
+		}
 		return doc;
 	}
 
@@ -165,10 +178,11 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		while (rs.next()) {
 			Integer termKey = rs.getInt("term_key");
 			String qualifier = rs.getString("qualifier_type");
-			BSU bsu = this.getHumanBsu(rs.getInt("marker_key"), termKey);
+			Integer markerKey = rs.getInt("marker_key");
+			BSU bsu = this.getHumanBsu(markerKey, termKey);
 
 			// need to save this document; write to the server if our queue is big enough
-			docs.add(buildDocument(bsu, termKey, rs.getString("header"), qualifier));
+			docs.add(buildDocument(bsu, termKey, rs.getString("header"), qualifier, markerKey, null));
 
 			List<Integer> hpoTermKeys = getHpoTermKeys(termKey);
 			if (hpoTermKeys != null) {
@@ -176,7 +190,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 					for (Integer mpHeaderKey : this.getMpHeaderKeys(hpoTermKey)) {
 						String headerDisplay = getMpHeaderDisplay(mpHeaderKey);
 						if (headerDisplay == null) { headerDisplay = getTerm(mpHeaderKey); }
-						docs.add(buildDocument(bsu, hpoTermKey, headerDisplay, qualifier));
+						docs.add(buildDocument(bsu, hpoTermKey, headerDisplay, qualifier, markerKey, termKey));
 					}
 				}
 			}
@@ -238,7 +252,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			for (int i = 0; i < refCount; i++) {
 				// need to save this document; write to the server if our queue is big enough
 				docs.add(this.buildDocument(bsu, rs.getInt("term_key"), rs.getString("header"),
-					rs.getString("qualifier_type")));
+					rs.getString("qualifier_type"), null, null));
 			}
 
 			if (docs.size() >= solrBatchSize) {
