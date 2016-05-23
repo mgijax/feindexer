@@ -487,6 +487,31 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
+	/* add the coordinates for the given marker to the appropriate bin (human or mouse) 
+	 * in the given document.  Optionally include coordinates for the marker's orthologs.
+	 */
+	protected void addMarkerCoordinates(DistinctSolrInputDocument doc, Integer markerKey, boolean includeOrthologs) throws Exception {
+		if (markerKey == null) { return; }
+		
+		// add the marker itself
+		if (this.isHuman(markerKey)) {
+			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
+		} else {
+			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
+		}
+		
+		// if we need to add coordinates for orthologs, look up the orthologous markers and
+		// add the coordinates for each
+		if (includeOrthologs) {
+			Set<Integer> myOrthologs = getMarkerOrthologs(markerKey);
+			if (myOrthologs != null) {
+				for (Integer orthologKey : myOrthologs) {
+					addMarkerCoordinates(doc, orthologKey, false);
+				}
+			}
+		}
+	}
+	
 	/* build the mapping from each disease and phenotype term to its smart-alpha
 	 * sequence number and remember the next sequence number to be assigned.
 	 */

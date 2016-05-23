@@ -44,13 +44,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addDistinctField(DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
 		doc.addAllDistinct(DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
 		doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM, getMarkerSynonyms(markerKey));
-
-		if (this.isHuman(markerKey)) {
-			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
-		} else {
-			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
-		}
-
+		this.addMarkerCoordinates(doc, markerKey, true);
 	}
 
 	/* look up the grid cluster for the given marker and add its associated data to the

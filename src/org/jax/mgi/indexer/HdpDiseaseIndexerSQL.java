@@ -149,12 +149,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 					}
 				}
 
-				// add this marker's coordinates in the appropriate bin (can be multiple coordinates)
-				if (isHuman(markerKey)) {
-					addAll(doc, DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
-				} else {
-					addAll(doc, DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
-				}
+				this.addMarkerCoordinates(doc, markerKey, true);
 				
 				/* need to add all marker symbols related to the disease, for display purposes
 				 */
