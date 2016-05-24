@@ -336,7 +336,10 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			if (phenotypeKeys != null) {
 				Set<String> mpHeaders = new HashSet<String>();
 				for (Integer phenotypeKey : phenotypeKeys) {
-					mpHeaders.addAll(getHeadersPerTerm(phenotypeKey));
+					Set<String> t = getHeadersPerTerm(phenotypeKey);
+					if (t != null) {
+					    mpHeaders.addAll(t);
+					}
 				}
 				if (mpHeaders.contains("normal phenotype")) {
 					mpHeaders.remove("normal phenotype");
