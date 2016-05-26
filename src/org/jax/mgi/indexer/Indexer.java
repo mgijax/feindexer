@@ -72,6 +72,8 @@ public abstract class Indexer {
 		String httpUrl = props.getProperty(httpPropName);
 		if(httpUrl==null) httpUrl = httpPropName;
 		
+		// 160 is the number of buffered requests going to solr
+		// this is NOT the number of documents buffered
 		server = new ConcurrentUpdateSolrClient(httpUrl, 160, maxThreads);
 
 		logger.info("Working with index: " + props.getProperty(httpPropName)+"/update" );
