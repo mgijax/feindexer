@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.update.CommitTracker;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 

@@ -26,8 +26,6 @@ public class SequenceIndexerSQL extends Indexer {
 
 	public void index() throws Exception
 	{
-		stopThreadLogging();
-
 		String provider;
 
 		// Find out how big the result set can be, and then setup the chunking.

@@ -3,21 +3,17 @@ package org.jax.mgi.indexer;
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.ResultSet;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
-import org.apache.solr.client.solrj.impl.HttpSolrServer;
+import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrClient;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SQLExecutor;
 import org.slf4j.Logger;
@@ -35,19 +31,13 @@ import org.slf4j.LoggerFactory;
 
 public abstract class Indexer {
 
-	private HttpSolrServer server = null;
+	private ConcurrentUpdateSolrClient server = null;
 	public SQLExecutor ex = new SQLExecutor();
 	public Properties props = new Properties();
 	public Logger logger = LoggerFactory.getLogger(this.getClass());
 	private String httpPropName = "";
-	private boolean THREAD_LOG=true;
 	private int failedThreads=0;
-
-	// Variables for handling threads
-	private List<Thread> currentThreads =new ArrayList<Thread>();
-	// maxThreads is configurable. When maxThreads is reached, program waits until they are finished.
-	// This is essentially running them in batches
-	private int maxThreads = 10;
+	private int	maxThreads = 4;
 
 	protected Indexer(String httpPropName) {
 		this.httpPropName = httpPropName;
@@ -76,26 +66,21 @@ public abstract class Indexer {
 		// by using threads.
 		// (kstone) NOTE: Supposedly the StreamingUpdateSolrServer does this kind of threading for you, but I could not get it to work
 		// 	without either crashing unexpectedly, or running much slower. So good luck to anyone who tries to figure out that approach.
-		PoolingClientConnectionManager mgr = new PoolingClientConnectionManager();
-		DefaultHttpClient client = new DefaultHttpClient(mgr);
 
+		// The answer solr 5 client - oblod
+		
 		String httpUrl = props.getProperty(httpPropName);
 		if(httpUrl==null) httpUrl = httpPropName;
-		server = new HttpSolrServer( httpUrl,client );
+		
+		server = new ConcurrentUpdateSolrClient(httpUrl, 160, maxThreads);
 
 		logger.info("Working with index: " + props.getProperty(httpPropName)+"/update" );
 		logger.info("Past the initial connection.");
 
 		server.setSoTimeout(100000);  // socket read timeout
 		server.setConnectionTimeout(200000);	// upped to avoid IOExceptions
-		//server.setDefaultMaxConnectionsPerHost(100);
-		//server.setMaxTotalConnections(100);
-		server.setFollowRedirects(false);  // defaults to false
-		server.setAllowCompression(true);
-		server.setMaxRetries(1);
 		// set to use javabin format for faster indexing
 		server.setRequestWriter(new BinaryRequestWriter());
-
 
 		try {
 			logger.info("Deleting current index.");
@@ -113,22 +98,9 @@ public abstract class Indexer {
 	
 	// closes down the connection and makes sure a last commit is run
 	public void closeConnection() {
-		
 		logger.info("Waiting for Threads to finish: ");
-		
-		for(Thread t : currentThreads) {
-			try {
-				t.join();
-			} catch (InterruptedException e) {
-				logger.error(e.getMessage());
-				e.printStackTrace();
-			}
-		}
-		
 		commit();
-		
 		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
-		
 	}
 	
 	public void commit() {
@@ -172,7 +144,7 @@ public abstract class Indexer {
 	}
 
 	public void setMaxThreads(int maxThreads) {
-		this.maxThreads = maxThreads;
+		this.maxThreads  = maxThreads;
 	}
 
 	/*
@@ -182,109 +154,18 @@ public abstract class Indexer {
 	 * Here we also spawn a new process for each batch of documents.
 	 */
 	public void writeDocs(Collection<SolrInputDocument> docs) {
-		if(docs == null || docs.size() == 0) return;
-		
-		DocWriterThread docWriter = new DocWriterThread(this,docs);
-		Thread newThread = new Thread(docWriter);
-		// kick off the thread
-		newThread.start();
-		// add to list of threads to monitor
-		currentThreads.add(newThread);
-		if(currentThreads.size() >= maxThreads) {
-			// max thread pool size reached. Wait until they all finish, and clear the pool
-			if(THREAD_LOG)
-				logger.info("Max threads ("+maxThreads+") reached. Waiting for all threads to finish.");
-			for(Thread t : currentThreads) {
-				try {
-					t.join();
-				} catch (InterruptedException e) {
-					// not quite sure what to do here. Let's hope we don't see this error.
-					logger.error(e.getMessage());
-					e.printStackTrace();
-				}
-			}
-			currentThreads = new ArrayList<Thread>();
+		try {
+			server.add(docs);
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
-	}
-	/* Prevents logging information related to threading */
-	public void stopThreadLogging() {
-		THREAD_LOG=false;
 	}
 
 	@Override
 	public String toString() {
 		return getClass().toString();
 	}
-
-	/*
-	 * Add documents to Solr in a thread to improve load time
-	 * This was investigated to be a bottleneck in large data loads
-	 */
-	class DocWriterThread implements Runnable {
-		private HttpSolrServer server;
-		Collection<SolrInputDocument> docs;
-		private final int commitWithin = 50000; // 50 seconds
-		private final int times_to_retry = 5;
-		private int times_retried = 0;
-		private final Indexer idx;
-
-		public DocWriterThread(Indexer idx,Collection<SolrInputDocument> docs) {
-			this.server=idx.server;
-			this.docs=docs;
-			this.idx=idx;
-		}
-
-		public void run() {
-			try {
-				// set the commitWithin feature
-				server.add(docs,commitWithin);
-			} catch (SolrServerException e) {
-				logger.warn(e.getMessage());
-				e.printStackTrace();
-				retry();
-			} catch (IOException e) {
-				logger.error(e.getMessage());
-				e.printStackTrace();
-			}
-		}
-		
-		public void retry() {
-			if(times_retried < times_to_retry) {
-				times_retried ++;
-				logger.info("retrying submit of stack of documents that failed");
-				boolean succeeded = true;
-				try {
-					// set the commitWithin feature
-					server.add(docs,commitWithin);
-				} catch (SolrServerException e) {
-					succeeded = false;
-					logger.warn("failed");
-					e.printStackTrace();
-					retry();
-				} catch (IOException e) {
-					succeeded = false;
-					logger.warn(e.getMessage());
-					e.printStackTrace();
-					retry();
-				} catch (Exception e) {
-					succeeded = false;
-					logger.error(e.getMessage());
-					e.printStackTrace();
-					// don't know what this exception is. Not retrying
-				}
-				if(succeeded) logger.info("succeeded!");
-				else reportFailure();
-			} else {
-				logger.error("tried to re-submit stack of documents "+times_retried+" times. Giving up.");
-				reportFailure();
-			}
-		}
-		
-		public void reportFailure() {
-			this.idx.reportThreadFailure();
-		}
-	}
-
+	
 	// used by threads to alert when a thread failed.
 	public void reportThreadFailure() {
 		this.failedThreads+=1;
