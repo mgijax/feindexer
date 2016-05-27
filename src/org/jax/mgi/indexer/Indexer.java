@@ -82,7 +82,7 @@ public abstract class Indexer {
 		server.setSoTimeout(100000);  // socket read timeout
 		server.setConnectionTimeout(200000);	// upped to avoid IOExceptions
 		// set to use javabin format for faster indexing
-		server.setRequestWriter(new BinaryRequestWriter());
+		//server.setRequestWriter(new BinaryRequestWriter());
 
 		try {
 			logger.info("Deleting current index.");
