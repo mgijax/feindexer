@@ -97,7 +97,8 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		return null;
 	}
 
-	/* cache the set of phenotype and disease term keys associated with each genocluster
+	/* cache the set of phenotype and disease term keys associated with each genocluster;
+	 * allows Normal (for MP) and null qualifiers, but not NOT (for OMIM)
 	 */
 	protected void cacheGenoclusterTerms() throws Exception {
 		if (genoclusterTerms != null) { return; }
@@ -109,7 +110,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 		String gcQuery = "select distinct hdp_genocluster_key, term_key "
 			+ "from hdp_genocluster_annotation "
-			+ "where qualifier_type is null "
+			+ "where (qualifier_type is null or qualifier_type != 'NOT')"
 			+ "  and term_key is not null";
 		
 		ResultSet rs = ex.executeProto(gcQuery, cursorLimit);
