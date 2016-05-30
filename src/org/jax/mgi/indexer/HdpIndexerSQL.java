@@ -493,20 +493,25 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected void addMarkerCoordinates(DistinctSolrInputDocument doc, Integer markerKey, boolean includeOrthologs) throws Exception {
 		if (markerKey == null) { return; }
 		
+		boolean isHumanMarker = isHuman(markerKey);
+		
 		// add the marker itself
-		if (this.isHuman(markerKey)) {
+		if (isHumanMarker) {
 			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
 		} else {
 			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
 		}
 		
 		// if we need to add coordinates for orthologs, look up the orthologous markers and
-		// add the coordinates for each
+		// add the coordinates for each.  Note that we do not add orthologs from the same organism as
+		// the specified marker -- only orthologs from a different organism.
 		if (includeOrthologs) {
 			Set<Integer> myOrthologs = getMarkerOrthologs(markerKey);
 			if (myOrthologs != null) {
 				for (Integer orthologKey : myOrthologs) {
-					addMarkerCoordinates(doc, orthologKey, false);
+					if ((isHumanMarker && !isHuman(orthologKey)) || (!isHumanMarker && isHuman(orthologKey))) {
+						addMarkerCoordinates(doc, orthologKey, false);
+					}
 				}
 			}
 		}
