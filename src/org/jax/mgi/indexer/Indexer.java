@@ -1,6 +1,5 @@
 package org.jax.mgi.indexer;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.sql.ResultSet;
 import java.util.Collection;
@@ -11,8 +10,6 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
 import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrClient;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SQLExecutor;
@@ -29,7 +26,7 @@ import org.slf4j.LoggerFactory;
  * which is passed to it during construction time.
  */
 
-public abstract class Indexer {
+public abstract class Indexer extends Thread {
 
 	private ConcurrentUpdateSolrClient server = null;
 	public SQLExecutor ex = new SQLExecutor();
@@ -42,6 +39,17 @@ public abstract class Indexer {
 	protected Indexer(String httpPropName) {
 		this.httpPropName = httpPropName;
 	}
+	
+	public void run() {
+		try {
+			setupConnection();
+			index();
+			closeConnection();
+		} catch (Exception e) {
+			e.printStackTrace();
+			failedThreads++;
+		}
+	}
 
 	public void setupConnection() throws Exception {
 		logger.info("Setting up the properties");
@@ -50,12 +58,10 @@ public abstract class Indexer {
 		if (in== null) {
 			logger.info("resource config.props not found");
 		}
-		try {
-			props.load(in);
-			logger.debug(props.toString());
-		} catch (IOException e1) {
-			e1.printStackTrace();
-		}
+
+		props.load(in);
+		logger.debug(props.toString());
+
 		logger.info("db connection info: "+this.ex);
 
 		// Setup the solr connection as configured 
@@ -84,12 +90,10 @@ public abstract class Indexer {
 		// set to use javabin format for faster indexing
 		//server.setRequestWriter(new BinaryRequestWriter());
 
-		try {
-			logger.info("Deleting current index.");
-			server.deleteByQuery("*:*");
-			commit();
-		}
-		catch (Exception e) {e.printStackTrace();}
+		logger.info("Deleting current index.");
+		server.deleteByQuery("*:*");
+		commit();
+
 	}
 
 	/*
@@ -99,19 +103,14 @@ public abstract class Indexer {
 
 	
 	// closes down the connection and makes sure a last commit is run
-	public void closeConnection() {
-		logger.info("Waiting for Threads to finish: ");
+	public void closeConnection() throws Exception {
 		commit();
 		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
 	}
 	
-	public void commit() {
-		try {
-			logger.info("Waiting for Solr Commit");
-			server.commit(true, true);
-		} catch (SolrServerException | IOException e) {
-			e.printStackTrace();
-		}
+	public void commit() throws Exception {
+		logger.info("Waiting for Solr Commit");
+		server.commit(true, true);
 	}
 	
 	
@@ -168,16 +167,10 @@ public abstract class Indexer {
 		return getClass().toString();
 	}
 	
-	// used by threads to alert when a thread failed.
-	public void reportThreadFailure() {
-		this.failedThreads+=1;
-	}
-	
 	// returns true if any threads reported a failure
 	public boolean hasFailedThreads() {
-		return this.failedThreads>0;
+		return this.failedThreads > 0;
 	}
-
 
 	/*
 	 * The following are convenience methods for populating lookups to be used in generating multiValued fields

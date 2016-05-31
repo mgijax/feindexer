@@ -23,16 +23,14 @@ import org.slf4j.LoggerFactory;
  *
  *  -kstone
  */
-public class Main
-{
+public class Main {
 	public static Logger logger = LoggerFactory.getLogger("FEINDEXER Main");
 	public static List<String> SPECIFIED_INDEXERS = new ArrayList<String>();
 	public static Map<String,Indexer> indexerMap = new HashMap<String,Indexer>();
 	public static boolean RUN_ALL_INDEXERS=false;
 	public static boolean ONLY_LIST=false;
 
-	static
-	{
+	static {
 		/*
 		 * All indexers must be added to this list in order to be run.
 		 * The key is the name you would use to specify your indexer as a command argument
@@ -65,7 +63,7 @@ public class Main
 	}
 
 	// other command args
-	public static int maxThreads = 10; // uses default unless set to > 0
+	public static int maxThreads = 2; // uses default unless set to > 0
 
 	private static List<String> getIndexers() {
 		List<String> indexes = new ArrayList<String>();
@@ -77,62 +75,50 @@ public class Main
 		return indexes;
 	}
 
-	private static void parseCommandInput(String[] args)
-    {
-        Set<String> arguments = new HashSet<String>();
-        for (int i=0;i<args.length;i++){ arguments.add(args[i]);}
-        if(!arguments.isEmpty())
-        {
-        	RUN_ALL_INDEXERS = SPECIFIED_INDEXERS.size()==0 && arguments.contains("all");
-               //start processing commands
-        	for(String arg : arguments)
-        	{
-        		if(arg.contains("maxThreads="))
-        		{
-        			String argValue = arg.replace("maxThreads=", "");
-        			maxThreads = Integer.parseInt(argValue);
-        		}
-        		else if(indexerMap.containsKey(arg))
-        		{
-        			SPECIFIED_INDEXERS.add(arg);
-        			logger.info("adding user specified index: "+arg+" to list of indexers to run.");
-        		}
-        		else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
-        			SPECIFIED_INDEXERS.add("hdpGene");
-        			SPECIFIED_INDEXERS.add("hdpDisease");
-        			SPECIFIED_INDEXERS.add("hdpGrid");
-        			SPECIFIED_INDEXERS.add("hdpGridAnnotation");
-			}
-			else if ("list".equalsIgnoreCase(arg)) {
-				// only show the list of possible indexers,
-				// one per line, then exit
-				ONLY_LIST = true;
-				for (String s : getIndexers()) {
-					System.out.println(s);
+	private static void parseCommandInput(String[] args) {
+		Set<String> arguments = new HashSet<String>();
+		for (int i=0;i<args.length;i++){ arguments.add(args[i]);}
+		
+		if(!arguments.isEmpty()) {
+			RUN_ALL_INDEXERS = SPECIFIED_INDEXERS.size()==0 && arguments.contains("all");
+			//start processing commands
+			for(String arg : arguments) {
+				if(arg.contains("maxThreads=")) {
+					String argValue = arg.replace("maxThreads=", "");
+					maxThreads = Integer.parseInt(argValue);
+				} else if(indexerMap.containsKey(arg)) {
+					SPECIFIED_INDEXERS.add(arg);
+					logger.info("adding user specified index: "+arg+" to list of indexers to run.");
+				} else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("hdpGene");
+					SPECIFIED_INDEXERS.add("hdpDisease");
+					SPECIFIED_INDEXERS.add("hdpGrid");
+					SPECIFIED_INDEXERS.add("hdpGridAnnotation");
+				} else if ("list".equalsIgnoreCase(arg)) {
+					// only show the list of possible indexers,
+					// one per line, then exit
+					ONLY_LIST = true;
+					for (String s : getIndexers()) {
+						System.out.println(s);
+					}
+				} else {
+					logger.info("unknown indexer \""+arg+"\"");
 				}
 			}
-			else
-        		{
-        			logger.info("unknown indexer \""+arg+"\"");
-        		}
-        	}
-        }
-    }
+		}
+	}
 
-	public static void main(String[] args)
-	{
+	public static void main(String[] args) {
 		parseCommandInput(args);
-                /*
-                * Generate list of indexes to run from program specified arguments
-                */
-		if(RUN_ALL_INDEXERS)
-		{
+		/*
+		 * Generate list of indexes to run from program specified arguments
+		 */
+		if(RUN_ALL_INDEXERS) {
 			SPECIFIED_INDEXERS = new ArrayList<String>();
 			// default is to run all indexers
 			logger.info("\"all\" option was selected. Beginning run of all indexers");
-			for(String idxKey : indexerMap.keySet())
-			{
-                                Indexer idx = indexerMap.get(idxKey);
+			for(String idxKey : indexerMap.keySet()) {
+				Indexer idx = indexerMap.get(idxKey);
 				SPECIFIED_INDEXERS.add(idxKey);
 				// change maxThreads default if specified by user
 				if(maxThreads>0) idx.setMaxThreads(maxThreads);
@@ -141,51 +127,46 @@ public class Main
 		if (ONLY_LIST) {
 			System.exit(0);
 		}
-		if(SPECIFIED_INDEXERS==null || SPECIFIED_INDEXERS.size()==0)
-		{
-		       exitWithMessage("There are no specified indexers to run. Exiting.");
+		if(SPECIFIED_INDEXERS==null || SPECIFIED_INDEXERS.size()==0) {
+			exitWithMessage("There are no specified indexers to run. Exiting.");
 		}
 
 		// track failed indexers for later reporting
 		List<String> failedIndexers = new ArrayList<String>();
 
-		for(String idxKey : SPECIFIED_INDEXERS)
-		{
-                        Indexer idx = indexerMap.get(idxKey);
+		for(String idxKey: SPECIFIED_INDEXERS) {
+			Indexer idx = indexerMap.get(idxKey);
 			logger.info("Preparing to run: "+idx.getClass());
-			try{
-				idx.setupConnection();
-				idx.index();
-				idx.closeConnection();
-				logger.info("completed run of "+idx.getClass());
+			idx.start();
+		}
+		
+		for(String idxKey: SPECIFIED_INDEXERS) {
+			Indexer idx = indexerMap.get(idxKey);
+			logger.info("Waiting for: "+ idx.getClass() + " to finish");
+			try {
+				idx.join();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
-			catch (Exception e)
-			{
-                logger.error("Indexer: "+idxKey+" failed.",e);
-                failedIndexers.add(idxKey);
-			}
-			if(idx.hasFailedThreads())
-			{
+			if(idx.hasFailedThreads()) {
 				failedIndexers.add(idxKey);
 			}
 		}
 
 		// return error if any indexers failed
-		if(failedIndexers.size()>0)
-		{
-			String errorMsg = "Failed or Incomplete Indexes: " + StringUtils.join(failedIndexers,",")+
-					"\n Please view the above logs for more details.";
-                        exitWithMessage(errorMsg);
-
+		if(failedIndexers.size()>0) {
+			String errorMsg = "Failed or Incomplete Indexes: " + StringUtils.join(failedIndexers,",") + "\n Please view the above logs for more details.";
+			exitWithMessage(errorMsg);
+		} else {
+			logger.info("Completed run of the following indexes:"+StringUtils.join(SPECIFIED_INDEXERS,","));
 		}
-                else{
-                    logger.info("Completed run of the following indexes:"+StringUtils.join(SPECIFIED_INDEXERS,","));
-                 }
 	}
-	private static void exitWithMessage(String errorMsg)
-	{ exitWithMessage(errorMsg,null); }
-	private static void exitWithMessage(String errorMsg,Exception ex)
-	{
+	
+	private static void exitWithMessage(String errorMsg) {
+		exitWithMessage(errorMsg,null);
+	}
+	
+	private static void exitWithMessage(String errorMsg,Exception ex) {
 		if(ex== null) logger.error(errorMsg);
 		else logger.error(errorMsg,ex);
 		// logger needs some time to work before we exit (I know it looks stupid to call sleep() here, but it works)
