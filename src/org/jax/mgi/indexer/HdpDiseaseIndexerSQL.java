@@ -44,7 +44,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		// specify an order, because we will compute ordering in-memory to ensure it
 		// is smart-alpha.  (The term.sequence_num field is not.)
 		String diseaseTermQuery = "select t.term_key, t.term, t.primary_id, a.marker_key, "
-			+ "  a.genotype_key, a.organism_key "
+			+ "  a.genotype_key, a.organism_key, a.hdp_annotation_key "
 			+ "from term t "
 			+ "left outer join hdp_annotation a on (t.term_key = a.term_key) "
 			+ "where t.vocab_name = 'OMIM' "
@@ -62,6 +62,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			String termId = rs.getString("primary_id");
 			Integer markerKey = rs.getInt("marker_key");
 			Integer organismKey = rs.getInt("organism_key");
+			Integer annotationKey = rs.getInt("hdp_annotation_key");
 			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
@@ -81,8 +82,12 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
 			}
 
-			// add the corresponding HPO terms, their synonyms, their IDs, and the same data for their ancestors
-			addHpoData(doc, termKey);
+			// add the corresponding HPO terms, their synonyms, their IDs, and the same data for their ancestors --
+			// but only for non-mouse annotations.  (ie- We suppress knowledge of the OMIM-HPO associations for
+			// mouse genotype-OMIM annotations.)
+			if ((markerKey == null) || isHuman(markerKey)) {
+				addHpoData(doc, termKey);
+			}
 
 			// find sort for the term name
 			int termSort = getTermSequenceNum(term);
@@ -106,13 +111,13 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			// add terms and IDs from related annotations (those annotations for the same genocluster
 			// for mouse annotations, or for the same marker for human annotations)
 
-			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_TEXT, getRelatedPhenotypesForTerm(termKey, true, false));
-			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_ID, getRelatedPhenotypesForTerm(termKey, false, true));
+			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_TEXT, getRelatedPhenotypes(annotationKey, true, false));
+			addAll(doc, DiseasePortalFields.MP_TERM_FOR_DISEASE_ID, getRelatedPhenotypes(annotationKey, false, true));
 
 			// For diseases, we only consider mouse annotations for relationships.  We don't cross
 			// that bridge for human gene/disease annotations.
-			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseasesForTerm(termKey, true, false));
-			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseasesForTerm(termKey, false, true));
+			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseases(annotationKey, true, false));
+			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseases(annotationKey, false, true));
 
 			// add marker-related fields, if we have a marker associated with the disease
 			if (markerKey != null) {

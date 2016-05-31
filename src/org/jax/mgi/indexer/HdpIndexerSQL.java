@@ -67,7 +67,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,String> termIds = null;				// term key -> primary term ID
 	protected Map<Integer,Set<Integer>> relatedAnnotations = null;	// annot key -> set of related annot keys
 	protected Map<Integer,Integer> annotationTermKeys = null;		// annot key -> term key of annotation
-	protected Map<Integer,Set<Integer>> termKeyToAnnotations = null;	// term key -> set of annotation keys
 	protected Set<Integer> notAnnotations = null;				// set of annotations keys with NOT qualifiers
 	protected Map<Integer,Set<Integer>> termAncestors = null;	// term key -> set of its ancestor term keys
 	protected Map<Integer,String> mpHeaderText = null;			// MP header term key -> string to display
@@ -1139,7 +1138,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		annotationTermKeys = new HashMap<Integer,Integer>();
 		notAnnotations = new HashSet<Integer>();
-		termKeyToAnnotations = new HashMap<Integer,Set<Integer>>();
 
 		String annotQuery = "select hdp_annotation_key, term_key, qualifier_type "
 				+ "from hdp_annotation";
@@ -1154,11 +1152,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 			if ((qualifier != null) && "NOT".equals(qualifier)) {
 				notAnnotations.add(hdpAnnotationKey);
 			}
-
-			if (!termKeyToAnnotations.containsKey(termKey)) {
-				termKeyToAnnotations.put(termKey, new HashSet<Integer>());
-			}
-			termKeyToAnnotations.get(termKey).add(hdpAnnotationKey);
 		}
 		rs.close();
 
@@ -1171,14 +1164,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		if (notAnnotations == null) { cacheBasicAnnotationData(); }
 		if (notAnnotations.contains(annotationKey)) { return true; }
 		return false;
-	}
-
-	/* get the annotations using the given term key, or null if none exist
-	 */
-	protected Set<Integer> getAnnotationsForTerm(Integer termKey) throws Exception {
-		if (termKeyToAnnotations == null) { cacheBasicAnnotationData(); }
-		if (termKeyToAnnotations.containsKey(termKey)) { return termKeyToAnnotations.get(termKey); }
-		return null;
 	}
 
 	/* get the term key for the given hdp_annotation_key, or null if annotation key is unknown
@@ -1304,40 +1289,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 */
 	protected Set<String> getRelatedPhenotypes(Integer annotationKey, boolean getTerms, boolean getIds) throws Exception {
 		return getRelatedTerms(annotationKey, getTerms, getIds, false, true);
-	}
-
-	/* get the set of disease IDs and terms which come via related annotations for the specified term key
-	 */
-	protected Set<String> getRelatedDiseasesForTerm(Integer termKey, boolean getTerms, boolean getIds) throws Exception {
-		Set<Integer> annotKeys = getAnnotationsForTerm(termKey);
-		if (annotKeys != null) {
-			Set<String> out = new HashSet<String>();
-			for (Integer annotKey : annotKeys) {
-				Set<String> relatedTerms = getRelatedDiseases(annotKey, getTerms, getIds);
-				if (relatedTerms != null) {
-					out.addAll(relatedTerms);
-				}
-			}
-			return out;
-		}
-		return null;
-	}
-
-	/* get the set of phenotype IDs and terms which come via related annotations for the specified term key
-	 */
-	protected Set<String> getRelatedPhenotypesForTerm(Integer termKey, boolean getTerms, boolean getIds) throws Exception {
-		Set<Integer> annotKeys = getAnnotationsForTerm(termKey);
-		if (annotKeys != null) {
-			Set<String> out = new HashSet<String>();
-			for (Integer annotKey : annotKeys) {
-				Set<String> relatedTerms = getRelatedPhenotypes(annotKey, getTerms, getIds);
-				if (relatedTerms != null) {
-					out.addAll(relatedTerms);
-				}
-			}
-			return out;
-		}
-		return null;
 	}
 
 	/* cache the hybrid homology cluster keys for each human and mouse marker that is
