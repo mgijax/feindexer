@@ -114,6 +114,22 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_HEADER, getHeadersPerTerm(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
+		
+		// if the term is an OMIM term, then we also need to add the MP headers with which its
+		// HPO terms area associated (to facilitate lookup of data for the phenotype popups)
+		
+		if (omim.equals(getVocabulary(termKey))) {
+			List<Integer> hpoKeys = this.getHpoTermKeys(termKey);
+			if (hpoKeys != null) {
+				for (Integer hpoKey : hpoKeys) {
+					for (Integer mpHeaderKey : getMpHeaderKeys(hpoKey)) {
+						String mpHeader = getMpHeaderDisplay(mpHeaderKey);
+						if (mpHeader == null) { mpHeader = getTerm(mpHeaderKey); }
+						doc.addDistinctField(DiseasePortalFields.TERM_HEADER, mpHeader);
+					}
+				}
+			}
+		}
 	}
 
 	/* retrieve the human marker/disease annotations and write the appropriate data
