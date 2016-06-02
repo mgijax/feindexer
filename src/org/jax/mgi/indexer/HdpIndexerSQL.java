@@ -1146,7 +1146,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		while (rs.next()) {
 			Integer hdpAnnotationKey = rs.getInt("hdp_annotation_key");
 			String qualifier = rs.getString("qualifier_type");
-			Integer termKey = rs.getInt("term_key");
 
 			annotationTermKeys.put(hdpAnnotationKey, rs.getInt("term_key"));
 			if ((qualifier != null) && "NOT".equals(qualifier)) {
