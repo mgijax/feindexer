@@ -70,7 +70,6 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 			String synonym = rs_overall.getString("synonym");
 			String vocab = rs_overall.getString("display_vocab_name");
 			String root_vocab = rs_overall.getString("vocab_name");
-			System.out.println("Vocab: " + root_vocab);
 			String gxdlit_marker_count = rs_overall.getString("gxdlit_marker_count");
 			String expression_marker_count = rs_overall.getString("expression_marker_count");
 			String simple_marker_count = rs_overall.getString("marker_count");
@@ -92,6 +91,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.VOCABAC_TERM_ID, term_id);
 				doc.addField(IndexConstants.VOCABAC_TERM_KEY, term_key);
 				doc.addField(IndexConstants.VOCABAC_VOCAB,vocab);
+				System.out.println("Vocab: " + root_vocab);
 				doc.addField(IndexConstants.VOCABAC_ROOT_VOCAB,root_vocab);
 				doc.addField(IndexConstants.VOCABAC_EXPRESSION_MARKER_COUNT, expression_marker_count);
 				doc.addField(IndexConstants.VOCABAC_GXDLIT_MARKER_COUNT,gxdlit_marker_count);
