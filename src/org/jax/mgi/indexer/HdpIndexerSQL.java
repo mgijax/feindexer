@@ -96,6 +96,9 @@ public abstract class HdpIndexerSQL extends Indexer {
 	// gridcluster key to feature types for mouse markers in the cluster
 	protected Map<String,Set<String>> featureTypeMap = null;
 
+	// maps from each disease and phenotype term key to its DAG-based sequence number
+	protected Map<Integer,Integer> dagTermSortMap = null;
+
 	// maps from each disease and phenotype term to its smart-alpha sequence number
 	protected Map<String,Integer> termSortMap = null;
 
@@ -514,6 +517,43 @@ public abstract class HdpIndexerSQL extends Indexer {
 				}
 			}
 		}
+	}
+	
+	/* build the mapping of term keys to a sqeuence number for each one, where the terms
+	 * are sorted in order of a DAG-based traversal (to group terms together that are
+	 * similar biologically)
+	 */
+	private void cacheDagTermOrdering() throws SQLException {
+		if (dagTermSortMap != null) { return; }
+		
+		logger.info("getting DAG-based sequence numbers for terms");
+		Timer.reset();
+
+		dagTermSortMap = new HashMap<Integer,Integer>();
+		
+		String query = "select distinct t.term_key, s.by_dfs "
+			+ "from term t, term_sequence_num s "
+			+ "where t.vocab_name in ('OMIM','Mammalian Phenotype', 'Human Phenotype Ontology') "
+			+ "  and t.term_key = s.term_key";
+		ResultSet rs = ex.executeProto(query, cursorLimit);
+
+		while(rs.next()) {
+			dagTermSortMap.put(rs.getInt("term_key"), rs.getInt("by_dfs"));
+		}
+		rs.close();
+		logger.info("finished getting DAG sequence numbers for " + dagTermSortMap.size() + " diseases and phenotypes " + Timer.getElapsedMessage());
+	}
+	
+	/* get the DAG-based sequence number for the term with the given key, allowing
+	 * biologically-similar terms to be grouped together
+	 */
+	protected int getDagSequenceNum(int termKey) throws SQLException {
+		if (dagTermSortMap == null) { cacheDagTermOrdering(); }
+		if (!dagTermSortMap.containsKey(termKey)) {
+			// if unknown term (should not happen), add to end
+			dagTermSortMap.put(termKey, dagTermSortMap.size() + 1);
+		}
+		return dagTermSortMap.get(termKey);
 	}
 	
 	/* build the mapping from each disease and phenotype term to its smart-alpha

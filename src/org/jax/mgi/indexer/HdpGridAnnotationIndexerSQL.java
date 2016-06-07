@@ -138,6 +138,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		doc.addField(DiseasePortalFields.TERM_QUALIFIER, qualifier);
 		doc.addField(DiseasePortalFields.BY_TERM_NAME, getTermSequenceNum(term));
 		doc.addField(DiseasePortalFields.BY_TERM_HEADER, getHeaderSequenceNum(header));
+		doc.addField(DiseasePortalFields.BY_TERM_DAG, getDagSequenceNum(termKey));
 
 		// add fields to help with highlighting
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
