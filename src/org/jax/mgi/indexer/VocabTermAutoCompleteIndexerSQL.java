@@ -91,7 +91,6 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.VOCABAC_TERM_ID, term_id);
 				doc.addField(IndexConstants.VOCABAC_TERM_KEY, term_key);
 				doc.addField(IndexConstants.VOCABAC_VOCAB,vocab);
-				System.out.println("Vocab: " + root_vocab);
 				doc.addField(IndexConstants.VOCABAC_ROOT_VOCAB,root_vocab);
 				doc.addField(IndexConstants.VOCABAC_EXPRESSION_MARKER_COUNT, expression_marker_count);
 				doc.addField(IndexConstants.VOCABAC_GXDLIT_MARKER_COUNT,gxdlit_marker_count);
