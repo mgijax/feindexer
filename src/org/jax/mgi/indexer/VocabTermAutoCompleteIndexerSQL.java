@@ -30,7 +30,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 		Map<String,Integer> termSort = new HashMap<String,Integer>();
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
-		logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,OMIM)");
+		logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,OMIM,Human Phenotype Ontology)");
 		String query = "select distinct t.term_key, t.term,t.vocab_name,t.display_vocab_name,t.primary_id, "+
 				"ts.synonym,ts.synonym_type "+
 				", tc.marker_count,tc.gxdlit_marker_count,tc.expression_marker_count "+
@@ -70,6 +70,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 			String synonym = rs_overall.getString("synonym");
 			String vocab = rs_overall.getString("display_vocab_name");
 			String root_vocab = rs_overall.getString("vocab_name");
+			System.out.println("Vocab: " + root_vocab);
 			String gxdlit_marker_count = rs_overall.getString("gxdlit_marker_count");
 			String expression_marker_count = rs_overall.getString("expression_marker_count");
 			String simple_marker_count = rs_overall.getString("marker_count");
