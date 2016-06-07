@@ -37,7 +37,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				"from term t left outer join term_synonym ts on t.term_key=ts.term_key and ts.synonym_type != 'disease cluster', " +
 				"term_counts tc "+
 				"where t.is_obsolete=0 and "+
-				"t.vocab_name in ('GO','Mammalian Phenotype','OMIM') and "+
+				"t.vocab_name in ('GO','Mammalian Phenotype','OMIM','Human Phenotype Ontology') and "+
 				"t.term_key=tc.term_key ";
 		ResultSet rs_overall = ex.executeProto(query);
 		logger.info("calculating sorts");
