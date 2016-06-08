@@ -1470,6 +1470,12 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		return null;
 	}
+	
+	/* strip the markup out of the allele combination and leave jsut the allele symbols
+	 */
+	protected String stripAlleleMarkup(String combination) {
+		return combination.replaceAll("\\\\Allele.[^|]*.([^|]*).[^)]*.", "$1");
+	}
 
 	/* cache the allele pairs in memory for each genocluster
 	 */
@@ -1491,7 +1497,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		ResultSet rs = ex.executeProto(allelePairQuery, cursorLimit);
 		while (rs.next()) {
-			allelePairs.put(rs.getInt("hdp_genocluster_key"), rs.getString("combination_1"));
+			allelePairs.put(rs.getInt("hdp_genocluster_key"), stripAlleleMarkup(rs.getString("combination_1")));
 			if (rs.getInt("is_conditional") == 1) {
 				conditionalGenoclusters.add(rs.getInt("hdp_genocluster_key"));
 			}
