@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
@@ -20,13 +21,13 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
  * Note: refactored during 5.x development
  */
 
-public class VocabTermAutoCompleteIndexerSQL extends Indexer 
-{   
-	public VocabTermAutoCompleteIndexerSQL () 
-	{ super("index.url.vocabTermAC"); }
+public class VocabTermAutoCompleteIndexerSQL extends Indexer  {   
+	public VocabTermAutoCompleteIndexerSQL() {
+		super("index.url.vocabTermAC");
+	}
 
-	public void index() throws Exception
-	{    
+	public void index() throws Exception {    
+
 		Map<String,Integer> termSort = new HashMap<String,Integer>();
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
@@ -41,8 +42,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				"t.term_key=tc.term_key ";
 		ResultSet rs_overall = ex.executeProto(query);
 		logger.info("calculating sorts");
-		while(rs_overall.next())
-		{
+		while(rs_overall.next()) {
 			String term = rs_overall.getString("term");
 			String synonym = rs_overall.getString("synonym");
 			termsToSort.add(term);
@@ -50,8 +50,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 		}
 		//sort the terms
 		Collections.sort(termsToSort,new SmartAlphaComparator());
-		for(int i=0;i<termsToSort.size();i++)
-		{
+		for(int i=0;i<termsToSort.size();i++) {
 			termSort.put(termsToSort.get(i), i);
 		}
 
@@ -62,8 +61,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 		Collection<String> addedTermKeys = new HashSet<String>();
 
 		rs_overall = ex.executeProto(query);
-		while (rs_overall.next()) 
-		{
+		while (rs_overall.next())  {
 			String term_key = rs_overall.getString("term_key");
 			String term_id = rs_overall.getString("primary_id");
 			String term = rs_overall.getString("term");
@@ -76,8 +74,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 			String unique_key = term_id;
 
 			// add term only once
-			if (term !=null && !term.equals("") && !term.equals(" ") && !addedTermKeys.contains(term_key))
-			{
+			if (term !=null && !term.equals("") && !term.equals(" ") && !addedTermKeys.contains(term_key)) {
 				addedTermKeys.add(term_key);
 				SolrInputDocument doc = new SolrInputDocument();
 
@@ -91,9 +88,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.VOCABAC_TERM_ID, term_id);
 				doc.addField(IndexConstants.VOCABAC_TERM_KEY, term_key);
 				doc.addField(IndexConstants.VOCABAC_VOCAB,vocab);
-				if(root_vocab.equals("Human Phenotype Ontology")) {
-					System.out.println("Adding: " + term + " to the index");
-				}
+				doc.addField(IndexConstants.VOCABAC_DERIVED_TERMS, generateDerivedTerms(term, 3));
 				doc.addField(IndexConstants.VOCABAC_ROOT_VOCAB,root_vocab);
 				doc.addField(IndexConstants.VOCABAC_EXPRESSION_MARKER_COUNT, expression_marker_count);
 				doc.addField(IndexConstants.VOCABAC_GXDLIT_MARKER_COUNT,gxdlit_marker_count);
@@ -102,8 +97,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 			}
 
 			// add synonym if we have any for this term 
-			if (synonym != null && !synonym.equals("") && !synonym.equals(" "))
-			{
+			if (synonym != null && !synonym.equals("") && !synonym.equals(" ")) {
 				// need to add a synonym term
 				SolrInputDocument doc = new SolrInputDocument();
 
@@ -117,6 +111,7 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.VOCABAC_TERM_ID, term_id);
 				doc.addField(IndexConstants.VOCABAC_TERM_KEY, term_key);
 				doc.addField(IndexConstants.VOCABAC_VOCAB,vocab);
+				doc.addField(IndexConstants.VOCABAC_DERIVED_TERMS, generateDerivedTerms(synonym, 3));
 				doc.addField(IndexConstants.VOCABAC_ROOT_VOCAB,root_vocab);
 				doc.addField(IndexConstants.VOCABAC_EXPRESSION_MARKER_COUNT, expression_marker_count);
 				doc.addField(IndexConstants.VOCABAC_GXDLIT_MARKER_COUNT,gxdlit_marker_count);
@@ -130,5 +125,29 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 
 		writeDocs(docs);
 		commit();
+	}
+
+	// Generates phases for terms:
+	// generateDerivedTerms("this is a test of the broadcasting system", 3)
+	// Output:
+	// this
+	// this is
+	// this is a
+	// this is a test of the broadcasting system
+	// Plus handles terms that are less then the amount
+	private List<String> generateDerivedTerms(String word, int amount) {
+		ArrayList<String> ret = new ArrayList<String>();
+		String[] array = word.split(" ");
+		String delim = "";
+		String phrase = "";
+		for(int i = 0; i < amount && i < array.length; i++) {
+			phrase += delim + array[i];
+			ret.add(phrase);
+			delim = " ";
+		}
+		if(amount < array.length) {
+			ret.add(word);
+		}
+		return ret;
 	}
 }
