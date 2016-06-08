@@ -30,14 +30,14 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 		Map<String,Integer> termSort = new HashMap<String,Integer>();
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
-		logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,OMIM)");
+		logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,OMIM,Human Phenotype Ontology)");
 		String query = "select distinct t.term_key, t.term,t.vocab_name,t.display_vocab_name,t.primary_id, "+
 				"ts.synonym,ts.synonym_type "+
 				", tc.marker_count,tc.gxdlit_marker_count,tc.expression_marker_count "+
 				"from term t left outer join term_synonym ts on t.term_key=ts.term_key and ts.synonym_type != 'disease cluster', " +
 				"term_counts tc "+
 				"where t.is_obsolete=0 and "+
-				"t.vocab_name in ('GO','Mammalian Phenotype','OMIM') and "+
+				"t.vocab_name in ('GO','Mammalian Phenotype','OMIM','Human Phenotype Ontology') and "+
 				"t.term_key=tc.term_key ";
 		ResultSet rs_overall = ex.executeProto(query);
 		logger.info("calculating sorts");
@@ -91,6 +91,9 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.VOCABAC_TERM_ID, term_id);
 				doc.addField(IndexConstants.VOCABAC_TERM_KEY, term_key);
 				doc.addField(IndexConstants.VOCABAC_VOCAB,vocab);
+				if(root_vocab.equals("Human Phenotype Ontology")) {
+					System.out.println("Adding: " + term + " to the index");
+				}
 				doc.addField(IndexConstants.VOCABAC_ROOT_VOCAB,root_vocab);
 				doc.addField(IndexConstants.VOCABAC_EXPRESSION_MARKER_COUNT, expression_marker_count);
 				doc.addField(IndexConstants.VOCABAC_GXDLIT_MARKER_COUNT,gxdlit_marker_count);
