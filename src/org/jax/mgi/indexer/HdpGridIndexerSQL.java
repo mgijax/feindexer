@@ -94,9 +94,9 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		Set<Integer> orthologousMarkerKeys = getMarkerOrthologs(markerKey);
 		if (orthologousMarkerKeys != null) {
 			for (Integer orthoMarkerKey : orthologousMarkerKeys) {
-				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerSymbol(orthoMarkerKey));
+				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_SYMBOL, getMarkerSymbol(orthoMarkerKey));
 				doc.addDistinctField(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerName(orthoMarkerKey));
-				doc.addAllDistinct(DiseasePortalFields.ORTHOLOG_NOMEN, getMarkerSynonyms(orthoMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.ORTHOLOG_SYNONYM, getMarkerSynonyms(orthoMarkerKey));
 				doc.addAllDistinct(DiseasePortalFields.ORTHOLOG_ID, getMarkerIds(orthoMarkerKey));
 			}
 		}
