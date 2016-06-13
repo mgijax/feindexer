@@ -124,6 +124,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				Set<String> featureTypes = new HashSet<String>();
 				Set<String> markerSynonyms = new HashSet<String>();
 				Set<String> orthologNomen = new HashSet<String>();
+				Set<String> orthologSymbols = new HashSet<String>();
+				Set<String> orthologSynonyms = new HashSet<String>();
 				Set<String> orthologIds = new HashSet<String>();
 
 				String markerSymbol = getMarkerSymbol(markerKey);
@@ -180,9 +182,9 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 						Set<String> orthoIds = getMarkerIds(orthoMarkerKey);
 						Set<String> orthoSynonyms = getMarkerSynonyms(orthoMarkerKey);
 
-						if (orthoSymbol != null) { orthologNomen.add(orthoSymbol); }
+						if (orthoSymbol != null) { orthologSymbols.add(orthoSymbol); }
 						if (orthoName != null) { orthologNomen.add(orthoName); }
-						if (orthoSynonyms != null) { orthologNomen.addAll(orthoSynonyms); }
+						if (orthoSynonyms != null) { orthologSynonyms.addAll(orthoSynonyms); }
 						if (orthoIds != null) { orthologIds.addAll(orthoIds); }
 					}
 				}
@@ -196,6 +198,12 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				}
 				if (orthologNomen.size() > 0) {
 					addAll(doc, DiseasePortalFields.ORTHOLOG_NOMEN, orthologNomen);
+				}
+				if (orthologSymbols.size() > 0) {
+					addAll(doc, DiseasePortalFields.ORTHOLOG_SYMBOL, orthologSymbols);
+				}
+				if (orthologSynonyms.size() > 0) {
+					addAll(doc, DiseasePortalFields.ORTHOLOG_SYNONYM, orthologSynonyms);
 				}
 				if (orthologIds.size() > 0) {
 					addAll(doc, DiseasePortalFields.ORTHOLOG_ID, orthologIds);
