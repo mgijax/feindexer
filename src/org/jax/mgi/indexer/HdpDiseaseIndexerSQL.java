@@ -208,6 +208,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				if (orthologIds.size() > 0) {
 					addAll(doc, DiseasePortalFields.ORTHOLOG_ID, orthologIds);
 				}
+				
+				addExpressedComponents(doc, markerKey);
 			} // end of processing associated marker
 
 			// Add this doc to the batch we're collecting.  If the stack hits our

@@ -231,6 +231,8 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			addIfNotNull(doc, DiseasePortalFields.GRID_CLUSTER_KEY, gridClusterKey);
 			addIfNotNull(doc, DiseasePortalFields.ORGANISM, rs.getString("organism"));
 
+			addExpressedComponents(doc, markerKey);
+
 			// hybrid homology cluster key, if any
 			doc.addField(DiseasePortalFields.HOMOLOGY_CLUSTER_KEY, getHomologyClusterKey(markerKey));
 

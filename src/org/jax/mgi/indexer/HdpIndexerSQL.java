@@ -73,6 +73,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 	protected Map<Integer,List<Integer>> omimToHpo = null;		// OMIM term key -> List of HPO term keys
 	protected Map<Integer,Set<Integer>> hpoHeaderToMp = null;	// HPO header key -> set of MP header keys
+
+	protected Map<Integer,Set<Integer>> expressedComponents = null;	// source marker key -> expressed marker key
 	
 	/* We use the term "basic search units" for the grid, referring to the basic unit that we
 	 * are searching for -- genoclusters for mouse data and marker/disease pairs for human
@@ -1632,6 +1634,57 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 		}
 		return union;
+	}
+
+	/* cache the 'expressed component' relationships from the database (marker to expressed marker,
+	 * both 'expresses' and 'expresses ortholog of')
+	 */
+	protected void cacheExpressedComponents() throws Exception {
+		if (expressedComponents != null) { return; }
+
+		logger.info("retrieving expressed components");
+		Timer.reset();
+
+		String ecQuery = "select m.marker_key, arm.related_marker_key "
+			+ "from allele_related_marker arm, allele a, marker_to_allele mta, "
+			+ "  marker m "
+			+ "where arm.relationship_category = 'expresses_component' "
+			+ "  and arm.allele_key = a.allele_key "
+			+ "  and a.allele_key = mta.allele_key "
+			+ "  and mta.marker_key = m.marker_key "
+			+ "  and m.marker_type = 'Transgene'";
+
+		expressedComponents = new HashMap<Integer,Set<Integer>>();
+
+		ResultSet rs = ex.executeProto(ecQuery, cursorLimit);
+		while (rs.next()) {
+			Integer markerKey = rs.getInt("marker_key");
+
+			if (!expressedComponents.containsKey(markerKey)) {
+				expressedComponents.put(markerKey, new HashSet<Integer>());
+			}
+			expressedComponents.get(markerKey).add(rs.getInt("related_marker_key"));
+		}
+		rs.close();
+
+		logger.info("finished expressed components for " + expressedComponents.size() + " transgenes " + Timer.getElapsedMessage());
+	}
+	
+	/* add to the Solr document the symbols, names, synonyms, and IDs for 'expressed component' markers
+	 * of transgenes
+	 */
+	protected void addExpressedComponents(DistinctSolrInputDocument doc, Integer sourceMarkerKey) throws Exception {
+		if (expressedComponents == null) { cacheExpressedComponents(); }
+		
+		if (expressedComponents.containsKey(sourceMarkerKey)) {
+			for (Integer expressedMarkerKey : expressedComponents.get(sourceMarkerKey)) {
+				// Solr fields specific for expressed component markers
+				doc.addDistinctField(DiseasePortalFields.EC_SYMBOL, getMarkerSymbol(expressedMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.EC_SYNONYM, getMarkerSynonyms(expressedMarkerKey));
+				doc.addDistinctField(DiseasePortalFields.EC_NAME, getMarkerName(expressedMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.EC_ID, getMarkerIds(expressedMarkerKey));
+			}
+		}
 	}
 
 	/*---------------------------------------------------------------------*/
