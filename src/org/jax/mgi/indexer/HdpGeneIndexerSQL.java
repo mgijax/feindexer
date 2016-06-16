@@ -240,6 +240,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 			if (markerSynonymMap.containsKey(markerKey.toString())) {
 				doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM, markerSynonymMap.get(markerKey.toString()));
+				doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(markerKey));
 			}
 
 			// genetic and genomic locations 

@@ -437,6 +437,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
+	/* get any single-token synonyms for the given marker key (no whitespace), including synonyms for
+	 * orthologous markers.
+	 */
+	protected Set<String> getMarkerSingleTokenSynonyms(Integer markerKey) throws Exception {
+		Set<String> allSynonyms = getMarkerSynonyms(markerKey);
+		if (allSynonyms == null) { return null; }
+		
+		Set<String> subset = new HashSet<String>();
+		for (String synonym : allSynonyms) {
+			if (!synonym.contains(" ")) {
+				subset.add(synonym);
+			}
+		}
+		return subset;
+	}
+
 	/* retrieve the mapping from each (String) marker key to the spatial strings for its coordinates
 	 */
 	protected Map<String, Set<String>> getMarkerCoordinateMap() throws Exception {
@@ -1681,6 +1697,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				// Solr fields specific for expressed component markers
 				doc.addDistinctField(DiseasePortalFields.EC_SYMBOL, getMarkerSymbol(expressedMarkerKey));
 				doc.addAllDistinct(DiseasePortalFields.EC_SYNONYM, getMarkerSynonyms(expressedMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.EC_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(expressedMarkerKey));
 				doc.addDistinctField(DiseasePortalFields.EC_NAME, getMarkerName(expressedMarkerKey));
 				doc.addAllDistinct(DiseasePortalFields.EC_ID, getMarkerIds(expressedMarkerKey));
 			}
