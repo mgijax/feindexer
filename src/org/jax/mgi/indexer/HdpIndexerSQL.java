@@ -437,6 +437,21 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
+	/* retrieve the marker keys for human orthologs of the given mouse marker
+	 */
+	protected Set<Integer> getHumanOrthologs (Integer mouseMarkerKey) throws Exception {
+		Set<Integer> orthologs = getMarkerOrthologs(mouseMarkerKey);
+		if (orthologs == null) { return null; }
+		
+		Set<Integer> subset = new HashSet<Integer>();
+		for (Integer otherKey : orthologs) {
+			if (this.isHuman(otherKey)) {
+				subset.add(otherKey);
+			}
+		}
+		return subset;
+	}
+	
 	/* get any single-token synonyms for the given marker key (no whitespace), including synonyms for
 	 * orthologous markers.
 	 */
@@ -448,6 +463,19 @@ public abstract class HdpIndexerSQL extends Indexer {
 		for (String synonym : allSynonyms) {
 			if (!synonym.contains(" ")) {
 				subset.add(synonym);
+			}
+		}
+		
+		// also add single-token synonyms for human orthologs
+		if (this.isMouse(markerKey)) {
+			Set<Integer> humanOrthologs = getHumanOrthologs(markerKey);
+			if (humanOrthologs != null) {
+				for (Integer humanMarker : humanOrthologs) {
+					Set<String> stSynonyms = getMarkerSingleTokenSynonyms(humanMarker);
+					if (stSynonyms != null) {
+						subset.addAll(stSynonyms);
+					}
+				}
 			}
 		}
 		return subset;
