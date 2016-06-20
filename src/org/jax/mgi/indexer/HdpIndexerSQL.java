@@ -468,9 +468,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 	
 	/* get any single-token synonyms for the given marker key (no whitespace), including synonyms for
-	 * orthologous markers.  If 'includeOrthologs' is true, then:
-	 * 1. if markerKey is a mouse marker, also include human single-token synonyms.
-	 * 2. if markerKey is a human marker, also include mouse single-token synonyms.
+	 * orthologous markers.  If 'includeOrthologs' is true, then also include any single-token synonyms
+	 * for mouse and human markers in the orthology class.
 	 */
 	protected Set<String> getMarkerSingleTokenSynonyms(Integer markerKey, boolean includeOrthologs) throws Exception {
 		Set<String> subset = new HashSet<String>();
@@ -486,21 +485,15 @@ public abstract class HdpIndexerSQL extends Indexer {
 		}
 		
 		if (includeOrthologs) {
-			// If this is a mouse marker, also add single-token synonyms for human orthologs.
-			// Or if this is a human marker, add the single-token synonyms for mouse orthologs.
-			Set<Integer> orthologMarkerKeys = null;
-			if (isMouse(markerKey)) {
-				orthologMarkerKeys = getHumanOrthologs(markerKey);
-			} else if (isHuman(markerKey)) {
-				orthologMarkerKeys = getMouseOrthologs(markerKey);
-			}
-			if (orthologMarkerKeys != null) {
-				for (Integer orthologMarker : orthologMarkerKeys) {
-					Set<String> stSynonyms = getMarkerSingleTokenSynonyms(orthologMarker, false);
-					if (stSynonyms != null) {
-						subset.addAll(stSynonyms);
-					}
-				}
+			Set<Integer> orthologMarkerKeys = new HashSet<Integer>();		// mouse + human orthologs
+			Set<Integer> mouseOrthologKeys = getMouseOrthologs(markerKey);	// just mouse
+			Set<Integer> humanOrthologKeys = getHumanOrthologs(markerKey);	// just human
+
+			if (mouseOrthologKeys != null) { orthologMarkerKeys.addAll(mouseOrthologKeys); }
+			if (humanOrthologKeys != null) { orthologMarkerKeys.addAll(humanOrthologKeys); }
+			
+			for (Integer orthologMarker : orthologMarkerKeys) {
+				subset.addAll(getMarkerSingleTokenSynonyms(orthologMarker, false));
 			}
 		}
 
