@@ -437,6 +437,21 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 
+	/* retrieve the marker keys for mouse orthologs of the given human marker
+	 */
+	protected Set<Integer> getMouseOrthologs (Integer humanMarkerKey) throws Exception {
+		Set<Integer> orthologs = getMarkerOrthologs(humanMarkerKey);
+		if (orthologs == null) { return null; }
+		
+		Set<Integer> subset = new HashSet<Integer>();
+		for (Integer otherKey : orthologs) {
+			if (this.isMouse(otherKey)) {
+				subset.add(otherKey);
+			}
+		}
+		return subset;
+	}
+	
 	/* retrieve the marker keys for human orthologs of the given mouse marker
 	 */
 	protected Set<Integer> getHumanOrthologs (Integer mouseMarkerKey) throws Exception {
@@ -453,31 +468,42 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 	
 	/* get any single-token synonyms for the given marker key (no whitespace), including synonyms for
-	 * orthologous markers.
+	 * orthologous markers.  If 'includeOrthologs' is true, then:
+	 * 1. if markerKey is a mouse marker, also include human single-token synonyms.
+	 * 2. if markerKey is a human marker, also include mouse single-token synonyms.
 	 */
-	protected Set<String> getMarkerSingleTokenSynonyms(Integer markerKey) throws Exception {
-		Set<String> allSynonyms = getMarkerSynonyms(markerKey);
-		if (allSynonyms == null) { return null; }
-		
+	protected Set<String> getMarkerSingleTokenSynonyms(Integer markerKey, boolean includeOrthologs) throws Exception {
 		Set<String> subset = new HashSet<String>();
-		for (String synonym : allSynonyms) {
-			if (!synonym.contains(" ")) {
-				subset.add(synonym);
+
+		// first add single-token synonyms for this marker, if there are any
+		Set<String> allSynonyms = getMarkerSynonyms(markerKey);
+		if (allSynonyms != null) {
+			for (String synonym : allSynonyms) {
+				if (!synonym.contains(" ")) {
+					subset.add(synonym);
+				}
 			}
 		}
 		
-		// also add single-token synonyms for human orthologs
-		if (this.isMouse(markerKey)) {
-			Set<Integer> humanOrthologs = getHumanOrthologs(markerKey);
-			if (humanOrthologs != null) {
-				for (Integer humanMarker : humanOrthologs) {
-					Set<String> stSynonyms = getMarkerSingleTokenSynonyms(humanMarker);
+		if (includeOrthologs) {
+			// If this is a mouse marker, also add single-token synonyms for human orthologs.
+			// Or if this is a human marker, add the single-token synonyms for mouse orthologs.
+			Set<Integer> orthologMarkerKeys = null;
+			if (isMouse(markerKey)) {
+				orthologMarkerKeys = getHumanOrthologs(markerKey);
+			} else if (isHuman(markerKey)) {
+				orthologMarkerKeys = getMouseOrthologs(markerKey);
+			}
+			if (orthologMarkerKeys != null) {
+				for (Integer orthologMarker : orthologMarkerKeys) {
+					Set<String> stSynonyms = getMarkerSingleTokenSynonyms(orthologMarker, false);
 					if (stSynonyms != null) {
 						subset.addAll(stSynonyms);
 					}
 				}
 			}
 		}
+
 		return subset;
 	}
 
@@ -1725,7 +1751,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				// Solr fields specific for expressed component markers
 				doc.addDistinctField(DiseasePortalFields.EC_SYMBOL, getMarkerSymbol(expressedMarkerKey));
 				doc.addAllDistinct(DiseasePortalFields.EC_SYNONYM, getMarkerSynonyms(expressedMarkerKey));
-				doc.addAllDistinct(DiseasePortalFields.EC_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(expressedMarkerKey));
+				doc.addAllDistinct(DiseasePortalFields.EC_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(expressedMarkerKey, true));
 				doc.addDistinctField(DiseasePortalFields.EC_NAME, getMarkerName(expressedMarkerKey));
 				doc.addAllDistinct(DiseasePortalFields.EC_ID, getMarkerIds(expressedMarkerKey));
 			}

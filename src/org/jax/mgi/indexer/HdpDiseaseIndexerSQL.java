@@ -195,7 +195,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 				}
 				if (markerSynonyms.size() > 0) {
 					addAll(doc, DiseasePortalFields.MARKER_SYNONYM, markerSynonyms);
-					addAll(doc, DiseasePortalFields.MARKER_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(markerKey));
+					addAll(doc, DiseasePortalFields.MARKER_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(markerKey, true));
 				}
 				if (orthologNomen.size() > 0) {
 					addAll(doc, DiseasePortalFields.ORTHOLOG_NOMEN, orthologNomen);

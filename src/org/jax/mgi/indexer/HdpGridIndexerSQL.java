@@ -44,7 +44,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addDistinctField(DiseasePortalFields.MARKER_NAME, getMarkerName(markerKey));
 		doc.addAllDistinct(DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
 		doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM, getMarkerSynonyms(markerKey));
-		doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(markerKey));
+		doc.addAllDistinct(DiseasePortalFields.MARKER_SYNONYM_SINGLE_TOKEN, getMarkerSingleTokenSynonyms(markerKey, true));
 		addMarkerCoordinates(doc, markerKey, true);
 		addExpressedComponents(doc, markerKey);
 	}
