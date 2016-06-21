@@ -1700,7 +1700,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 
 	/* cache the 'expressed component' relationships from the database (marker to expressed marker,
-	 * both 'expresses' and 'expresses ortholog of')
+	 * both 'expresses' and 'expresses ortholog of').  We also include all markers in the homology
+	 * cluster that involves the expressed marker.
 	 */
 	protected void cacheExpressedComponents() throws Exception {
 		if (expressedComponents != null) { return; }
@@ -1708,6 +1709,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("retrieving expressed components");
 		Timer.reset();
 
+		// top half of union is mouse-to-mouse, bottom is mouse-to-human
 		String ecQuery = "select m.marker_key, arm.related_marker_key "
 			+ "from allele_related_marker arm, allele a, marker_to_allele mta, "
 			+ "  marker m "
@@ -1715,7 +1717,24 @@ public abstract class HdpIndexerSQL extends Indexer {
 			+ "  and arm.allele_key = a.allele_key "
 			+ "  and a.allele_key = mta.allele_key "
 			+ "  and mta.marker_key = m.marker_key "
-			+ "  and m.marker_type = 'Transgene'";
+			+ "  and m.marker_type = 'Transgene'"
+			+ "union "
+			+ "select m.marker_key, r.marker_key as expressed_marker_key "
+			+ "from allele a, marker_to_allele m, allele_related_marker arm, allele_arm_property po, "
+			+ "  allele_arm_property pi, allele_arm_property ps, marker_id ri, marker r "
+			+ "where m.allele_key = a.allele_key "
+			+ "  and a.allele_key = arm.allele_key "
+			+ "  and arm.arm_key = po.arm_key "
+			+ "  and arm.arm_key = pi.arm_key "
+			+ "  and arm.arm_key = ps.arm_key "
+			+ "  and po.name = 'Non-mouse_Organism' "
+			+ "  and pi.name = 'Non-mouse_NCBI_Gene_ID' "
+			+ "  and ps.name = 'Non-mouse_Gene_Symbol' "
+			+ "  and pi.value = ri.acc_id "
+			+ "  and ps.value = r.symbol "
+			+ "  and po.value ilike r.organism "
+			+ "  and r.organism = 'human' "
+			+ "  and ri.marker_key = r.marker_key";
 
 		expressedComponents = new HashMap<Integer,Set<Integer>>();
 
@@ -1731,6 +1750,22 @@ public abstract class HdpIndexerSQL extends Indexer {
 		rs.close();
 
 		logger.info("finished expressed components for " + expressedComponents.size() + " transgenes " + Timer.getElapsedMessage());
+		
+		// now add any missing human/mouse orthologs for the expressed components
+		
+		for (Integer markerKey : expressedComponents.keySet()) {
+			Set<Integer> orthologs = new HashSet<Integer>();
+			for (Integer expressedMarkerKey : expressedComponents.get(markerKey)) {
+				Set<Integer> mouseOrthologs = getMouseOrthologs(expressedMarkerKey);
+				Set<Integer> humanOrthologs = getHumanOrthologs(expressedMarkerKey);
+				if (mouseOrthologs != null) { orthologs.addAll(mouseOrthologs); }
+				if (humanOrthologs != null) { orthologs.addAll(humanOrthologs); }
+			}
+			if (orthologs.size() > 0) {
+				expressedComponents.get(markerKey).addAll(orthologs);
+			}
+		}
+		logger.info("included orthologs for expressed components " + Timer.getElapsedMessage());
 	}
 	
 	/* add to the Solr document the symbols, names, synonyms, and IDs for 'expressed component' markers
