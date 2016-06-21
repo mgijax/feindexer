@@ -122,7 +122,8 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/* build and return a solr document for the given data
 	 */
 	protected SolrInputDocument buildDocument(BSU bsu, Integer termKey,
-			String header, String qualifier, Integer humanMarkerKey, Integer sourceTermKey) throws Exception {
+			String header, String qualifier, Integer humanMarkerKey, Integer sourceTermKey,
+			Integer backgroundSensitive) throws Exception {
 
 		uniqueKey += 1;	
 		String term = getTerm(termKey);
@@ -149,6 +150,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		// optional fields:
 		// 1. human marker symbol + ID, for OMIM annotations to human markers
 		// 2. source term + ID, for the OMIM terms from which HPO annotations were derived (human data)
+		// 3. background sensitive, for MP annotations to mouse genotypes
 		
 		if (humanMarkerKey != null) {
 			doc.addField(DiseasePortalFields.MARKER_SYMBOL, this.getMarkerSymbol(humanMarkerKey));
@@ -158,6 +160,10 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		if (sourceTermKey != null) {
 			doc.addField(DiseasePortalFields.SOURCE_TERM, this.getTerm(sourceTermKey));
 			doc.addField(DiseasePortalFields.SOURCE_TERM_ID, this.getTermId(sourceTermKey));
+		}
+		
+		if ((backgroundSensitive != null) && (backgroundSensitive >= 1)) {
+			doc.addField(DiseasePortalFields.BACKGROUND_SENSITIVE, 1);
 		}
 		return doc;
 	}
@@ -183,7 +189,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			BSU bsu = this.getHumanBsu(markerKey, termKey);
 
 			// need to save this document; write to the server if our queue is big enough
-			docs.add(buildDocument(bsu, termKey, rs.getString("header"), qualifier, markerKey, null));
+			docs.add(buildDocument(bsu, termKey, rs.getString("header"), qualifier, markerKey, null, null));
 
 			List<Integer> hpoTermKeys = getHpoTermKeys(termKey);
 			if (hpoTermKeys != null) {
@@ -191,7 +197,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 					for (Integer mpHeaderKey : this.getMpHeaderKeys(hpoTermKey)) {
 						String headerDisplay = getMpHeaderDisplay(mpHeaderKey);
 						if (headerDisplay == null) { headerDisplay = getTerm(mpHeaderKey); }
-						docs.add(buildDocument(bsu, hpoTermKey, headerDisplay, qualifier, markerKey, termKey));
+						docs.add(buildDocument(bsu, hpoTermKey, headerDisplay, qualifier, markerKey, termKey, null));
 					}
 				}
 			}
@@ -220,7 +226,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		// note that the genocluster tables already exclude annotation type 1006 (human
 		// marker/disease annotations)
 		String mouseQuery = "select distinct m.marker_key, gg.hdp_genocluster_key, ga.term_key, ga.qualifier_type, "
-			+ "  ha.header, ga.genotermref_count "
+			+ "  ha.header, ga.genotermref_count, ga.has_backgroundnote "
 			+ "from hdp_genocluster m, "
 			+ "  hdp_genocluster_genotype gg, "
 			+ "  hdp_genocluster_annotation ga, "
@@ -253,7 +259,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 			for (int i = 0; i < refCount; i++) {
 				// need to save this document; write to the server if our queue is big enough
 				docs.add(this.buildDocument(bsu, rs.getInt("term_key"), rs.getString("header"),
-					rs.getString("qualifier_type"), null, null));
+					rs.getString("qualifier_type"), null, null, rs.getInt("has_backgroundnote")));
 			}
 
 			if (docs.size() >= solrBatchSize) {
