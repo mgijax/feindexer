@@ -3,11 +3,13 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Set;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 
@@ -24,8 +26,8 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/*--- instance variables ---*/
 	/*--------------------------*/
 
-	// genocluster key -> [ marker key 1, marker key 2, ... ]
-	protected Map<Integer,List<Integer>> markersPerGenocluster = null;
+	// genocluster key -> sequence number
+	protected Map<Integer,Integer> genoclusterSeqNum = null;
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -203,6 +205,48 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		logger.info("finished processing human annotations");
 	}
 
+	/* look up the precomputed sequence number for each genocluster (drawn from its genotypes).  For
+	 * multiple genotypes, keep the lowest sequence number.
+	 */
+	protected void cacheGenotypeSequenceNum() throws Exception {
+		if (genoclusterSeqNum != null) { return; }
+		
+		Timer.reset();
+		genoclusterSeqNum = new HashMap<Integer,Integer>();
+		
+		String gcQuery = "select gg.hdp_genocluster_key, min(gsn.by_hdp_rules) as by_hdp_rules "
+			+ "from hdp_genocluster_genotype gg, genotype_sequence_num gsn "
+			+ "where gg.genotype_key = gsn.genotype_key "
+			+ "group by 1";
+		
+		ResultSet rs = ex.executeProto(gcQuery, cursorLimit);
+		
+		while (rs.next()) {
+			genoclusterSeqNum.put(rs.getInt("hdp_genocluster_key"), rs.getInt("by_hdp_rules"));
+		}
+		rs.close();
+
+		logger.info("finished retrieving seq num for " + genoclusterSeqNum.size() + " genoclusters " + Timer.getElapsedMessage());
+	}
+	
+	/* retrieve a precomputed sequence number for the given genocluster (ordering based on conditional flag,
+	 * pair state, allele symbols)
+	 */
+	protected int getGenoclusterSequenceNum (int genoclusterKey) throws Exception {
+		if (genoclusterSeqNum == null) { cacheGenotypeSequenceNum(); }
+		if (!genoclusterSeqNum.containsKey(genoclusterKey)) {
+			// should not happen, but just in case, we'll look up the current max and go higher
+			int maxSeqNum = 0;
+			for (Integer gcKey : genoclusterSeqNum.keySet()) {
+				if (genoclusterSeqNum.get(gcKey) > maxSeqNum) {
+					maxSeqNum = genoclusterSeqNum.get(gcKey);
+				}
+			}
+			genoclusterSeqNum.put(genoclusterKey, maxSeqNum + 1);
+		}
+		return genoclusterSeqNum.get(genoclusterKey);
+	}
+	
 	/* retrieve the mouse genocluster disease and phenotype annotations, and write the
 	 * appropriate data to the grid index
 	 */
@@ -260,6 +304,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
 				doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
+				doc.addField(DiseasePortalFields.BY_GENOCLUSTER, getGenoclusterSequenceNum(genoclusterKey));
 				addGridClusterData(doc, null, gridclusterKey);
 
 				if (isConditional(genoclusterKey)) {
