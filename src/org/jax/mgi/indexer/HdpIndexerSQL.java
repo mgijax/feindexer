@@ -1547,7 +1547,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected String formatAllelePairsForDisplay(String combination) {
 		if (combination == null) { return ""; }
 		return stripAlleleMarkup(combination).replaceAll("<", "@@@sup@@@").replaceAll(">", "</sup>")
-			.replaceAll("@@@sup@@@", "<sup>").replaceAll("\n", "<br/>");
+			.replaceAll("@@@sup@@@", "<sup>").trim().replaceAll("\n", "<br/>");
 	}
 
 	/* cache the allele pairs in memory for each genocluster
