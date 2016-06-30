@@ -293,7 +293,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				alleles = new ArrayList<GridGenoclusterAllele>();
 				lastGenoclusterKey = genoclusterKey;
 			}
-			alleles.add(new GridGenoclusterAllele(rs.getString("allele_symbol"), rs.getString("allele_id"), rs.getInt("strain_count"),
+			alleles.add(new GridGenoclusterAllele(rs.getString("allele_id"), rs.getString("allele_symbol"), rs.getInt("strain_count"),
 				rs.getString("marker_id"), rs.getString("marker_symbol"), rs.getInt("count_for_marker")));
 		}
 		rs.close();
