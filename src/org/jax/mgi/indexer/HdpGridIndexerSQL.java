@@ -9,9 +9,12 @@ import java.util.Set;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
+import org.jax.mgi.shr.jsonmodel.GridGenocluster;
+import org.jax.mgi.shr.jsonmodel.GridGenoclusterAllele;
 
 /* Is: an indexer that builds the index supporting the Grid tab of the HMDC summary
  *		page.  Each document in the index represents a basic unit of HMDC searching:
@@ -28,6 +31,9 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 	// genocluster key -> sequence number
 	protected Map<Integer,Integer> genoclusterSeqNum = null;
+
+	// genocluster key -> encoded JSON string with IMSR-related allele and marker data for the genocluster
+	protected Map<Integer,String> imsrAlleles = null;
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -247,6 +253,86 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		return genoclusterSeqNum.get(genoclusterKey);
 	}
 	
+	/* cache the IMSR-related data for each genocluster's alleles and markers
+	 */
+	protected void cacheImsrAlleles() throws Exception {
+		if (imsrAlleles != null) { return; }
+
+		Timer.reset();
+		imsrAlleles = new HashMap<Integer,String>();
+		
+		// exclude wild-type alleles, as they should not appear in the IMSR popups
+		String query = "select distinct gg.hdp_genocluster_key, a.primary_id as allele_id, "
+			+ " a.symbol as allele_symbol, c.strain_count, m.primary_id as marker_id, m.symbol as marker_symbol, "
+			+ "  c.count_for_marker, s.by_symbol "
+			+ "from hdp_genocluster_genotype gg, allele_to_genotype ag, allele a, allele_sequence_num s, "
+			+ "  allele_imsr_counts c, marker_to_allele ma, marker m "
+			+ "where gg.genotype_key = ag.genotype_key "
+			+ "  and ag.allele_key = a.allele_key " 
+			+ "  and ag.allele_key = s.allele_key "
+			+ "  and ag.allele_key = c.allele_key "
+			+ "  and ag.allele_key = ma.allele_key "
+			+ "  and ma.marker_key = m.marker_key "
+			+ "  and a.is_wild_type = 0 "
+			+ "order by gg.hdp_genocluster_key, s.by_symbol";
+		
+		ResultSet rs = ex.executeProto(query, cursorLimit);
+		
+		List<GridGenoclusterAllele> alleles = null;
+		int lastGenoclusterKey = -1;
+
+		ObjectMapper mapper = new ObjectMapper();		// converts objects to JSON
+
+		// only keep one genocluster's alleles in memory at a time to save memory
+		while (rs.next()) {
+			int genoclusterKey = rs.getInt("hdp_genocluster_key");
+			if (genoclusterKey != lastGenoclusterKey) {
+				if ((alleles != null) && (alleles.size() > 0)) {
+					imsrAlleles.put(lastGenoclusterKey, mapper.writeValueAsString(new GridGenocluster(lastGenoclusterKey, alleles)));
+				}
+				alleles = new ArrayList<GridGenoclusterAllele>();
+				lastGenoclusterKey = genoclusterKey;
+			}
+			alleles.add(new GridGenoclusterAllele(rs.getString("allele_symbol"), rs.getString("allele_id"), rs.getInt("strain_count"),
+				rs.getString("marker_id"), rs.getString("marker_symbol"), rs.getInt("count_for_marker")));
+		}
+		rs.close();
+		
+		if ((alleles != null) && (alleles.size() > 0)) {
+			imsrAlleles.put(lastGenoclusterKey, mapper.writeValueAsString(new GridGenocluster(lastGenoclusterKey, alleles)));
+		}
+
+		logger.info("finished retrieving IMSR allele data for " + imsrAlleles.size() + " genoclusters " + Timer.getElapsedMessage());
+	}
+
+	/* retrieve an encoded JSON string that represents the markers and alleles for the given genocluster
+	 */
+	protected String getImsrAlleles (int genoclusterKey) throws Exception {
+		if (imsrAlleles == null) { cacheImsrAlleles(); }
+		if (imsrAlleles.containsKey(genoclusterKey)) {
+			return imsrAlleles.get(genoclusterKey);
+		}
+		return null;
+	}
+	
+	/* add data specific to the given genocluster, including counts for IMSR for its alleles and markers
+	 */
+	protected void addGenoClusterData(DistinctSolrInputDocument doc, int genoclusterKey) throws Exception {
+		doc.addField(DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
+		doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
+		doc.addField(DiseasePortalFields.BY_GENOCLUSTER, getGenoclusterSequenceNum(genoclusterKey));
+		if (isConditional(genoclusterKey)) {
+			doc.addField(DiseasePortalFields.IS_CONDITIONAL, 1);
+		} else {
+			doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
+		}
+		
+		String imsrAlleles = getImsrAlleles(genoclusterKey);
+		if (imsrAlleles != null) {
+			doc.addField(DiseasePortalFields.IMSR_ALLELES, imsrAlleles);
+		}
+	}
+
 	/* retrieve the mouse genocluster disease and phenotype annotations, and write the
 	 * appropriate data to the grid index
 	 */
@@ -302,16 +388,8 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 				doc = new DistinctSolrInputDocument();
 				doc.addField(DiseasePortalFields.UNIQUE_KEY, bsu.bsuKey);
 				doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
-				doc.addField(DiseasePortalFields.ALLELE_PAIRS, getAllelePairs(genoclusterKey));
-				doc.addField(DiseasePortalFields.GENO_CLUSTER_KEY, genoclusterKey);
-				doc.addField(DiseasePortalFields.BY_GENOCLUSTER, getGenoclusterSequenceNum(genoclusterKey));
+				addGenoClusterData(doc, genoclusterKey);
 				addGridClusterData(doc, null, gridclusterKey);
-
-				if (isConditional(genoclusterKey)) {
-					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 1);
-				} else {
-					doc.addField(DiseasePortalFields.IS_CONDITIONAL, 0);
-				}
 
 				addMarkerData(doc, markerKey); 
 				addOrthologyData(doc, markerKey);
