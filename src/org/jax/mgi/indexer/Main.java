@@ -62,6 +62,8 @@ public class Main
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
 		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
+		indexerMap.put("gxdHtSample", new GXDHtSampleIndexerSQL());
+		indexerMap.put("gxdHtExperiment", new GXDHtExperimentIndexerSQL());
 	}
 
 	// other command args
@@ -102,17 +104,20 @@ public class Main
         			SPECIFIED_INDEXERS.add("hdpDisease");
         			SPECIFIED_INDEXERS.add("hdpGrid");
         			SPECIFIED_INDEXERS.add("hdpGridAnnotation");
-			}
-			else if ("list".equalsIgnoreCase(arg)) {
-				// only show the list of possible indexers,
-				// one per line, then exit
-				ONLY_LIST = true;
-				for (String s : getIndexers()) {
-					System.out.println(s);
-				}
-			}
-			else
-        		{
+        		}
+       			else if ("gxdht".equalsIgnoreCase(arg)) {
+       				SPECIFIED_INDEXERS.add("gxdHtSample");
+       				SPECIFIED_INDEXERS.add("gxdHtExperiment");
+       			}
+        		else if ("list".equalsIgnoreCase(arg)) {
+        			// only show the list of possible indexers,
+        			// one per line, then exit
+        			ONLY_LIST = true;
+        			for (String s : getIndexers()) {
+        				System.out.println(s);
+        			}
+        		}
+        		else {
         			logger.info("unknown indexer \""+arg+"\"");
         		}
         	}
