@@ -24,6 +24,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String,String> strains = null;					// maps genotype key to strain
 	HashMap<String,String> alleles = null;					// maps genotype key to allele combination
 	HashMap<String, HashSet<String>> markerData = null;		// maps sample key to marker symbols, IDs, and synonyms
+	HashMap<String, HashSet<String>> variables = null;		// maps sample key to experimental variables
 	HashMap<String,String> terms = null;					// maps term key to term (EMAPA)
 	HashMap<String,String> termIDs = null;					// maps term key to term ID (EMAPA)
 	HashMap<String, HashSet<String>> termStrings = null;	// maps term key to terms, IDs, and synonyms
@@ -56,11 +57,15 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		logger.info("Retrieved sample notes for " + this.notes.size() + " samples");
 	}
 	
-	private void cacheExperimentIDs() throws Exception {
-		// look up IDs for each experiment
+	private void cacheExperimentData() throws Exception {
+		// look up IDs and variables for each experiment
 		String cmd2 = "select experiment_key, acc_id from expression_ht_experiment_id";
 		this.experimentIDs = makeHash(cmd2, "experiment_key", "acc_id");
 		logger.info("Retrieved IDs for " + this.experimentIDs.size() + " experiments");
+
+		String cmd2a = "select experiment_key, variable from expression_ht_experiment_variable";
+		this.variables = makeHash(cmd2a, "experiment_key", "variable");
+		logger.info("Retrieved variables for " + this.variables.size() + " experiments");
 	}
 	
 	private void cacheGenotypeData() throws Exception {
@@ -195,7 +200,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		
 		cacheReferenceIDs();	
 		cacheNotes();
-		cacheExperimentIDs();
+		cacheExperimentData();
 		cacheGenotypeData();
 		cacheMarkerData();
 		cacheEmapaData();
@@ -235,6 +240,10 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			
 			if (this.experimentIDs.containsKey(exptKey)) {
 				doc.addAllDistinct(GxdHtFields.EXPERIMENT_ID, this.experimentIDs.get(exptKey));
+			}
+
+			if (this.variables.containsKey(exptKey)) {
+				doc.addAllDistinct(GxdHtFields.EXPERIMENTAL_VARIABLES, this.variables.get(exptKey));
 			}
 
 			if (this.refIDs.containsKey(exptKey)) {
