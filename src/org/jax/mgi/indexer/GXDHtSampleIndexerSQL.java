@@ -208,7 +208,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		// main query for sample data
 		String cmd = "select s.sample_key, s.emapa_key, s.theiler_stage, s.genotype_key, s.age, s.sex, "
 			+ "  e.method, s.name as sample_name, s.organism, s.sequence_num, e.experiment_key, "
-			+ "  e.name as title, e.description, s.genotype_key, s.age_min, s.age_max "
+			+ "  e.name as title, e.description, s.genotype_key, s.age_min, s.age_max, e.study_type "
 			+ "from expression_ht_sample s, expression_ht_experiment e "
 			+ "where s.experiment_key = e.experiment_key";
 
@@ -236,6 +236,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			doc.addField(GxdHtFields.AGE_MIN, rs.getString("age_min"));
 			doc.addField(GxdHtFields.AGE_MAX, rs.getString("age_max"));
 			doc.addField(GxdHtFields.SEX, rs.getString("sex"));
+			doc.addField(GxdHtFields.STUDY_TYPE, rs.getString("study_type"));
 			doc.addField(GxdHtFields.THEILER_STAGE, rs.getString("theiler_stage"));
 			
 			if (this.experimentIDs.containsKey(exptKey)) {
