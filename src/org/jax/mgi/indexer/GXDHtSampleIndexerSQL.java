@@ -91,12 +91,11 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		this.markerData = new HashMap<String, HashSet<String>>();
 
 		String cmd4 = "select distinct s.sample_key, m.symbol, m.primary_id, y.synonym "
-			+ "from expression_ht_sample s, allele_to_genotype atg, "
-			+ "  marker_to_allele mta, marker m, marker_synonym y "
-			+ "where s.genotype_key = atg.genotype_key "
-			+ "  and atg.allele_key = mta.allele_key "
-			+ "  and mta.marker_key = m.marker_key "
-			+ "  and m.marker_key = y.marker_key";
+			+ "from expression_ht_sample s "
+			+ "inner join allele_to_genotype atg on (s.genotype_key = atg.genotype_key) "
+			+ "inner join marker_to_allele mta on (atg.allele_key = mta.allele_key) "
+			+ "inner join marker m on (mta.marker_key = m.marker_key) "
+			+ "left outer join marker_synonym y on (m.marker_key = y.marker_key)";
 		ResultSet rs4 = ex.executeProto(cmd4);
 		while (rs4.next()) {
 			String sampleKey = rs4.getString("sample_key");
@@ -105,7 +104,9 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			}
 			this.markerData.get(sampleKey).add(rs4.getString("symbol"));
 			this.markerData.get(sampleKey).add(rs4.getString("primary_id"));
-			this.markerData.get(sampleKey).add(rs4.getString("synonym"));
+			if (rs4.getString("synonym") != null) {
+				this.markerData.get(sampleKey).add(rs4.getString("synonym"));
+			}
 		}
 		rs4.close();
 		logger.info("Retrieved mutated genes for " + this.markerData.size() + " samples");
