@@ -35,6 +35,8 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
 		logger.info("Getting all distinct structures & synonyms");
+		
+		// has_gxdhd -- refers to whether a structure is cited in samples in the high-throughput expression data
 		String query = "WITH anatomy_synonyms as "+
 				"(select distinct t.term structure, ts.synonym, "+
 				/* disabled until we want to use the picklist for actually picking a specific
@@ -44,7 +46,10 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				 *	    "  e.end_stage, " +
 				 */
 				 "case when (exists (select 1 from recombinase_assay_result rar where rar.structure=t.term)) "+
-				 "then true else false end as has_cre "+
+				 "then true else false end as has_cre, "+
+				 "case when (exists (select 1 from expression_ht_sample sm, term et " +
+				 "  where sm.emapa_key = et.term_key and et.term = t.term)) "+
+				 "then true else false end as has_gxdht "+
 				 "from term t join term_emap e on t.term_key = e.term_key left outer join " +
 				 "term_synonym ts on t.term_key = ts.term_key "+
 				 "where t.vocab_name='EMAPA') "+
@@ -56,7 +61,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				  *	    "  a1.end_stage, " +
 				  */
 				  "  case when (exists (select 1 from anatomy_synonyms a2 where a2.structure=a1.synonym)) "+
-				  "    then false else true end as is_strict_synonym "+
+				  "    then false else true end as is_strict_synonym, a1.has_gxdht "+
 				  "from anatomy_synonyms a1 "+
 				  "order by a1.structure ";
 
@@ -102,6 +107,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 			String structure = rs.getString("structure");
 			String synonym = rs.getString("synonym");
 			Boolean hasCre = rs.getBoolean("has_cre");
+			Boolean hasGxdHT = rs.getBoolean("has_gxdht");
 
 			/* disabled until we want to use the picklist for actually picking a specific
 			 * term to search by ID, rather than a set of words
@@ -139,6 +145,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+				doc.addField(IndexConstants.STRUCTUREAC_HAS_GXDHT,hasGxdHT);
 				docs.add(doc);
 			}
 
@@ -168,6 +175,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, false);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+				doc.addField(IndexConstants.STRUCTUREAC_HAS_GXDHT,hasGxdHT);
 				docs.add(doc);
 			}
 		} // end while loop
