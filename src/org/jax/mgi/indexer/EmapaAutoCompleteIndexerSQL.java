@@ -48,7 +48,9 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				 "case when (exists (select 1 from recombinase_assay_result rar where rar.structure=t.term)) "+
 				 "then true else false end as has_cre, "+
 				 "case when (exists (select 1 from expression_ht_sample sm, term et " +
-				 "  where sm.emapa_key = et.term_key and et.term = t.term)) "+
+				 "  where sm.emapa_key = et.term_key and et.term = t.term) " +
+				 "  or exists (select 1 from expression_ht_sample sm1, term_ancestor_simple tas " +
+				 "    where sm1.emapa_key = tas.term_key and tas.ancestor_term = t.term)) "+
 				 "then true else false end as has_gxdht "+
 				 "from term t join term_emap e on t.term_key = e.term_key left outer join " +
 				 "term_synonym ts on t.term_key = ts.term_key "+
