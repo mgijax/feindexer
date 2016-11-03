@@ -1843,7 +1843,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 				+ "inner join hdp_annotation ha on ( "
 				+ "  gcm.marker_key = ha.marker_key "
 				+ "  and ha.organism_key = 2 " 
-				+ "  and ha.annotation_type = 1006) "
+				+ "  and ha.annotation_type = 1022) "
 				+ "left outer join homology_cluster hc on ( "
 				+ "  gcm.hdp_gridcluster_key = hc.cluster_key) "
 				+ "order by gcm.marker_key, ha.term_key";

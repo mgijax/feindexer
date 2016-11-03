@@ -177,7 +177,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 
 		String humanQuery = "select marker_key, term_key, header, qualifier_type "
 				+ "from hdp_annotation "
-				+ "where annotation_type = 1006";		// only human marker/disease annotations
+				+ "where annotation_type = 1022";		// only human marker/disease annotations
 
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
@@ -223,7 +223,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		logger.info("processing mouse annotations");
 		int humanCount = uniqueKey;
 
-		// note that the genocluster tables already exclude annotation type 1006 (human
+		// note that the genocluster tables already exclude annotation type 1022 (human
 		// marker/disease annotations)
 		String mouseQuery = "select distinct m.marker_key, gg.hdp_genocluster_key, ga.term_key, ga.qualifier_type, "
 			+ "  ha.header, ga.genotermref_count, ga.has_backgroundnote "

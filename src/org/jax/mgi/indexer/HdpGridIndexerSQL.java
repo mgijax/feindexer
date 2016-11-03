@@ -155,7 +155,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 		String humanQuery = "select distinct marker_key, term_key, qualifier_type "
 				+ "from hdp_annotation "
-				+ "where annotation_type = 1006 "
+				+ "where annotation_type = 1022 "
 				+ "order by marker_key, term_key";
 
 		int lastBsuKey = -1;		// last BSU key that was saved as a document
@@ -371,7 +371,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 			// assume MP annotation, as those are more common; correct if needed
 			String annotationType = mp;
-			if (1005 == rs.getInt("annotation_type")) { annotationType = disease; }
+			if (1020 == rs.getInt("annotation_type")) { annotationType = disease; }
 
 			if (lastBsuKey != bsu.bsuKey) {
 				if (lastBsuKey >= 0) {
