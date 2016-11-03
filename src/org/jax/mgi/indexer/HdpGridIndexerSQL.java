@@ -5,8 +5,8 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Set;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -125,10 +125,10 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_HEADER, getHeadersPerTerm(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termKey));
 		
-		// if the term is an OMIM term, then we also need to add the MP headers with which its
+		// if the term is an DO term, then we also need to add the MP headers with which its
 		// HPO terms area associated (to facilitate lookup of data for the phenotype popups)
 		
-		if (omim.equals(getVocabulary(termKey))) {
+		if (disease.equals(getVocabulary(termKey))) {
 			List<Integer> hpoKeys = this.getHpoTermKeys(termKey);
 			if (hpoKeys != null) {
 				for (Integer hpoKey : hpoKeys) {
@@ -196,7 +196,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 			// fields to add to the current document (whether new or continuing to fill
 			// the document for the same BSU as before)
-			addTermData(doc, termKey, omim);
+			addTermData(doc, termKey, disease);
 			addHpoData(doc, termKey);
 		}
 
@@ -371,7 +371,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 
 			// assume MP annotation, as those are more common; correct if needed
 			String annotationType = mp;
-			if (1005 == rs.getInt("annotation_type")) { annotationType = omim; }
+			if (1005 == rs.getInt("annotation_type")) { annotationType = disease; }
 
 			if (lastBsuKey != bsu.bsuKey) {
 				if (lastBsuKey >= 0) {

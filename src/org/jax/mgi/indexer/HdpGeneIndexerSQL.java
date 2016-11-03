@@ -1,7 +1,5 @@
 package org.jax.mgi.indexer;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -12,10 +10,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.zip.GZIPInputStream;
-import java.util.zip.GZIPOutputStream;
 
-import org.apache.commons.codec.binary.Base64;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
@@ -34,7 +29,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 	/*--------------------------*/
 
 	private Map<Integer,Set<Integer>> markerToPheno = null;	// marker key -> set of MP term keys
-	private Map<Integer,Set<Integer>> markerToDisease = null;	// marker key -> set of OMIM term keys
+	private Map<Integer,Set<Integer>> markerToDisease = null;	// marker key -> set of DO term keys
 	private Map<Integer,Set<Integer>> genoclusterTerms = null;	// genocluster key -> set of term keys
 
 	/*--------------------*/
@@ -54,13 +49,13 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 	protected void cacheMarkerAssociations() throws Exception {
 		if (markerToPheno != null) { return; }
 
-		logger.info("Caching marker MP/OMIM associations");
+		logger.info("Caching marker MP/DO associations");
 		Timer.reset();
 
 		markerToPheno = new HashMap<Integer,Set<Integer>>();
 		markerToDisease = new HashMap<Integer,Set<Integer>>();
 
-		// Normal and null qualifiers are okay; NOT qualifiers (for OMIM) are not
+		// Normal and null qualifiers are okay; NOT qualifiers (for DO) are not
 		String assocQuery = "select a.vocab_name, m.marker_key, a.term_key "
 				+ "from marker m, marker_to_annotation t, annotation a "
 				+ "where m.marker_key = t.marker_key "
@@ -69,13 +64,13 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				+ "  and m.status = 'official' "
 				+ "  and (a.qualifier != 'NOT' or a.qualifier is null) "
 				+ "  and m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
-				+ "  and a.vocab_name in ('OMIM', 'Mammalian Phenotype')";
+				+ "  and a.vocab_name in ('Disease Ontology', 'Mammalian Phenotype')";
 
 		Map<Integer,Set<Integer>> myMap;	// current map, based on vocab name
 
 		ResultSet rs = ex.executeProto(assocQuery, cursorLimit);
 		while (rs.next()) {
-			if (omim.equals(rs.getString("vocab_name"))) {
+			if (disease.equals(rs.getString("vocab_name"))) {
 				myMap = markerToDisease;
 			} else {
 				myMap = markerToPheno;
@@ -88,7 +83,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			myMap.get(markerKey).add(rs.getInt("term_key"));
 		}
 		rs.close();
-		logger.info("Finished caching marker MP/OMIM associations " + Timer.getElapsedMessage());
+		logger.info("Finished caching marker MP/DO associations " + Timer.getElapsedMessage());
 	}
 
 	/* return a Set of term keys for diseases associated with the marker, excluding
@@ -103,12 +98,12 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 	}
 
 	/* cache the set of phenotype and disease term keys associated with each genocluster;
-	 * allows Normal (for MP) and null qualifiers, but not NOT (for OMIM)
+	 * allows Normal (for MP) and null qualifiers, but not NOT (for DO)
 	 */
 	protected void cacheGenoclusterTerms() throws Exception {
 		if (genoclusterTerms != null) { return; }
 
-		logger.info("Caching genocluster MP/OMIM associations");
+		logger.info("Caching genocluster MP/DO associations");
 		Timer.reset();
 
 		genoclusterTerms = new HashMap<Integer,Set<Integer>>();
@@ -127,7 +122,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			genoclusterTerms.get(gcKey).add(rs.getInt("term_key"));
 		}
 		rs.close();
-		logger.info("Finished caching genocluster MP/OMIM associations " + Timer.getElapsedMessage());
+		logger.info("Finished caching genocluster MP/DO associations " + Timer.getElapsedMessage());
 	}
 
 	/* get the set of keys for disease and phenotype terms annotated to the given genocluster
@@ -165,10 +160,10 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
 
-		/* For OMIM terms, if we have a human marker, we need to add the corresponding HPO phenotypes.
+		/* For DO terms, if we have a human marker, we need to add the corresponding HPO phenotypes.
 		 * For MP terms, we need to consider the DAG and add the ancestor data.
 		 */
-		if (omim.equals(getVocabulary(termKey))) {
+		if (disease.equals(getVocabulary(termKey))) {
 			if (isHumanMarker) {
 				addHpoData(doc, termKey);
 			}

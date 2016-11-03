@@ -40,14 +40,14 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	private void processDiseases() throws Exception {
 		logger.info("loading disease terms");
 
-		// main query - OMIM disease terms that are no obsolete.  We don't bother to
+		// main query - DO disease terms that are no obsolete.  We don't bother to
 		// specify an order, because we will compute ordering in-memory to ensure it
 		// is smart-alpha.  (The term.sequence_num field is not.)
 		String diseaseTermQuery = "select t.term_key, t.term, t.primary_id, a.marker_key, "
 			+ "  a.genotype_key, a.organism_key, a.hdp_annotation_key "
 			+ "from term t "
 			+ "left outer join hdp_annotation a on (t.term_key = a.term_key) "
-			+ "where t.vocab_name = 'OMIM' "
+			+ "where t.vocab_name = 'Disease Ontology' "
 			+ "  and t.is_obsolete = 0";
 
 		ResultSet rs = ex.executeProto(diseaseTermQuery, cursorLimit);
@@ -68,7 +68,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
 			doc.addField(DiseasePortalFields.TERM, term);
 			doc.addField(DiseasePortalFields.TERM_ID, termId);
-			doc.addField(DiseasePortalFields.TERM_TYPE, omim);
+			doc.addField(DiseasePortalFields.TERM_TYPE, disease);
 
 			// need to include the "basic search unit" so we can provide AND matching of multiple query
 			// strings within a single BSU, rather than across the whole disease
@@ -83,8 +83,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			}
 
 			// add the corresponding HPO terms, their synonyms, their IDs, and the same data for their ancestors --
-			// but only for non-mouse annotations.  (ie- We suppress knowledge of the OMIM-HPO associations for
-			// mouse genotype-OMIM annotations.)
+			// but only for non-mouse annotations.  (ie- We suppress knowledge of the DO-HPO associations for
+			// mouse genotype-DO annotations.)
 			if ((markerKey == null) || isHuman(markerKey)) {
 				addHpoData(doc, termKey);
 			}
@@ -116,8 +116,8 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 
 			// For diseases, we only consider mouse annotations for relationships.  We don't cross
 			// that bridge for human gene/disease annotations.
-			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_TEXT, getRelatedDiseases(annotationKey, true, false));
-			addAll(doc, DiseasePortalFields.OMIM_TERM_FOR_DISEASE_ID, getRelatedDiseases(annotationKey, false, true));
+			addAll(doc, DiseasePortalFields.DISEASE_TERM_FOR_DISEASE_TEXT, getRelatedDiseases(annotationKey, true, false));
+			addAll(doc, DiseasePortalFields.DISEASE_TERM_FOR_DISEASE_ID, getRelatedDiseases(annotationKey, false, true));
 
 			// add marker-related fields, if we have a marker associated with the disease
 			if (markerKey != null) {

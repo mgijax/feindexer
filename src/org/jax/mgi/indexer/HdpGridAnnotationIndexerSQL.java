@@ -148,8 +148,8 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
 		
 		// optional fields:
-		// 1. human marker symbol + ID, for OMIM annotations to human markers
-		// 2. source term + ID, for the OMIM terms from which HPO annotations were derived (human data)
+		// 1. human marker symbol + ID, for DO annotations to human markers
+		// 2. source term + ID, for the DO terms from which HPO annotations were derived (human data)
 		// 3. background sensitive, for MP annotations to mouse genotypes
 		
 		if (humanMarkerKey != null) {

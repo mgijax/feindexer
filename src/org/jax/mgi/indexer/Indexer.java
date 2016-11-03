@@ -221,7 +221,7 @@ public abstract class Indexer {
 	 * This was investigated to be a bottleneck in large data loads
 	 */
 	class DocWriterThread implements Runnable {
-		private HttpSolrServer server;
+		private final HttpSolrServer server;
 		Collection<SolrInputDocument> docs;
 		private final int commitWithin = 50000; // 50 seconds
 		private final int times_to_retry = 5;
