@@ -24,21 +24,88 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
  */
 
 public class EmapaAutoCompleteIndexerSQL extends Indexer {   
+	private static String EMAP_TABLE = "emapa_ancestors";
 
 	public EmapaAutoCompleteIndexerSQL () {
 		super("index.url.emapaAC");
 	}
 
+	/* get the count of rows for the given table name
+	 */
+	private int getRowCount(String name) {
+		try {
+			String countQuery = "select count(1) as ct from " + name;
+			ResultSet rs = ex.executeProto(countQuery);
+			if (rs.next()) {
+				return rs.getInt("ct");
+			}
+		} catch (Exception e) {}
+		return 0;
+	}
+	
+	/* create a temp table where each row expresses an EMAPA ancestor/descendant relationship for a
+	 * specific Theiler stage
+	 */
+	private void createEmapTempTable() throws Exception {
+		logger.info("Creating temp table: " + EMAP_TABLE);
+
+		String query = "select distinct e.stage::varchar, e.emapa_term_key as emapa_descendant_key, e.emapa_term_key as emapa_ancestor_key " +
+				"into temp " + EMAP_TABLE + " " +
+				"from term_emaps_child c, term_emap e " +
+				"where c.emaps_child_term_key = e.term_key ";
+		ex.executeVoid(query);
+		int rowCount = getRowCount(EMAP_TABLE);
+		logger.info("Loaded " + rowCount + " rows into " + EMAP_TABLE);
+
+		String query2 = "insert into " + EMAP_TABLE + " " +
+				"select distinct m.stage::varchar, e.emapa_term_key, p.emapa_term_key " +
+				"from term_emaps_child e, term_ancestor a, term_emaps_child p, term_emap m " +
+				"where e.emaps_child_term_key = a.term_key " +
+				"and e.emaps_child_term_key = m.term_key " +
+				"and a.ancestor_term_key = p.emaps_child_term_key";
+		ex.executeVoid(query2);
+		logger.info("Loaded " + (getRowCount(EMAP_TABLE) - rowCount) + " more rows into " + EMAP_TABLE);
+
+		this.createTempIndex(EMAP_TABLE, "stage");
+		this.createTempIndex(EMAP_TABLE, "emapa_descendant_key");
+		this.createTempIndex(EMAP_TABLE, "emapa_ancestor_key");
+		logger.info("Indexed " + EMAP_TABLE);
+	}
+	
+	/* retrieve the set of EMAPA term keys that have associations for GXD high-throughput samples,
+	 * including knowledge of which paths exist at which Theiler Stages.
+	 */
+	private Set<Integer> getEmapaKeysForGxdHT() throws Exception {
+		createEmapTempTable();
+		
+		String query = "select distinct emapa_ancestor_key " +
+			"from " + EMAP_TABLE + " t, expression_ht_sample s " +
+			"where t.emapa_descendant_key = s.emapa_key " +
+			"and t.stage = s.theiler_stage";
+		ResultSet rs = ex.executeProto(query);
+		
+		Set<Integer> keys = new HashSet<Integer>();
+		while (rs.next()) {
+			keys.add(rs.getInt("emapa_ancestor_key"));
+		}
+		rs.close();
+		
+		logger.info("Got " + keys.size() + " EMAPA keys for GXD HT");
+		return keys;
+	}
+	
 	public void index() throws Exception {    
 		Set<String> uniqueIds = new HashSet<String>();
 		Map<String,Integer> termSort = new HashMap<String,Integer>();
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
+		Set<Integer> emapaWithGxdHT = getEmapaKeysForGxdHT();
+		
 		logger.info("Getting all distinct structures & synonyms");
 		
 		// has_gxdhd -- refers to whether a structure is cited in samples in the high-throughput expression data
-		String query = "WITH anatomy_synonyms as "+
-				"(select distinct t.term structure, ts.synonym, "+
+		String query = "with anatomy_synonyms as "+
+				"(select distinct t.term structure, ts.synonym, t.term_key, "+
 				/* disabled until we want to use the picklist for actually picking a specific
 				 * term to search by ID, rather than a set of words
 				 *	    "  t.primary_id, " +
@@ -46,16 +113,11 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				 *	    "  e.end_stage, " +
 				 */
 				 "case when (exists (select 1 from recombinase_assay_result rar where rar.structure=t.term)) "+
-				 "then true else false end as has_cre, "+
-				 "case when (exists (select 1 from expression_ht_sample sm, term et " +
-				 "  where sm.emapa_key = et.term_key and et.term = t.term) " +
-				 "  or exists (select 1 from expression_ht_sample sm1, term_ancestor_simple tas " +
-				 "    where sm1.emapa_key = tas.term_key and tas.ancestor_term = t.term)) "+
-				 "then true else false end as has_gxdht "+
+				 "then true else false end as has_cre "+
 				 "from term t join term_emap e on t.term_key = e.term_key left outer join " +
 				 "term_synonym ts on t.term_key = ts.term_key "+
 				 "where t.vocab_name='EMAPA') "+
-				 "select distinct a1.structure, a1.synonym, a1.has_cre, " +
+				 "select distinct a1.structure, a1.synonym, a1.has_cre, a1.term_key, " +
 				 /* disabled until we want to use the picklist for actually picking a specific
 				  * term to search by ID, rather than a set of words
 				  *	    "  a1.primary_id, " +
@@ -63,7 +125,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				  *	    "  a1.end_stage, " +
 				  */
 				  "  case when (exists (select 1 from anatomy_synonyms a2 where a2.structure=a1.synonym)) "+
-				  "    then false else true end as is_strict_synonym, a1.has_gxdht "+
+				  "    then false else true end as is_strict_synonym "+
 				  "from anatomy_synonyms a1 "+
 				  "order by a1.structure ";
 
@@ -109,7 +171,10 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 			String structure = rs.getString("structure");
 			String synonym = rs.getString("synonym");
 			Boolean hasCre = rs.getBoolean("has_cre");
-			Boolean hasGxdHT = rs.getBoolean("has_gxdht");
+			Boolean hasGxdHT = Boolean.FALSE;
+			if (emapaWithGxdHT.contains(rs.getInt("term_key"))) {
+				hasGxdHT = Boolean.TRUE;
+			}
 
 			/* disabled until we want to use the picklist for actually picking a specific
 			 * term to search by ID, rather than a set of words
