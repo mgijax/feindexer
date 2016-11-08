@@ -28,7 +28,10 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String,String> terms = null;					// maps term key to term (EMAPA)
 	HashMap<String,String> termIDs = null;					// maps term key to term ID (EMAPA)
 	HashMap<String, HashSet<String>> termStrings = null;	// maps term key to terms, IDs, and synonyms
-	HashMap<String, HashSet<String>> ancestors = null;		// maps term key to ancestor term keys (including self)
+
+	// maps EMAPA term key to stage key to ancestor term keys (including self), so we ensure that EMAPA
+	// ancestry is stage-aware
+	HashMap<String, HashMap<String, HashSet<String>>> ancestors = null;
 	
 	//--- methods ---//
 	
@@ -114,11 +117,13 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	
 	private void cacheEmapaData() throws Exception {
 		// look up terms, IDs, synonyms for structure and its ancestors;
-		// also look up ancestors (via DAG) for each term
+		// also look up ancestors (via DAG) for each term; is stage-aware when traversing DAG
+		
+		String emapTable = SharedQueries.createEmapTempTable(logger, ex);
 		this.terms = new HashMap<String,String>();
 		this.termIDs = new HashMap<String,String>();
 		this.termStrings = new HashMap<String,HashSet<String>>();
-		this.ancestors = new HashMap<String,HashSet<String>>();
+		this.ancestors = new HashMap<String,HashMap<String,HashSet<String>>>();
 		
 		String cmd5 = "select t.term_key, t.primary_id, t.term, s.synonym "
 			+ "from term t "
@@ -136,24 +141,38 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 				this.termStrings.put(termKey, new HashSet<String>());
 				this.termStrings.get(termKey).add(rs5.getString("term"));
 				this.termStrings.get(termKey).add(rs5.getString("primary_id"));
-
-				// seed self-referential key into set of ancestors (to fully populate in next query)
-				this.ancestors.put(termKey, new HashSet<String>());
-				this.ancestors.get(termKey).add(termKey);
 			}
 			this.termStrings.get(termKey).add(rs5.getString("synonym"));
 		}
 		rs5.close();
 		logger.info("Got terms, IDs, synonyms for " + this.terms.size() + " EMAPA terms");
 		
-		String cmd6 = "select a.term_key, a.ancestor_term_key "
-			+ "from term t, term_ancestor a "
-			+ "where t.term_key = a.term_key"
-			+ "  and t.vocab_name = 'EMAPA'";
+		String cmd6 = "select t.term_key, a.emapa_ancestor_key, a.stage "
+			+ "from term t, " + emapTable + " a "
+			+ "where t.term_key = a.emapa_descendant_key";
 
 		ResultSet rs6 = ex.executeProto(cmd6);
 		while (rs6.next()) {
-			this.ancestors.get(rs6.getString("term_key")).add(rs6.getString("ancestor_term_key"));
+			String stage = rs6.getString("stage");
+			String termKey = rs6.getString("term_key");
+			String ancestorKey = rs6.getString("emapa_ancestor_key");
+			
+			if (!this.ancestors.containsKey(termKey)) {
+				this.ancestors.put(termKey, new HashMap<String,HashSet<String>>());
+			}
+			HashMap<String,HashSet<String>> stageMap = this.ancestors.get(termKey);
+
+			if (!stageMap.containsKey(stage)) {
+				stageMap.put(stage, new HashSet<String>());
+			}
+			HashSet<String> ancestorSet = stageMap.get(stage);
+			
+			if (!ancestorSet.contains(termKey)) {
+				ancestorSet.add(termKey);
+			}
+			if (!ancestorSet.contains(ancestorKey)) {
+				ancestorSet.add(ancestorKey);
+			}
 		}
 		rs6.close();
 		logger.info("Got ancestors for " + this.ancestors.size() + " EMAPA terms");
@@ -183,14 +202,17 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		return new HashSet<String>();
 	}
 	
-	private HashSet<String> getTermStringsWithAncestors (String termKey) {
-		// return all strings (term, ID, synonyms) for the specified termKey plus its ancestors
+	private HashSet<String> getTermStringsWithAncestors (String stage, String termKey) {
+		// return all strings (term, ID, synonyms) for the specified termKey/stage pair, plus its ancestors
 		if (!this.ancestors.containsKey(termKey)) {
+			return new HashSet<String>();
+		}
+		if (!this.ancestors.get(termKey).containsKey(stage)) {
 			return new HashSet<String>();
 		}
 		
 		HashSet<String> out = new HashSet<String>();
-		for (String ancestorKey : this.ancestors.get(termKey)) {
+		for (String ancestorKey : this.ancestors.get(termKey).get(stage)) {
 			out.addAll(this.getTermStrings(ancestorKey));
 		}
 		return out;
@@ -223,6 +245,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			String exptKey = rs.getString("experiment_key");
 			String genotypeKey = rs.getString("genotype_key");
 			String emapaKey = rs.getString("emapa_key");
+			String stage = rs.getString("theiler_stage");
 			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			doc.addField(GxdHtFields.SAMPLE_KEY, sampleKey);
@@ -238,7 +261,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			doc.addField(GxdHtFields.AGE_MAX, rs.getString("age_max"));
 			doc.addField(GxdHtFields.SEX, rs.getString("sex"));
 			doc.addField(GxdHtFields.STUDY_TYPE, rs.getString("study_type"));
-			doc.addField(GxdHtFields.THEILER_STAGE, rs.getString("theiler_stage"));
+			doc.addField(GxdHtFields.THEILER_STAGE, stage);
 			doc.addField(GxdHtFields.RELEVANCY, rs.getString("relevancy"));
 			
 			if (this.experimentIDs.containsKey(exptKey)) {
@@ -273,7 +296,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			if (emapaKey != null) {
 				doc.addField(GxdHtFields.STRUCTURE_TERM, this.getTerm(emapaKey));
 				doc.addField(GxdHtFields.STRUCTURE_ID, this.getTermID(emapaKey));
-				doc.addAllDistinct(GxdHtFields.STRUCTURE_SEARCH, this.getTermStringsWithAncestors(emapaKey));
+				doc.addAllDistinct(GxdHtFields.STRUCTURE_SEARCH, this.getTermStringsWithAncestors(stage, emapaKey));
 			}
 			rs.next();
 

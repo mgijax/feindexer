@@ -1,5 +1,9 @@
 package org.jax.mgi.indexer;
 
+import java.sql.ResultSet;
+
+import org.jax.mgi.shr.SQLExecutor;
+import org.slf4j.Logger;
 
 /**
  * A class of shared queries, for cases when logic needs to be consistent across multiple indexes
@@ -8,6 +12,8 @@ package org.jax.mgi.indexer;
  */
 public class SharedQueries {
 	
+	/*--- shared constants ---*/
+
 	// This list is for querying only, not the autocomplete. It defines which term IDs can be used in queries.
 	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'OMIM', 'MouseCyc')";
 	
@@ -131,4 +137,56 @@ public class SharedQueries {
 	static String GXD_EMAP_SYNONYMS_QUERY ="select ts.synonym, t.term structure,t.primary_id structure_id "+
     		"from term t left outer join term_synonym ts on t.term_key=ts.term_key "+
     		"where t.vocab_name in ('EMAPA', 'EMAPS') ";
+
+	/*--- shared methods ---*/
+	
+	// name of temp table for stage-aware EMAPA ancestry relationships
+	private static String EMAP_TABLE = null;
+
+	/* get the count of rows for the given table name
+	 */
+	public static int getRowCount(SQLExecutor ex, String name) {
+		try {
+			String countQuery = "select count(1) as ct from " + name;
+			ResultSet rs = ex.executeProto(countQuery);
+			if (rs.next()) {
+				return rs.getInt("ct");
+			}
+		} catch (Exception e) {}
+		return 0;
+	}
+	
+	/* create a temp table where each row expresses an EMAPA ancestor/descendant relationship for a
+	 * specific Theiler stage; returns name of temp table.
+	 */
+	public static String createEmapTempTable(Logger logger, SQLExecutor ex) throws Exception {
+		if (EMAP_TABLE != null) { return EMAP_TABLE; }
+		EMAP_TABLE = "emapa_ancestors";
+		
+		logger.info("Creating temp table: " + EMAP_TABLE);
+
+		String query = "select distinct e.stage::varchar, e.emapa_term_key as emapa_descendant_key, e.emapa_term_key as emapa_ancestor_key " +
+				"into temp " + EMAP_TABLE + " " +
+				"from term_emaps_child c, term_emap e " +
+				"where c.emaps_child_term_key = e.term_key ";
+		ex.executeVoid(query);
+		int rowCount = getRowCount(ex, EMAP_TABLE);
+		logger.info("Loaded " + rowCount + " rows into " + EMAP_TABLE);
+
+		String query2 = "insert into " + EMAP_TABLE + " " +
+				"select distinct m.stage::varchar, e.emapa_term_key, p.emapa_term_key " +
+				"from term_emaps_child e, term_ancestor a, term_emaps_child p, term_emap m " +
+				"where e.emaps_child_term_key = a.term_key " +
+				"and e.emaps_child_term_key = m.term_key " +
+				"and a.ancestor_term_key = p.emaps_child_term_key";
+		ex.executeVoid(query2);
+		logger.info("Loaded " + (getRowCount(ex, EMAP_TABLE) - rowCount) + " more rows into " + EMAP_TABLE);
+
+		ex.executeVoid("create index " + EMAP_TABLE + "_stage on " + EMAP_TABLE + " (stage)");
+		ex.executeVoid("create index " + EMAP_TABLE + "_desc on " + EMAP_TABLE + " (emapa_descendant_key)");
+		ex.executeVoid("create index " + EMAP_TABLE + "_anc on " + EMAP_TABLE + " (emapa_ancestor_key)");
+		logger.info("Indexed " + EMAP_TABLE);
+		return EMAP_TABLE;
+	}
+	
 }

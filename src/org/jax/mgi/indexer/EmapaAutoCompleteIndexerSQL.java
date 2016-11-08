@@ -24,62 +24,18 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
  */
 
 public class EmapaAutoCompleteIndexerSQL extends Indexer {   
-	private static String EMAP_TABLE = "emapa_ancestors";
-
 	public EmapaAutoCompleteIndexerSQL () {
 		super("index.url.emapaAC");
 	}
 
-	/* get the count of rows for the given table name
-	 */
-	private int getRowCount(String name) {
-		try {
-			String countQuery = "select count(1) as ct from " + name;
-			ResultSet rs = ex.executeProto(countQuery);
-			if (rs.next()) {
-				return rs.getInt("ct");
-			}
-		} catch (Exception e) {}
-		return 0;
-	}
-	
-	/* create a temp table where each row expresses an EMAPA ancestor/descendant relationship for a
-	 * specific Theiler stage
-	 */
-	private void createEmapTempTable() throws Exception {
-		logger.info("Creating temp table: " + EMAP_TABLE);
-
-		String query = "select distinct e.stage::varchar, e.emapa_term_key as emapa_descendant_key, e.emapa_term_key as emapa_ancestor_key " +
-				"into temp " + EMAP_TABLE + " " +
-				"from term_emaps_child c, term_emap e " +
-				"where c.emaps_child_term_key = e.term_key ";
-		ex.executeVoid(query);
-		int rowCount = getRowCount(EMAP_TABLE);
-		logger.info("Loaded " + rowCount + " rows into " + EMAP_TABLE);
-
-		String query2 = "insert into " + EMAP_TABLE + " " +
-				"select distinct m.stage::varchar, e.emapa_term_key, p.emapa_term_key " +
-				"from term_emaps_child e, term_ancestor a, term_emaps_child p, term_emap m " +
-				"where e.emaps_child_term_key = a.term_key " +
-				"and e.emaps_child_term_key = m.term_key " +
-				"and a.ancestor_term_key = p.emaps_child_term_key";
-		ex.executeVoid(query2);
-		logger.info("Loaded " + (getRowCount(EMAP_TABLE) - rowCount) + " more rows into " + EMAP_TABLE);
-
-		this.createTempIndex(EMAP_TABLE, "stage");
-		this.createTempIndex(EMAP_TABLE, "emapa_descendant_key");
-		this.createTempIndex(EMAP_TABLE, "emapa_ancestor_key");
-		logger.info("Indexed " + EMAP_TABLE);
-	}
-	
 	/* retrieve the set of EMAPA term keys that have associations for GXD high-throughput samples,
 	 * including knowledge of which paths exist at which Theiler Stages.
 	 */
 	private Set<Integer> getEmapaKeysForGxdHT() throws Exception {
-		createEmapTempTable();
+		String emapTable = SharedQueries.createEmapTempTable(logger, ex);
 		
 		String query = "select distinct emapa_ancestor_key " +
-			"from " + EMAP_TABLE + " t, expression_ht_sample s " +
+			"from " + emapTable + " t, expression_ht_sample s " +
 			"where t.emapa_descendant_key = s.emapa_key " +
 			"and t.stage = s.theiler_stage";
 		ResultSet rs = ex.executeProto(query);
