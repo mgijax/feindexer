@@ -31,14 +31,14 @@ public class VocabTermAutoCompleteIndexerSQL extends Indexer  {
 		Map<String,Integer> termSort = new HashMap<String,Integer>();
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
-		logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,OMIM,Human Phenotype Ontology)");
+		logger.info("Getting all distinct vocab terms & synonyms that are not obsolete and in vocabularies (GO,Mammalian Phenotype,OMIM,Human Phenotype Ontology,Disease Ontology)");
 		String query = "select distinct t.term_key, t.term,t.vocab_name,t.display_vocab_name,t.primary_id, "+
 				"ts.synonym,ts.synonym_type "+
 				", tc.marker_count,tc.gxdlit_marker_count,tc.expression_marker_count "+
 				"from term t left outer join term_synonym ts on t.term_key=ts.term_key and ts.synonym_type != 'disease cluster', " +
 				"term_counts tc "+
 				"where t.is_obsolete=0 and "+
-				"t.vocab_name in ('GO','Mammalian Phenotype','OMIM','Human Phenotype Ontology') and "+
+				"t.vocab_name in ('GO','Mammalian Phenotype','OMIM','Human Phenotype Ontology', 'Disease Ontology') and "+
 				"t.term_key=tc.term_key ";
 		ResultSet rs_overall = ex.executeProto(query);
 		logger.info("calculating sorts");
