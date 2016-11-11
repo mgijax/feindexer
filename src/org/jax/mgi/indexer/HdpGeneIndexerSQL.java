@@ -15,6 +15,7 @@ import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
+import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
 /* Is: an indexer that builds the index supporting the Gene tab of the 
  *		HMDC summary page.  Each document in the index represents data for
@@ -337,7 +338,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				for (Integer diseaseKey : diseaseKeys) {
 					diseases.add(getTerm(diseaseKey));
 				}
-				Collections.sort(diseases);
+				Collections.sort(diseases, new SmartAlphaComparator());
 				doc.addAllDistinct(DiseasePortalFields.MARKER_DISEASE, diseases);
 			}
 
