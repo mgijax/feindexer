@@ -87,7 +87,7 @@ public class GXDImagePaneIndexerSQL extends Indexer
         	
         	Integer start = 0;
             Integer end = rs_tmp.getInt("max_ip_key");
-        	int chunkSize = 150000;
+        	int chunkSize = 15000;
             
             int modValue = end.intValue() / chunkSize;
             

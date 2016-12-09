@@ -40,7 +40,7 @@ public class SequenceIndexerSQL extends Indexer {
 
 		// This needs to be a configurable value
 
-		int chunkSize = 500000;
+		int chunkSize = 50000;
 
 		int modValue = end.intValue() / chunkSize;
 
@@ -136,7 +136,7 @@ public class SequenceIndexerSQL extends Indexer {
 
 				docs.add(doc);
 
-				if (docs.size() > 20000) {
+				if (docs.size() > 10000) {
 					//logger.info("Adding a stack of the documents to Solr");
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();

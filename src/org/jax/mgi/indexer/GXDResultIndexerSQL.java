@@ -472,7 +472,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = rs_tmp.getInt("max_result_key");
-		int chunkSize = 150000;
+		int chunkSize = 15000;
 
 		// While it appears that modValue could be one iteration too low (due
 		// to rounding down), this is accounted for by using <= in the loop.

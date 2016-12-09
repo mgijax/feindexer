@@ -35,7 +35,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 		int total = rs.getInt("total");
 
 		int start = 0;
-		int chunkSize = 50000;
+		int chunkSize = 10000;
 		int modValue = total / chunkSize;
 
 		// ancestor IDs for a given GO term key
@@ -198,7 +198,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 				docs.add(doc);
 
-				if (docs.size() > 10000) {
+				if (docs.size() > 1000) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
 				}

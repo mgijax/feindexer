@@ -50,7 +50,7 @@ public class AlleleIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = rs.getInt("max_allele_key");
-		int chunkSize = 50000;
+		int chunkSize = 10000;
 
 		int modValue = end.intValue() / chunkSize;
 		// Perform the chunking
@@ -240,7 +240,7 @@ public class AlleleIndexerSQL extends Indexer {
 			addAllFromLookup(doc,IndexConstants.ALL_ID,allKeyString,allIdMap);
 
 			docs.add(doc);   
-			if (docs.size() > 10000) {
+			if (docs.size() > 1000) {
 				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}

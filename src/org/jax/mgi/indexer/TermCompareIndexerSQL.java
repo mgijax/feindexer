@@ -43,7 +43,7 @@ public class TermCompareIndexerSQL extends Indexer
 		Integer stop = rs.getInt("max_marker_key");
 		//stop=2000; // for testing
 		logger.info("max marker key = "+stop);
-		int chunkSize = 100;
+		int chunkSize = 10000;
 
 		int modValue = stop.intValue() / chunkSize;
 		// Perform the chunking
@@ -138,7 +138,7 @@ public class TermCompareIndexerSQL extends Indexer
 					doc.addField(fieldBase+annot.vocab,annot.term);
 				}
 				docs.add(doc);
-				if (docs.size() > 100) 
+				if (docs.size() > 1000) 
 				{
 					this.writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();

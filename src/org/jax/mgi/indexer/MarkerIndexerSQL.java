@@ -64,7 +64,7 @@ public class MarkerIndexerSQL extends Indexer
 
 		Integer start = 0;
 		Integer end = rs.getInt("maxMarkerKey");
-		int chunkSize = 20000;
+		int chunkSize = 10000;
 
 		int modValue = end.intValue() / chunkSize;
 

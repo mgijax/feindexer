@@ -270,8 +270,8 @@ public abstract class Indexer implements Runnable {
 		// do some type-casting magic in order to create a new instance of "? extends Set"
 		Map<String,Set<String>> returnLookup = (Map<String,Set<String>>) lookupRef;
 
-		logger.info("populating map of "+logText);
-
+		logger.info("populating map of " + logText);
+		long start = runtime.freeMemory();
 		ResultSet rs = ex.executeProto(query);
 
 		int rows = 0;
@@ -286,7 +286,9 @@ public abstract class Indexer implements Runnable {
 		}
 
 		rs.close();
-		logger.info("finished populating map of "+logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName);
+		long end = runtime.freeMemory();
+		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (end - start) + "bytes");
+		
 		return returnLookup;
 	}
 

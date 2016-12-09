@@ -180,7 +180,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = maxAnnotKey;
-		int chunkSize = 100000;
+		int chunkSize = 10000;
 
 		int modValue = end.intValue() / chunkSize;
 
@@ -276,7 +276,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 
 				docs.add(doc);
 
-				if (docs.size() > 10000) {
+				if (docs.size() > 1000) {
 					writeDocs(docs);
 					// skip logging info, as once we hit 16kb of log, process hangs when run via
 					// a Python wrapper:

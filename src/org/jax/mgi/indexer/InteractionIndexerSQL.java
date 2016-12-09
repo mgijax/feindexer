@@ -70,7 +70,7 @@ public class InteractionIndexerSQL extends Indexer {
 
 		// iterate through chunks
 
-		int chunkSize = 150000;
+		int chunkSize = 15000;
 		int startKey = 0;
 		int endKey = startKey + chunkSize;
 
@@ -245,7 +245,7 @@ public class InteractionIndexerSQL extends Indexer {
 				// keep memory requirements down by writing to Solr every
 				// 20k documents
 
-				if (docs.size() > 20000) {
+				if (docs.size() > 2000) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
 				}
