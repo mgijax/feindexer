@@ -54,7 +54,7 @@ public class Main {
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 	}
 
-	public static int maxThreads = 10;
+	public static int maxThreads = 2;
 
 	private static List<String> getIndexers() {
 		List<String> indexes = new ArrayList<String>();
