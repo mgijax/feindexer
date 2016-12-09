@@ -10,7 +10,6 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.update.CommitTracker;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
@@ -50,7 +49,7 @@ public class AlleleIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = rs.getInt("max_allele_key");
-		int chunkSize = 10000;
+		int chunkSize = 2000;
 
 		int modValue = end.intValue() / chunkSize;
 		// Perform the chunking
@@ -240,7 +239,7 @@ public class AlleleIndexerSQL extends Indexer {
 			addAllFromLookup(doc,IndexConstants.ALL_ID,allKeyString,allIdMap);
 
 			docs.add(doc);   
-			if (docs.size() > 1000) {
+			if (docs.size() > 500) {
 				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}
