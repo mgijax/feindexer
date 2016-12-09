@@ -26,7 +26,6 @@ public class SequenceIndexerSQL extends Indexer {
 
 	public void index() throws Exception
 	{
-		stopThreadLogging();
 
 		String provider;
 

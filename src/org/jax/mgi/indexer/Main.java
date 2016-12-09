@@ -7,28 +7,20 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.lang.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/*
- * Refactored during MGI 5.x development.
- *
- *
- * Possible Arguments:
- * 	all   - runs all indexers
- * 	cre,reference,journalsAC, ...etc   - specific index name will run that indexer
- *  maxThreads=10 or maxThreads=20... etc   - set max thread count for solr document writing
- *
- *  -kstone
- */
 public class Main {
 	public static Logger logger = LoggerFactory.getLogger("FEINDEXER Main");
 	public static List<String> SPECIFIED_INDEXERS = new ArrayList<String>();
-	public static Map<String,Indexer> indexerMap = new HashMap<String,Indexer>();
+	public static HashMap<String,Indexer> indexerMap = new HashMap<String,Indexer>();
 	public static boolean RUN_ALL_INDEXERS=false;
-	public static boolean ONLY_LIST=false;
 
 	static {
 		/*
@@ -62,8 +54,7 @@ public class Main {
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 	}
 
-	// other command args
-	public static int maxThreads = 10; // uses default unless set to > 0
+	public static int maxThreads = 10;
 
 	private static List<String> getIndexers() {
 		List<String> indexes = new ArrayList<String>();
@@ -81,7 +72,7 @@ public class Main {
 			arguments.add(args[i]);
 		}
 		if(!arguments.isEmpty()) {
-			RUN_ALL_INDEXERS = SPECIFIED_INDEXERS.size() == 0 && arguments.contains("all");
+			RUN_ALL_INDEXERS = arguments.contains("all");
 			//start processing commands
 			for(String arg : arguments) {
 				if(arg.contains("maxThreads=")) {
@@ -96,11 +87,9 @@ public class Main {
 					SPECIFIED_INDEXERS.add("hdpGrid");
 					SPECIFIED_INDEXERS.add("hdpGridAnnotation");
 				} else if ("list".equalsIgnoreCase(arg)) {
-					// only show the list of possible indexers,
-					// one per line, then exit
-					ONLY_LIST = true;
 					for (String s : getIndexers()) {
 						System.out.println(s);
+						System.exit(0);
 					}
 				} else {
 					logger.info("unknown indexer \""+arg+"\"");
@@ -111,23 +100,13 @@ public class Main {
 
 	public static void main(String[] args) {
 		parseCommandInput(args);
-		/*
-		 * Generate list of indexes to run from program specified arguments
-		 */
+
 		if(RUN_ALL_INDEXERS) {
 			SPECIFIED_INDEXERS = new ArrayList<String>();
-			// default is to run all indexers
 			logger.info("\"all\" option was selected. Beginning run of all indexers");
 			for(String idxKey : indexerMap.keySet()) {
-				Indexer idx = indexerMap.get(idxKey);
 				SPECIFIED_INDEXERS.add(idxKey);
-				// change maxThreads default if specified by user
-				if(maxThreads>0) idx.setMaxThreads(maxThreads);
 			}
-		}
-
-		if (ONLY_LIST) {
-			System.exit(0);
 		}
 
 		if(SPECIFIED_INDEXERS == null || SPECIFIED_INDEXERS.size() == 0) {
@@ -137,27 +116,28 @@ public class Main {
 		// track failed indexers for later reporting
 		List<String> failedIndexers = new ArrayList<String>();
 
-		for(String idxKey : SPECIFIED_INDEXERS) {
-			Indexer idx = indexerMap.get(idxKey);
-			logger.info("Preparing to run: " + idx.getClass());
-			try {
-				idx.setupConnection();
-				idx.index();
-				idx.closeConnection();
-				logger.info("completed run of " + idx.getClass());
+		ExecutorService executorPool = Executors.newFixedThreadPool(maxThreads);
+		
+		for(String idxKey: SPECIFIED_INDEXERS) {
+			executorPool.submit(indexerMap.get(idxKey));
+		}
+		
+		try {
+			while(!executorPool.awaitTermination(10, TimeUnit.SECONDS)) {
+				logger.info("Waiting for Threads to finish");
 			}
-			catch (Exception e) {
-				logger.error("Indexer: " + idxKey + " failed.",e);
-				failedIndexers.add(idxKey);
-			}
-
-			if(idx.hasFailedThreads()) {
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+		
+		for(String idxKey: SPECIFIED_INDEXERS) {
+			if(!indexerMap.get(idxKey).indexPassed) {
 				failedIndexers.add(idxKey);
 			}
 		}
 
 		// return error if any indexers failed
-		if(failedIndexers.size()>0) {
+		if(failedIndexers.size() > 0) {
 			String errorMsg = "Failed or Incomplete Indexes: " + StringUtils.join(failedIndexers,",") + "\n Please view the above logs for more details.";
 			exitWithMessage(errorMsg);
 		} else{
