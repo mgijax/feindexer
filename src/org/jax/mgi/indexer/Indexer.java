@@ -18,6 +18,7 @@ import org.apache.http.impl.client.DefaultHttpClient;
 import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
+import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrServer;
 import org.apache.solr.client.solrj.impl.HttpSolrServer;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SQLExecutor;
@@ -77,12 +78,18 @@ public abstract class Indexer implements Runnable {
 		// by using threads.
 		// (kstone) NOTE: Supposedly the StreamingUpdateSolrServer does this kind of threading for you, but I could not get it to work
 		// 	without either crashing unexpectedly, or running much slower. So good luck to anyone who tries to figure out that approach.
-		PoolingClientConnectionManager mgr = new PoolingClientConnectionManager();
-		DefaultHttpClient client = new DefaultHttpClient(mgr);
+		
+
+		
+		//PoolingClientConnectionManager mgr = new PoolingClientConnectionManager();
+		//DefaultHttpClient client = new DefaultHttpClient(mgr);
 
 		String httpUrl = props.getProperty(httpPropName);
 		if(httpUrl==null) httpUrl = httpPropName;
-		server = new HttpSolrServer( httpUrl,client );
+		
+		ConcurrentUpdateSolrServer server = new ConcurrentUpdateSolrServer(props.getProperty(httpPropName), 160, 8);
+		
+		//server = new HttpSolrServer( httpUrl,client );
 
 		logger.info("Working with index: " + props.getProperty(httpPropName)+"/update" );
 		logger.info("Past the initial connection.");
@@ -91,12 +98,11 @@ public abstract class Indexer implements Runnable {
 		server.setConnectionTimeout(200000);	// upped to avoid IOExceptions
 		//server.setDefaultMaxConnectionsPerHost(100);
 		//server.setMaxTotalConnections(100);
-		server.setFollowRedirects(false);  // defaults to false
-		server.setAllowCompression(true);
-		server.setMaxRetries(1);
+		//server.setFollowRedirects(false);  // defaults to false
+		//server.setAllowCompression(true);
+		//server.setMaxRetries(1);
 		// set to use javabin format for faster indexing
-		server.setRequestWriter(new BinaryRequestWriter());
-
+		//server.setRequestWriter(new BinaryRequestWriter());
 
 		try {
 			logger.info("Deleting current index.");
@@ -140,7 +146,7 @@ public abstract class Indexer implements Runnable {
 		commit();
 		
 		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
-		
+		server.shutdown();
 	}
 	
 	public void commit() {
@@ -287,7 +293,7 @@ public abstract class Indexer implements Runnable {
 
 		rs.close();
 		long end = runtime.freeMemory();
-		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (end - start) + "bytes");
+		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (start - end) + "bytes");
 		
 		return returnLookup;
 	}
