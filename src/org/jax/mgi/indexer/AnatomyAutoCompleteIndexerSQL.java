@@ -28,8 +28,7 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 		super("index.url.anatomyAC");
 	}
 
-	public void index() throws Exception
-	{
+	public void index() throws Exception {
 		// Since we're only dealing with a single vocabulary, we'll try to
 		// process it all in one fell swoop, rather than dealing with
 		// chunking.
