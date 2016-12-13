@@ -36,7 +36,7 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	public SmartAlphaComparator sac = new SmartAlphaComparator();
 	
     public GXDImagePaneIndexerSQL () 
-    { super("index.url.gxdImagePane"); }
+    { super("gxdImagePane"); }
     
     
     private void initAssayTypeSeqMap() throws SQLException {

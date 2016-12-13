@@ -26,7 +26,7 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 public class EmapaAutoCompleteIndexerSQL extends Indexer {   
 
 	public EmapaAutoCompleteIndexerSQL () {
-		super("index.url.emapaAC");
+		super("emapaAC");
 	}
 
 	public void index() throws Exception {    

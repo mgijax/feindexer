@@ -23,7 +23,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 
 
 	public MarkerAnnotationIndexerSQL () {
-		super("index.url.markerAnnotation");
+		super("markerAnnotation");
 	}
 
 	public void index() throws Exception

@@ -25,7 +25,7 @@ import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 public class GXDDifferentialIndexerSQL extends Indexer 
 {   
 	public GXDDifferentialIndexerSQL () 
-	{ super("index.url.gxdDifferentialMarker"); }
+	{ super("gxdDifferentialMarker"); }
 
 	public void index() throws Exception
 	{    

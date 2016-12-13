@@ -114,8 +114,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	/*--- constructors ---*/
 	/*--------------------*/
 
-	protected HdpIndexerSQL(String httpPropName) {
-		super(httpPropName);
+	protected HdpIndexerSQL(String solrIndexName) {
+		super(solrIndexName);
 	}
 
 	/*------------------------------------------------------*/

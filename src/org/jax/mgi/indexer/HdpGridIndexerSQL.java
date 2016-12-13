@@ -40,7 +40,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 	/*--------------------*/
 
 	public HdpGridIndexerSQL() {
-		super("index.url.diseasePortalGrid");
+		super("diseasePortalGrid");
 	}
 
 	/* add data for the given marker key to the Solr document

@@ -26,7 +26,7 @@ public class RefIndexerSQL extends Indexer {
 
 
 	public RefIndexerSQL () {
-		super("index.url.reference");
+		super("reference");
 	}
 
 

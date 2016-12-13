@@ -23,7 +23,7 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
 public class VocabTermAutoCompleteIndexerSQL extends Indexer  {   
 	public VocabTermAutoCompleteIndexerSQL() {
-		super("index.url.vocabTermAC");
+		super("vocabTermAC");
 	}
 
 	public void index() throws Exception {    

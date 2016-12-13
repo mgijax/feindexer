@@ -29,7 +29,7 @@ import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
 
 public class GXDResultIndexerSQL extends Indexer {
 	public GXDResultIndexerSQL() {
-		super("index.url.gxdResult");
+		super("gxdResult");
 	}
 
 	/* get a mapping from result keys (as Strings) to a List of Strings,

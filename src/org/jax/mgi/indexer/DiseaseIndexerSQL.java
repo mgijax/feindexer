@@ -16,7 +16,7 @@ public class DiseaseIndexerSQL extends Indexer {
 
 
 	public DiseaseIndexerSQL () {
-		super("index.url.disease");
+		super("disease");
 	}
 
 	public void index() {

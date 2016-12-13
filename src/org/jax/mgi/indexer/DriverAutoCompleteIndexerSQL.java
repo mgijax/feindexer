@@ -18,7 +18,7 @@ public class DriverAutoCompleteIndexerSQL extends Indexer {
 
 	/* configure indexer to point at the correct index */
 	public DriverAutoCompleteIndexerSQL () {
-		super("index.url.driverAC");
+		super("driverAC");
 	}
 
 	public void index() throws Exception {

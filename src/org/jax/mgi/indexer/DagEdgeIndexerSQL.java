@@ -23,7 +23,7 @@ import org.jax.mgi.shr.fe.indexconstants.DagEdgeFields;
 public class DagEdgeIndexerSQL extends Indexer 
 {   
 	public DagEdgeIndexerSQL () 
-	{ super("index.url.dagEdge"); }
+	{ super("dagEdge"); }
 
 	public void index() throws Exception
 	{    
@@ -34,7 +34,7 @@ public class DagEdgeIndexerSQL extends Indexer
 		Integer start = rs.getInt("min_term_key") - 1 ;
 		Integer stop = rs.getInt("max_term_key");
 		logger.info("min term key = "+start+", max term key = "+stop);
-		int chunkSize = 5000;
+		int chunkSize = 150000;
 
 		int modValue = (stop-start) / chunkSize;
 		// Perform the chunking

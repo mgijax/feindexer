@@ -17,7 +17,7 @@ import org.jax.mgi.shr.fe.IndexConstants;
 public class MPAnnotationIndexerSQL extends Indexer {
 
 	public MPAnnotationIndexerSQL () {
-		super("index.url.mpAnnotation");
+		super("mpAnnotation");
 	}
 
 	public void index() throws Exception
@@ -57,7 +57,6 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				+ "  and g.combination_1 is not null "
 				+ "  and a.term_id = t.primary_id "
 				+ "  and t.term_key = ta.term_key ";
-		logger.info("creating temp table tmp_mp_annotations: " + tmpAnnotations);
 		
 		ex.executeVoid(tmpAnnotations);
 		logger.info("done creating temp table tmp_mp_annotations");

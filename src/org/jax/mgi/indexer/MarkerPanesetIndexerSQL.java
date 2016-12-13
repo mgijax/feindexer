@@ -23,7 +23,7 @@ public class MarkerPanesetIndexerSQL extends Indexer {
 
 
 	public MarkerPanesetIndexerSQL () {
-		super("index.url.markerPanesetImage");
+		super("markerPanesetImage");
 	}
 
 	public void index() throws Exception

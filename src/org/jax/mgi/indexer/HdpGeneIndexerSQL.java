@@ -38,7 +38,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 	/*--------------------*/
 
 	public HdpGeneIndexerSQL() {
-		super("index.url.diseasePortalGene");
+		super("diseasePortalGene");
 	}
 
 	/*-----------------------*/

@@ -15,8 +15,7 @@ import java.util.Properties;
 import java.util.Set;
 
 import org.apache.solr.client.solrj.SolrServerException;
-import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
-import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrServer;
+import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrClient;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SQLExecutor;
 import org.slf4j.Logger;
@@ -34,11 +33,11 @@ import org.slf4j.LoggerFactory;
 
 public abstract class Indexer implements Runnable {
 
-	private ConcurrentUpdateSolrServer server = null;
+	private ConcurrentUpdateSolrClient client = null;
 	public SQLExecutor ex = new SQLExecutor();
-	public Properties props = new Properties();
+
 	public Logger logger = LoggerFactory.getLogger(this.getClass());
-	private String httpPropName = "";
+	private String solrIndexName = "";
 	protected DecimalFormat df = new DecimalFormat("#.00");
 	protected Runtime runtime = Runtime.getRuntime();
 	public boolean indexPassed = true;
@@ -48,14 +47,15 @@ public abstract class Indexer implements Runnable {
 	// maxThreads is configurable. When maxThreads is reached, program waits until they are finished.
 	// This is essentially running them in batches
 
-	protected Indexer(String httpPropName) {
-		this.httpPropName = httpPropName;
+	protected Indexer(String solrIndexName) {
+		this.solrIndexName = solrIndexName;
 	}
 
 	public void setupConnection() throws Exception {
 		logger.info("Setting up the properties");
 
 		InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.props");
+		Properties props = new Properties();
 		if (in== null) {
 			logger.info("resource config.props not found");
 		}
@@ -65,29 +65,19 @@ public abstract class Indexer implements Runnable {
 		} catch (IOException e1) {
 			e1.printStackTrace();
 		}
-		logger.info("db connection info: "+this.ex);
+		logger.info("db connection info: "+ ex);
 
-
-		logger.info("Starting to setup the connection");
-
-
-		String httpUrl = props.getProperty(httpPropName);
-		if(httpUrl==null) httpUrl = httpPropName;
+		String solrBaseUrl = props.getProperty("index.url");
 		
-		server = new ConcurrentUpdateSolrServer(props.getProperty(httpPropName), 160, 4);
+		client = new ConcurrentUpdateSolrClient(solrBaseUrl + "/" + solrIndexName, 160, 4);
 		
-		logger.info("Working with index: " + props.getProperty(httpPropName));
+		logger.info("Working with index: " + solrBaseUrl + "/" + solrIndexName);
 
-		// Milla Seconds
-		server.setSoTimeout(3 * 60000);
-		server.setConnectionTimeout(3 * 60000);
-
-		// set to use javabin format for faster indexing
-		server.setRequestWriter(new BinaryRequestWriter());
+		client.setConnectionTimeout(3 * 60000);
 
 		try {
-			logger.info("Deleting current index.");
-			server.deleteByQuery("*:*");
+			logger.info("Deleting current index: " + solrIndexName);
+			client.deleteByQuery("*:*");
 			commit();
 		}
 		catch (Exception e) { throw e; }
@@ -126,8 +116,8 @@ public abstract class Indexer implements Runnable {
 		
 		commit(true);
 		
-		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
-		server.shutdown();
+		logger.info("Solr Documents are flushed to the server shuting down: " + solrIndexName);
+		client.close();
 	}
 	
 	public void commit() {
@@ -139,9 +129,9 @@ public abstract class Indexer implements Runnable {
 			logger.info("Waiting for Solr Commit");
 			checkMemory();
 			if(wait) {
-				server.commit(wait, wait);
+				client.commit(wait, wait);
 			} else {
-				server.commit();
+				client.commit();
 			}
 		} catch (SolrServerException | IOException e) {
 			e.printStackTrace();
@@ -171,7 +161,7 @@ public abstract class Indexer implements Runnable {
 		HashMap <String, HashSet <String>> tempMap = new HashMap <String, HashSet <String>> ();
 
 		try {
-			ResultSet rs = ex.executeProto(sql);         
+			ResultSet rs = ex.executeProto(sql);
 
 			String key = null;
 			String value = null;
@@ -204,7 +194,7 @@ public abstract class Indexer implements Runnable {
 		if(docs == null || docs.size() == 0) return;
 		
 		try {
-			server.add(docs,50000);
+			client.add(docs);
 		} catch (SolrServerException e) {
 			e.printStackTrace();
 		} catch (IOException e) {
@@ -282,7 +272,7 @@ public abstract class Indexer implements Runnable {
 
 		rs.close();
 		long end = runtime.freeMemory();
-		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (start - end) + "bytes");
+		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (end - start) + "bytes");
 		
 		return returnLookup;
 	}

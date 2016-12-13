@@ -25,7 +25,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	/*--------------------*/
 
 	public HdpDiseaseIndexerSQL() {
-		super("index.url.diseasePortalDisease");
+		super("diseasePortalDisease");
 	}
 
 	/*-----------------------*/

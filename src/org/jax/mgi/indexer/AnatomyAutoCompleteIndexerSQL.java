@@ -25,7 +25,7 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 
 
 	public AnatomyAutoCompleteIndexerSQL () {
-		super("index.url.anatomyAC");
+		super("anatomyAC");
 	}
 
 	public void index() throws Exception {

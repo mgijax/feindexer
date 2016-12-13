@@ -13,6 +13,7 @@ import org.apache.solr.common.SolrInputField;
 /* Is: a SolrInputDocument that keeps only distinct values for each field (no duplicates
  * 	are allowed for multi-valued fields)
  */
+@SuppressWarnings("serial")
 public class DistinctSolrInputDocument extends SolrInputDocument {
 	/* maps from field name to set of its values */
 	Map<String,Set<Object>> cache = new HashMap<String,Set<Object>>();

@@ -25,19 +25,19 @@
 	<classpathentry kind="lib" path="lib/slf4j-api-1.6.4.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-core-asl-1.9.2.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-mapper-asl-1.9.2.jar"/>
+	<classpathentry kind="lib" path="lib/httpclient-4.4.1.jar"/>
+	<classpathentry kind="lib" path="lib/httpcore-4.4.1.jar"/>
+	<classpathentry kind="lib" path="lib/httpmime-4.4.1.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="lib/commons-lang-2.5.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.junit.JUNIT_CONTAINER/4"/>
-	<classpathentry kind="lib" path="lib/httpclient-4.2.3.jar"/>
-	<classpathentry kind="lib" path="lib/httpcore-4.2.2.jar"/>
-	<classpathentry kind="lib" path="lib/httpmime-4.2.3.jar"/>
 	<classpathentry kind="lib" path="lib/noggit-0.5.jar"/>
 	<classpathentry kind="lib" path="lib/solr-cell-4.5.1.jar"/>
 	<classpathentry kind="lib" path="lib/solr-clustering-4.5.1.jar"/>
 	<classpathentry kind="lib" path="lib/solr-core-4.5.1.jar"/>
 	<classpathentry kind="lib" path="lib/solr-dataimporthandler-4.5.1.jar"/>
 	<classpathentry kind="lib" path="lib/solr-dataimporthandler-extras-4.5.1.jar"/>
-	<classpathentry kind="lib" path="lib/solr-solrj-4.5.1.jar"/>
+	<classpathentry kind="lib" path="lib/solr-solrj-5.3.0.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/lib_java_fe"/>
 	<classpathentry kind="output" path="build"/>
 </classpath>

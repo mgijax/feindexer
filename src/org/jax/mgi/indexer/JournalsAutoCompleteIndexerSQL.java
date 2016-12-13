@@ -20,7 +20,7 @@ public class JournalsAutoCompleteIndexerSQL extends Indexer {
 
 	/* configure indexer to point at the correct index */
 	public JournalsAutoCompleteIndexerSQL () {
-		super("index.url.journalAC");
+		super("journalsAC");
 	}
 
 	public void index() throws Exception

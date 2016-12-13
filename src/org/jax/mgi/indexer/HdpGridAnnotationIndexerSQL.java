@@ -36,7 +36,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/*--------------------*/
 
 	public HdpGridAnnotationIndexerSQL() {
-		super("index.url.diseasePortalGridAnnotation");
+		super("diseasePortalGridAnnotation");
 	}
 
 	/*-----------------------*/

@@ -30,7 +30,7 @@ public class GXDLitIndexerSQL extends Indexer {
 
 
 	public GXDLitIndexerSQL () {
-		super("index.url.gxdLitIndex");
+		super("gxdLitIndex");
 	}
 
 	/**

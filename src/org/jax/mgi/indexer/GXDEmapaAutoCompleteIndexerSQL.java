@@ -23,7 +23,7 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 {
 	public GXDEmapaAutoCompleteIndexerSQL ()
-	{ super("index.url.gxdEmapaAC"); }
+	{ super("gxdEmapaAC"); }
 
 	public void index() throws Exception
 	{

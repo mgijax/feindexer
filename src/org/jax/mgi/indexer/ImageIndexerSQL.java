@@ -23,7 +23,7 @@ public class ImageIndexerSQL extends Indexer {
 
 
 	public ImageIndexerSQL () {
-		super("index.url.image");
+		super("image");
 	}
 
 	public void index() throws Exception

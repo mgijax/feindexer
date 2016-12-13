@@ -25,7 +25,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
 
 
 	public AuthorsAutoCompleteIndexerSQL () {
-		super("index.url.authorsAC");
+		super("authorsAC");
 	}
 
 

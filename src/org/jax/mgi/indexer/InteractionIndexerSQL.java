@@ -21,7 +21,7 @@ public class InteractionIndexerSQL extends Indexer {
 
 
 	public InteractionIndexerSQL () {
-		super("index.url.interaction");
+		super("interaction");
 	}
 
 	public void index() throws Exception {

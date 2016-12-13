@@ -35,7 +35,7 @@ public class MarkerIndexerSQL extends Indexer
 
 	public MarkerIndexerSQL () 
 	{
-		super("index.url.marker");
+		super("marker");
 	}
 
 	/**

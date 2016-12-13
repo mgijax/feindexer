@@ -29,7 +29,7 @@ public class AlleleIndexerSQL extends Indexer {
 	private Map<String,Integer> diseaseSorts = new HashMap<String,Integer>();
 
 	public AlleleIndexerSQL () {
-		super("index.url.allele");
+		super("allele");
 	}
 
 	/**

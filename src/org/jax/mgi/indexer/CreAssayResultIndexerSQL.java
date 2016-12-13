@@ -47,7 +47,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	Map<String, List<CreAlleleSystem>> systemMap;
 
 	public CreAssayResultIndexerSQL () {
-		super("index.url.creAssayResult");
+		super("creAssayResult");
 	}
 
 
