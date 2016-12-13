@@ -29,7 +29,7 @@ public class DagIndexerSQL extends Indexer
 		Integer stop = rs.getInt("max_term_key");
 		//stop=2000; // for testing
 		logger.info("max term key = "+stop);
-		int chunkSize = 10000;
+		int chunkSize = 50000;
 
 		int modValue = stop.intValue() / chunkSize;
 		// Perform the chunking
@@ -78,9 +78,8 @@ public class DagIndexerSQL extends Indexer
 
 			docs.add(doc);
 
-			if (docs.size() > 5000) 
-			{
-				this.writeDocs(docs);
+			if (docs.size() > 10000) {
+				writeDocs(docs);
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}

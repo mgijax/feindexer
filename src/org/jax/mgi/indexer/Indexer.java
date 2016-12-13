@@ -14,12 +14,9 @@ import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
 
-import org.apache.http.impl.client.DefaultHttpClient;
-import org.apache.http.impl.conn.PoolingClientConnectionManager;
 import org.apache.solr.client.solrj.SolrServerException;
 import org.apache.solr.client.solrj.impl.BinaryRequestWriter;
 import org.apache.solr.client.solrj.impl.ConcurrentUpdateSolrServer;
-import org.apache.solr.client.solrj.impl.HttpSolrServer;
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.SQLExecutor;
 import org.slf4j.Logger;
@@ -37,7 +34,7 @@ import org.slf4j.LoggerFactory;
 
 public abstract class Indexer implements Runnable {
 
-	private HttpSolrServer server = null;
+	private ConcurrentUpdateSolrServer server = null;
 	public SQLExecutor ex = new SQLExecutor();
 	public Properties props = new Properties();
 	public Logger logger = LoggerFactory.getLogger(this.getClass());
@@ -70,46 +67,30 @@ public abstract class Indexer implements Runnable {
 		}
 		logger.info("db connection info: "+this.ex);
 
-		// Setup the solr connection as configured 
 
 		logger.info("Starting to setup the connection");
 
-		// We start up a CommonsHttpSolrServer using a MultiThreaded connection manager so that we can do bulk updates 
-		// by using threads.
-		// (kstone) NOTE: Supposedly the StreamingUpdateSolrServer does this kind of threading for you, but I could not get it to work
-		// 	without either crashing unexpectedly, or running much slower. So good luck to anyone who tries to figure out that approach.
-		
-
-		
-		//PoolingClientConnectionManager mgr = new PoolingClientConnectionManager();
-		//DefaultHttpClient client = new DefaultHttpClient(mgr);
 
 		String httpUrl = props.getProperty(httpPropName);
 		if(httpUrl==null) httpUrl = httpPropName;
 		
-		ConcurrentUpdateSolrServer server = new ConcurrentUpdateSolrServer(props.getProperty(httpPropName), 160, 8);
+		server = new ConcurrentUpdateSolrServer(props.getProperty(httpPropName), 160, 4);
 		
-		//server = new HttpSolrServer( httpUrl,client );
+		logger.info("Working with index: " + props.getProperty(httpPropName));
 
-		logger.info("Working with index: " + props.getProperty(httpPropName)+"/update" );
-		logger.info("Past the initial connection.");
+		// Milla Seconds
+		server.setSoTimeout(3 * 60000);
+		server.setConnectionTimeout(3 * 60000);
 
-		server.setSoTimeout(100000);  // socket read timeout
-		server.setConnectionTimeout(200000);	// upped to avoid IOExceptions
-		//server.setDefaultMaxConnectionsPerHost(100);
-		//server.setMaxTotalConnections(100);
-		//server.setFollowRedirects(false);  // defaults to false
-		//server.setAllowCompression(true);
-		//server.setMaxRetries(1);
 		// set to use javabin format for faster indexing
-		//server.setRequestWriter(new BinaryRequestWriter());
+		server.setRequestWriter(new BinaryRequestWriter());
 
 		try {
 			logger.info("Deleting current index.");
 			server.deleteByQuery("*:*");
 			commit();
 		}
-		catch (Exception e) {e.printStackTrace();}
+		catch (Exception e) { throw e; }
 	}
 
 	/*
@@ -143,17 +124,25 @@ public abstract class Indexer implements Runnable {
 			}
 		}
 		
-		commit();
+		commit(true);
 		
 		logger.info("Solr Documents are flushed to the server shuting down: " + props.getProperty(httpPropName));
 		server.shutdown();
 	}
 	
 	public void commit() {
+		commit(false);
+	}
+	
+	public void commit(boolean wait) {
 		try {
 			logger.info("Waiting for Solr Commit");
 			checkMemory();
-			server.commit(true, true);
+			if(wait) {
+				server.commit(wait, wait);
+			} else {
+				server.commit();
+			}
 		} catch (SolrServerException | IOException e) {
 			e.printStackTrace();
 		}

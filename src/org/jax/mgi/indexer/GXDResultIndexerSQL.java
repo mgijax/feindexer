@@ -490,26 +490,19 @@ public class GXDResultIndexerSQL extends Indexer {
 			end = start + chunkSize;
 
 			logger.info("Processing result key > " + start + " and <= " + end);
-			String query = "select distinct ers.result_key, "
-					+ "  ers.marker_key, " + "  ers.assay_key, "
-					+ "  ers.assay_type, "
+			String query = "select ers.result_key, "
+					+ "  ers.marker_key, ers.assay_key, ers.assay_type, "
 					+ "  tae.term_key as mgd_structure_key, "
-					+ "  ers.structure_key, " + "  ers.theiler_stage, "
-					+ "  ers.is_expressed, " + "  ers.has_image, "
-					+ "  ers.structure_printname, "
-					+ "  ers.age_abbreviation, " 
-					+ "  ers.jnum_id, " + "  ers.detection_level, "
-					+ "  ers.marker_symbol, " + "  ers.assay_id, "
+					+ "  ers.structure_key, ers.theiler_stage, ers.is_expressed, ers.has_image, ers.structure_printname, "
+					+ "  ers.age_abbreviation,  ers.jnum_id, ers.detection_level, ers.marker_symbol, ers.assay_id, "
 					+ "  ers.age_min, " + "  ers.age_max, " + "  ers.pattern, "
-					+ "  ers.is_wild_type, " + "  ers.genotype_key, "
-					+ "  m.marker_subtype, " + "  m.name marker_name, "
-					+ "  m.primary_id marker_id, " + "  ml.chromosome, "
-					+ "  ml.cytogenetic_offset, " + "  ml.start_coordinate, "
-					+ "  ml.end_coordinate,ml.strand, "
+					+ "  ers.is_wild_type, " + "  ers.genotype_key, " + "  m.marker_subtype, " + "  m.name marker_name, "
+					+ "  m.primary_id marker_id, "
+					+ "  ml.chromosome, ml.cytogenetic_offset, ml.start_coordinate, ml.end_coordinate,ml.strand, "
 					+ "  r.mini_citation, r.pubmed_id, "
 					+ "  g.combination_1 genotype, "
 					+ "  structure.primary_id structure_id, "
-					+ "  msqn.by_symbol, " + "  msqn.by_location, "
+					+ "  msqn.by_symbol, msqn.by_location, "
 					+ "  ersn.by_assay_type r_by_assay_type, "
 					+ "  ersn.by_gene_symbol r_by_gene_symbol, "
 					+ "  ersn.by_age r_by_age, "
@@ -524,11 +517,11 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  exa.antibody_key a_antibody_key, "
 					+ "  emapa.primary_id emapa_id "
 					+ "from expression_result_summary ers, "
-					+ "  marker_sequence_num msqn, " + "  marker_counts mc, "
-					+ "  marker m, " + "  marker_location ml, "
-					+ "  reference r, " + "  genotype g, "
-					+ "  term structure,  " + "  term_emap tae, "
-					+ "  term emapa, " + "  expression_assay exa, "
+					+ "  marker_sequence_num msqn, marker_counts mc, "
+					+ "  marker m, marker_location ml, "
+					+ "  reference r, genotype g, "
+					+ "  term structure, term_emap tae, "
+					+ "  term emapa, expression_assay exa, "
 					+ "  expression_assay_sequence_num easn, "
 					+ "  expression_result_sequence_num ersn "
 					+ "where ers.marker_key=msqn.marker_key "
@@ -549,6 +542,7 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  and tae.emapa_term_key=emapa.term_key "
 					+ "  and ers.result_key > " + start
 					+ "  and ers.result_key <= " + end + " ";
+
 			ResultSet rs = ex.executeProto(query);
 
 			Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();

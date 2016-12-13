@@ -70,7 +70,7 @@ public class InteractionIndexerSQL extends Indexer {
 
 		// iterate through chunks
 
-		int chunkSize = 15000;
+		int chunkSize = 100000;
 		int startKey = 0;
 		int endKey = startKey + chunkSize;
 
@@ -91,7 +91,6 @@ public class InteractionIndexerSQL extends Indexer {
 			HashMap<String, HashSet<String>> miToOtherReferences =      makeHash(propSQL.replace("<NAME>", "other_refs")            .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
 
 			// gather our basic interacts_with relationships for this chunk
-
 			ResultSet rs = ex.executeProto (basicSQL.replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)) );
 
 			// walk through our relationships for this chunk
@@ -245,7 +244,7 @@ public class InteractionIndexerSQL extends Indexer {
 				// keep memory requirements down by writing to Solr every
 				// 20k documents
 
-				if (docs.size() > 2000) {
+				if (docs.size() > 20000) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
 				}

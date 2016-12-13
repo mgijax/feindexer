@@ -5,9 +5,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -54,7 +52,7 @@ public class Main {
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 	}
 
-	public static int maxThreads = 2;
+	public static int maxThreads = 1;
 
 	private static List<String> getIndexers() {
 		List<String> indexes = new ArrayList<String>();
@@ -123,7 +121,8 @@ public class Main {
 		}
 		
 		try {
-			while(!executorPool.awaitTermination(10, TimeUnit.SECONDS)) {
+			executorPool.shutdown();
+			while(!executorPool.awaitTermination(30, TimeUnit.SECONDS)) {
 				logger.info("Waiting for Threads to finish");
 			}
 		} catch (InterruptedException e) {
