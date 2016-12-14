@@ -139,7 +139,7 @@ public abstract class Indexer implements Runnable {
 	}
 	
 	private void checkMemory() {
-		if(memoryPercent() > 0.8) {
+		if(memoryPercent() > 0.95) {
 			logger.info("Memory usage is HIGH!!!: " + df.format(memoryPercent() * 100) + "%");
 			logger.info("Used Mem: " + (runtime.totalMemory() - runtime.freeMemory()));
 			logger.info("Free Mem: " + runtime.freeMemory());
