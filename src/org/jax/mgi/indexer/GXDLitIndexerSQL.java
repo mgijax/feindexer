@@ -61,15 +61,13 @@ public class GXDLitIndexerSQL extends Indexer {
 		logger.info(markerToTermIDAncestorsForGXDSQL);
 		HashMap <String, HashSet <String>> termAncestorsToMarkersIDForGXD = makeHash(markerToTermIDAncestorsForGXDSQL, "primary_id", "ancestor_primary_id");
 
-		/* added to pick up OMIM IDs for mouse markers with human disease
+		/* added to pick up DO IDs for mouse markers with human disease
 		 * homologs
 		 */
-		logger.info("Selecting all OMIM IDs via human homologs");
-		logger.info(SharedQueries.GXD_OMIM_HOMOLOGY_QUERY);
-		HashMap<String, HashSet<String>> humanOmimIDs = makeHash(
-				SharedQueries.GXD_OMIM_HOMOLOGY_QUERY, "marker_key", "term_id");
-		logger.info("  --> found OMIM IDs for " + humanOmimIDs.size()
-				+ " markers");
+		logger.info("Selecting all DO IDs via human homologs");
+		logger.info(SharedQueries.GXD_DO_HOMOLOGY_QUERY);
+		HashMap<String, HashSet<String>> humanDoIDs = makeHash(SharedQueries.GXD_DO_HOMOLOGY_QUERY, "marker_key", "term_id");
+		logger.info("  --> found DO IDs for " + humanDoIDs.size() + " markers");
 
 		logger.info("Gathering the expression index records");
 
@@ -189,9 +187,9 @@ public class GXDLitIndexerSQL extends Indexer {
 				}
 			}
 
-			// add OMIM terms associated via human disease homologs
-			if (humanOmimIDs.containsKey(rs_base.getString("marker_key"))) {
-				for (String termID: humanOmimIDs.get(rs_base.getString("marker_key"))) {
+			// add DO terms associated via human disease homologs
+			if (humanDoIDs.containsKey(rs_base.getString("marker_key"))) {
+				for (String termID: humanDoIDs.get(rs_base.getString("marker_key"))) {
 					uniqueTermIDs.add(termID);
 				}
 			}

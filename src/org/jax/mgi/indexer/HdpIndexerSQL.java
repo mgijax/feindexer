@@ -344,10 +344,10 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 			termAlternateIds = populateLookup(termIdQuery,"term_id","alt_id","alternate IDs to term IDs");
 			
-			// For searching, add the alternate form for OMIM IDs
+			// For searching, add the alternate form for DO IDs
 			for (String termId : termAlternateIds.keySet()) {
 				Set<String> altIds = termAlternateIds.get(termId);
-				addOMIMAlternateIds(altIds);
+				addDOAlternateIds(altIds);
 			}
 
 			logger.info("finished retrieving alternate IDs" + Timer.getElapsedMessage());
@@ -356,13 +356,13 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 	
 	/*
-	 * Add OMIM alternates without OMIM: prefix
+	 * Add DO alternates without DO: prefix
 	 */
-	protected void addOMIMAlternateIds(Set<String> altIds) {
+	protected void addDOAlternateIds(Set<String> altIds) {
 		List<String> newIds = new ArrayList<String>();
 		for (String altId : altIds) {
-			if (altId.startsWith("OMIM:")) {
-				newIds.add(altId.replaceFirst("OMIM:", ""));
+			if (altId.startsWith("DOID:")) {
+				newIds.add(altId.replaceFirst("DOID:", ""));
 			}
 		}
 		altIds.addAll(newIds);

@@ -217,7 +217,7 @@ public abstract class Indexer implements Runnable {
 	 * 	 String termSynonymQuery="select t.primary_id term_id,ts.synonym "+
 	 *		"from term t,term_synonym ts "+
 	 *			"where t.term_key=ts.term_key " +
-	 *				"and t.vocab_name in ('OMIM','Mammalian Phenotype') ";
+	 *				"and t.vocab_name in ('Disease Ontology','Mammalian Phenotype') ";
 	 *
 	 *	 Map<String,Set<String>> synonymLookup = populateLookup(termSynonymQuery,"term_id","synonym","synonyms to term IDs");
 	 *

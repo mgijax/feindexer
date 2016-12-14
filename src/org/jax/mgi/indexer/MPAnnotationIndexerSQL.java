@@ -65,7 +65,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		// with the alleles in the genotype (so we can match based on MP
 		// term and marker when linking from the batch query).  There are
 		// currently no exclusions for MP annotations as there are for
-		// OMIM disease annotations, so that simplifies things.
+		// DO disease annotations, so that simplifies things.
 		//
 		// Also, in addition to the traditional marker-allele pairs, we
 		// must now consider "mutation involves" and "expresses component"

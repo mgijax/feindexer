@@ -9,7 +9,7 @@ package org.jax.mgi.indexer;
 public class SharedQueries {
 	
 	// This list is for querying only, not the autocomplete. It defines which term IDs can be used in queries.
-	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'OMIM', 'MouseCyc')";
+	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'DO', 'MouseCyc')";
 	
 	// Gets vocab annotation IDs(including children, excluding NOTs) by marker key
 	// Also excludes the 3 GO high level terms
@@ -24,10 +24,10 @@ public class SharedQueries {
 	static String GXD_VOCAB_EXPRESSION_QUERY = GXD_VOCAB_QUERY+
 			"and exists(select 1 from expression_result_summary ers where mta.marker_key=ers.marker_key) ";
     
-	// get relationships to OMIM terms for mouse markers which are
+	// get relationships to DO terms for mouse markers which are
 	// associated with human markers (via homology) where those human
-	// markers have OMIM annotations.
-	static String GXD_OMIM_HOMOLOGY_QUERY =
+	// markers have DO annotations.
+	static String GXD_DO_HOMOLOGY_QUERY =
 		"select a.term_id, m.marker_key "
 		+ "from annotation a, "
 		+ "  marker_to_annotation mta, "
@@ -38,7 +38,7 @@ public class SharedQueries {
 		+ "  homology_cluster_organism_to_marker mm, "
 		+ "  marker m "
 		+ "where a.annotation_key = mta.annotation_key "
-		+ "  and a.annotation_type = 'OMIM/Human Marker' "
+		+ "  and a.annotation_type = 'DO/Human Marker' "
 		+ "  and mta.marker_key = hm.marker_key "
 		+ "  and hm.cluster_organism_key = hco.cluster_organism_key "
 		+ "  and hco.cluster_key = hc.cluster_key "

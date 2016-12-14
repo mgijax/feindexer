@@ -47,7 +47,7 @@ public class RefIndexerSQL extends Indexer {
 		String diseaseRelevantRefQuery = "select trt.reference_key, ha.term_id disease_id " +
 				"from hdp_term_to_reference trt,hdp_annotation ha " +
 				"where ha.term_key=trt.term_key " +
-				"and ha.vocab_name='OMIM' ";
+				"and ha.vocab_name='Disease Ontology' ";
 		Map<String,Set<String>> diseaseRelevantRefMap = populateLookup(diseaseRelevantRefQuery,"reference_key","disease_id",
 				"disease IDs to references (for linking from disease portal)");
 

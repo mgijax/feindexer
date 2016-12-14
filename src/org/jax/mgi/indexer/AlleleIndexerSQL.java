@@ -299,10 +299,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoIdMap = populateLookup(mpAncIdsSQL,"allele_key","ancestor_primary_id","allele_key->ancestor IDs",allelePhenoIdMap);
 
-
-		// add DO IDs
-		// TODO Check this query for DO
-		String doIdSql="select aot.allele_key,aot.term_id from tmp_allele_omim_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
+		String doIdSql="select aot.allele_key,aot.term_id from tmp_allele_do_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoIdMap = populateLookup(doIdSql,"allele_key","term_id","allele_key->DO IDs",allelePhenoIdMap);
 
 		// add the alt IDs for all parents and MP and DO terms
@@ -327,9 +324,9 @@ public class AlleleIndexerSQL extends Indexer {
 		String mpTermsSQL="select mpt.allele_key, mpt.term\r\n from tmp_allele_mp_term mpt where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		Map<String,Set<String>> allelePhenoTermMap = populateLookup(mpTermsSQL,"allele_key","term","allele_key->MP terms");
 
-		// add OMIM IDs
-		String omimTermSql="select aot.allele_key,aot.term from tmp_allele_omim_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
-		allelePhenoTermMap = populateLookup(omimTermSql,"allele_key","term","allele_key->OMIM IDs",allelePhenoTermMap);
+		// add DO IDs
+		String doTermSql="select aot.allele_key,aot.term from tmp_allele_do_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
+		allelePhenoTermMap = populateLookup(doTermSql,"allele_key","term","allele_key->DO IDs",allelePhenoTermMap);
 
 		// add the parent terms
 		String mpAncTermsSQL="select mpt.allele_key, tas.ancestor_term\r\n" + 
@@ -339,7 +336,7 @@ public class AlleleIndexerSQL extends Indexer {
 				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoTermMap = populateLookup(mpAncTermsSQL,"allele_key","ancestor_term","allele_key->ancestor IDs",allelePhenoTermMap);
 
-		// add the synonyms for all parents and MP and OMIM terms
+		// add the synonyms for all parents and MP and DO terms
 		String mpSynonymSQL="select at.allele_key, ti.synonym " + 
 				"from tmp_allele_term at join " + 
 				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
@@ -428,7 +425,6 @@ public class AlleleIndexerSQL extends Indexer {
 	}
 
 	public Set<Integer> getAllelesWithDO(int start, int end) throws Exception {
-		// TODO Check this query for DO
 		String doAllelesQuery="select allele_key from diseasetable_disease dtd where exists (select 1 from diseasetable_disease_cell dtdc " +
 				"where dtdc.diseasetable_disease_key=dtd.diseasetable_disease_key) and allele_key > "+start+" and allele_key <= "+end+" ";
 		Set<Integer> alleleKeys = new HashSet<Integer>();
@@ -457,7 +453,7 @@ public class AlleleIndexerSQL extends Indexer {
 	/*
 	 * creates: 
 	 * 	tmp_allele_mp_term,
-	 * 	tmp_allele_omim_term,
+	 * 	tmp_allele_do_term,
 	 * 	tmp_allele_term,
 	 * 	tmp_allele_note
 	 */
@@ -477,19 +473,19 @@ public class AlleleIndexerSQL extends Indexer {
 		createTempIndex("tmp_allele_mp_term","mp_term_key");
 		logger.info("done creating temp table of allele_key to mp abnormal term");
 
-		logger.info("creating temp table of allele_key to OMIM abnormal term");
-		String omimAbnormalQuery="select asg.allele_key,gd.term,gd.term_id into temp tmp_allele_omim_term from allele_to_genotype asg join genotype_disease gd on gd.genotype_key=asg.genotype_key ";
-		ex.executeVoid(omimAbnormalQuery);
-		createTempIndex("tmp_allele_omim_term","allele_key");
-		createTempIndex("tmp_allele_omim_term","term_id");
-		logger.info("done creating temp table of allele_key to OMIM abnormal term");
+		logger.info("creating temp table of allele_key to DO abnormal term");
+		String doAbnormalQuery="select asg.allele_key,gd.term,gd.term_id into temp tmp_allele_do_term from allele_to_genotype asg join genotype_disease gd on gd.genotype_key=asg.genotype_key ";
+		ex.executeVoid(doAbnormalQuery);
+		createTempIndex("tmp_allele_do_term","allele_key");
+		createTempIndex("tmp_allele_do_term","term_id");
+		logger.info("done creating temp table of allele_key to DO abnormal term");
 
-		// create allele to MP+OMIM term keys
+		// create allele to MP+DO term keys
 		logger.info("creating temp table of allele_key to term_key");
 		String alleleTermsQuery="select mpt.allele_key,t.term_key " +
 				"into temp tmp_allele_term from tmp_allele_mp_term mpt join term t on t.primary_id=mpt.term_id "+
 				"UNION " +
-				"select aot.allele_key,t.term_key from tmp_allele_omim_term aot join term t on t.primary_id=aot.term_id ";
+				"select aot.allele_key,t.term_key from tmp_allele_do_term aot join term t on t.primary_id=aot.term_id ";
 
 		ex.executeVoid(alleleTermsQuery);
 		createTempIndex("tmp_allele_term","allele_key");

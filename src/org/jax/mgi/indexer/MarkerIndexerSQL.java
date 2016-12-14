@@ -412,33 +412,33 @@ public class MarkerIndexerSQL extends Indexer
 		return notes;
 	}
 
-	/* get a mapping from marker key to the set of MP and OMIM IDs that can be
+	/* get a mapping from marker key to the set of MP and DO IDs that can be
 	 * in searching to retrieve that marker
 	 */
 	public Map<String,Set<String>> getAlleleTermIdsMap(int start,int end)
 			throws Exception
 			{
-		// get the annotated MP and OMIM IDs
+		// get the annotated MP and DO IDs
 		String mpIdsSQL = "select distinct mta.marker_key, a.term_id "
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
-				+ "        'OMIM/Marker') "
+				+ "        'DO/Marker') "
 				+ "    and mta.marker_key > " + start
 				+ "    and mta.marker_key <= " + end;
 
 		Map<String,Set<String>> allelePhenoIdMap = this.populateLookup(
 				mpIdsSQL, "marker_key", "term_id",
-				"marker key->direct OMIM/MP IDs");
+				"marker key->direct DO/MP IDs");
 
-		// add the alternate IDs for the annotated MP and OMIM terms
+		// add the alternate IDs for the annotated MP and DO terms
 		String altIdSQL = "select distinct mta.marker_key, i.acc_id "
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a, "
 				+ "    term t, "
 				+ "    term_id i "
-				+ "where mta.annotation_type in ('OMIM/Marker', "
+				+ "where mta.annotation_type in ('DO/Marker', "
 				+ "         'Mammalian Phenotype/Marker') "
 				+ "    and mta.annotation_key = a.annotation_key "
 				+ "    and a.term_id = t.primary_id "
@@ -448,12 +448,11 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    and mta.marker_key <= " + end;
 
 		allelePhenoIdMap = this.populateLookup(altIdSQL, "marker_key",
-				"acc_id", "marker_key->direct alternate OMIM/MP IDs",
+				"acc_id", "marker_key->direct alternate DO/MP IDs",
 				allelePhenoIdMap);
 
 		// add the primary and alternate IDs for ancestors of the annotated
-		// MP and OMIM terms.  (OMIM is technically not a DAG yet, but that
-		// day appears to be coming soon so we'll work it in here, too.)
+		// MP and DO terms.
 		String ancestorIdsSQL = "select distinct mta.marker_key, i.acc_id "
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a, "
@@ -463,7 +462,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    term_id i "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
-				+ "        'OMIM/Marker') "
+				+ "        'DO/Marker') "
 				+ "    and a.term_id = t.primary_id "
 				+ "    and t.term_key = tas.term_key "
 				+ "    and tas.ancestor_primary_id = anc.primary_id "
@@ -472,33 +471,33 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    and mta.marker_key <= " + end;
 
 		allelePhenoIdMap = this.populateLookup(ancestorIdsSQL, "marker_key",
-				"acc_id", "marker_key->ancestor OMIM/MP IDs",
+				"acc_id", "marker_key->ancestor DO/MP IDs",
 				allelePhenoIdMap);
 
 		return allelePhenoIdMap;
 			}
 
-	/* get a mapping from marker key to the MP and OMIM terms which can be
+	/* get a mapping from marker key to the MP and DO terms which can be
 	 * used in searching to retrieve that marker
 	 */
 	public Map<String,Set<String>> getAlleleTermsMap(int start,int end)
 			throws Exception
 			{
-		// get the annotated MP and OMIM terms
+		// get the annotated MP and DO terms
 		String directTermsSQL = "select distinct mta.marker_key, a.term "
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
-				+ "        'OMIM/Marker') "
+				+ "        'DO/Marker') "
 				+ "    and mta.marker_key > " + start
 				+ "    and mta.marker_key <= " + end;
 
 		Map<String,Set<String>> allelePhenoTermMap = this.populateLookup(
 				directTermsSQL, "marker_key", "term",
-				"marker_key->direct MP/OMIM terms");
+				"marker_key->direct MP/DO terms");
 
-		// add synonyms for the annotated MP and OMIM terms
+		// add synonyms for the annotated MP and DO terms
 		String synonymSQL = "select distinct mta.marker_key, s.synonym "
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a, "
@@ -506,18 +505,16 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    term_synonym s "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
-				+ "        'OMIM/Marker') "
+				+ "        'DO/Marker') "
 				+ "    and mta.marker_key > " + start
 				+ "    and mta.marker_key <= " + end
 				+ "    and a.term_id = t.primary_id "
 				+ "    and t.term_key = s.term_key ";
 
 		allelePhenoTermMap = this.populateLookup(synonymSQL, "marker_key",
-				"synonym", "marker_key->MP/OMIM synonyms", allelePhenoTermMap);
+				"synonym", "marker_key->MP/DO synonyms", allelePhenoTermMap);
 
-		// add ancestor terms for the annotated MP and OMIM terms
-		// (OMIM is not technically a DAG yet, but that day is approaching
-		// soon, so we'll work it in.)
+		// add ancestor terms for the annotated MP and DO terms
 		String ancestorTermsSQL = "select distinct mta.marker_key, "
 				+ "    tas.ancestor_term "
 				+ "from marker_to_annotation mta, "
@@ -526,7 +523,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    term_ancestor_simple tas "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
-				+ "        'OMIM/Marker') "
+				+ "        'DO/Marker') "
 				+ "    and mta.marker_key > " + start
 				+ "    and mta.marker_key <= " + end
 				+ "    and a.term_id = t.primary_id "
@@ -534,11 +531,9 @@ public class MarkerIndexerSQL extends Indexer
 
 		allelePhenoTermMap = this.populateLookup(ancestorTermsSQL,
 				"marker_key", "ancestor_term",
-				"marker_key->ancestor MP/OMIM terms", allelePhenoTermMap);
+				"marker_key->ancestor MP/DO terms", allelePhenoTermMap);
 
-		// add ancestor synonyms for the annotated MP and OMIM terms
-		// (OMIM is not technically a DAG yet, but that day is approaching
-		// soon, so we'll work it in.)
+		// add ancestor synonyms for the annotated MP and DO terms
 		String ancestorSynonymSQL = "select distinct mta.marker_key, "
 				+ "    s.synonym "
 				+ "from marker_to_annotation mta, "
@@ -549,7 +544,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    term_synonym s "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
-				+ "        'OMIM/Marker') "
+				+ "        'DO/Marker') "
 				+ "    and mta.marker_key > " + start
 				+ "    and mta.marker_key <= " + end
 				+ "    and a.term_id = t.primary_id "
@@ -558,7 +553,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "    and anc.term_key = s.term_key";
 
 		allelePhenoTermMap = this.populateLookup(ancestorSynonymSQL,
-				"marker_key", "synonym", "marker_key->ancestor MP/OMIM synonyms",
+				"marker_key", "synonym", "marker_key->ancestor MP/DO synonyms",
 				allelePhenoTermMap);
 
 		return allelePhenoTermMap;
@@ -616,7 +611,7 @@ public class MarkerIndexerSQL extends Indexer
 		}
 		else if (type.equals("InterPro/Marker"))   mt.vocab = INTERPRO_VOCAB;
 		//else if (vocab.equals("PIRSF/Marker"))  return "Protein Family: " + value;
-		//else if (vocab.equals("OMIM/Human Marker"))  return "Disease Model: " + value;
+		//else if (vocab.equals("DO/Human Marker"))  return "Disease Model: " + value;
 		else
 		{
 			return null;
