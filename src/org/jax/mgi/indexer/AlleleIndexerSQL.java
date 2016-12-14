@@ -110,7 +110,7 @@ public class AlleleIndexerSQL extends Indexer {
 		// references
 		Map<String,Set<String>> refKeysMap = getRefKeys(startKey, endKey);
 		Map<String,Set<String>> jnumMap = getJnumIds(startKey, endKey);
-		Set<Integer> alleleKeysWithOMIM = getAllelesWithOMIM(startKey, endKey);
+		Set<Integer> alleleKeysWithDO = getAllelesWithDO(startKey, endKey);
 
 		// locations
 		Map<Integer,AlleleLocation> locationMap = getAlleleLocations(startKey,endKey);
@@ -218,8 +218,8 @@ public class AlleleIndexerSQL extends Indexer {
 			 */
 			addAllFromLookup(doc,IndexConstants.REF_KEY,allKeyString,refKeysMap);
 			addAllFromLookup(doc,IndexConstants.JNUM_ID,allKeyString,jnumMap);
-			int hasOMIM = alleleKeysWithOMIM.contains(allKey) ? 1 : 0;
-			doc.addField(IndexConstants.ALL_HAS_OMIM,hasOMIM);
+			int hasDO = alleleKeysWithDO.contains(allKey) ? 1 : 0;
+			doc.addField(IndexConstants.ALL_HAS_DO, hasDO);
 
 			/*
 			 * Allele Location data
@@ -300,11 +300,12 @@ public class AlleleIndexerSQL extends Indexer {
 		allelePhenoIdMap = populateLookup(mpAncIdsSQL,"allele_key","ancestor_primary_id","allele_key->ancestor IDs",allelePhenoIdMap);
 
 
-		// add OMIM IDs
-		String omimIdSql="select aot.allele_key,aot.term_id from tmp_allele_omim_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
-		allelePhenoIdMap = populateLookup(omimIdSql,"allele_key","term_id","allele_key->OMIM IDs",allelePhenoIdMap);
+		// add DO IDs
+		// TODO Check this query for DO
+		String doIdSql="select aot.allele_key,aot.term_id from tmp_allele_omim_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
+		allelePhenoIdMap = populateLookup(doIdSql,"allele_key","term_id","allele_key->DO IDs",allelePhenoIdMap);
 
-		// add the alt IDs for all parents and MP and OMIM terms
+		// add the alt IDs for all parents and MP and DO terms
 		String altIdSQL="select at.allele_key, ti.acc_id " + 
 				"from tmp_allele_term at join " + 
 				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
@@ -426,11 +427,12 @@ public class AlleleIndexerSQL extends Indexer {
 		return jnumMap;
 	}
 
-	public Set<Integer> getAllelesWithOMIM(int start, int end) throws Exception {
-		String omimAllelesQuery="select allele_key from diseasetable_disease dtd where exists (select 1 from diseasetable_disease_cell dtdc " +
+	public Set<Integer> getAllelesWithDO(int start, int end) throws Exception {
+		// TODO Check this query for DO
+		String doAllelesQuery="select allele_key from diseasetable_disease dtd where exists (select 1 from diseasetable_disease_cell dtdc " +
 				"where dtdc.diseasetable_disease_key=dtd.diseasetable_disease_key) and allele_key > "+start+" and allele_key <= "+end+" ";
 		Set<Integer> alleleKeys = new HashSet<Integer>();
-		ResultSet rs = ex.executeProto(omimAllelesQuery);
+		ResultSet rs = ex.executeProto(doAllelesQuery);
 		while(rs.next()) {
 			alleleKeys.add(rs.getInt("allele_key"));
 		}

@@ -378,20 +378,20 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return null;
 	}
 	
-	protected List<String> getDiseaseOmimIds(String termId) throws Exception {
-		List<String> omimIds = new ArrayList<String>();
+	protected List<String> getDiseaseDoIds(String termId) throws Exception {
+		List<String> doIds = new ArrayList<String>();
 		
 
 		Set<String> altIds = getAlternateTermIds(termId);
 		for (String altId : altIds) {
-			if (altId.startsWith("OMIM:")) {
-				omimIds.add(altId);
+			if (altId.startsWith("DOID:")) {
+				doIds.add(altId);
 			}
 		}
 		
-		Collections.sort(omimIds);
+		Collections.sort(doIds);
 		
-		return omimIds;
+		return doIds;
 	}
 
 	/* get the alternate term IDs for the term identified by the given term key

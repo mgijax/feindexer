@@ -59,10 +59,7 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 		rs_overall.next();
 
 		// collection of Solr documents
-		Collection<SolrInputDocument> docs =
-				new ArrayList<SolrInputDocument>();
-
-		// TODO Parse the main query results here.
+		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 		logger.info("Parsing EMAPA structures");
 		String termKey;

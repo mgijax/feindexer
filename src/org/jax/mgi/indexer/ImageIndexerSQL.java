@@ -55,8 +55,6 @@ public class ImageIndexerSQL extends Indexer {
 
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
-		// TODO Parse the main query results here.
-
 		logger.info("Parsing them");
 		while (!rs_overall.isAfterLast()) {
 			SolrInputDocument doc = new SolrInputDocument();

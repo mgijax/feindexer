@@ -96,7 +96,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			// add any synonyms for this disease term and any alternate IDs
 			addAllFromLookup(doc,DiseasePortalFields.TERM_SYNONYM, termId, termSynonymMap);
 			addAll(doc, DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termId));
-			doc.addAllDistinct(DiseasePortalFields.OMIM_ID, getDiseaseOmimIds(termId));
+			doc.addAllDistinct(DiseasePortalFields.DO_ID, getDiseaseDoIds(termId));
 
 			// add term headers for the disease
 			if (headersPerTerm.containsKey(termId)) {

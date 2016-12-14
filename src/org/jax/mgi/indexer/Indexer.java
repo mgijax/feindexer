@@ -155,7 +155,7 @@ public abstract class Indexer implements Runnable {
 	
 	// Create a hashmap, of a key -> hashSet mapping.
 	// The hashSet is simply a collection for our 1->N cases.
-	//TODO: This does not belong in this class. It's a straight up utility function
+	// This does not belong in this class. It's a straight up utility function
 	protected HashMap <String, HashSet <String>> makeHash(String sql, String keyString, String valueString) {
 
 		HashMap <String, HashSet <String>> tempMap = new HashMap <String, HashSet <String>> ();
