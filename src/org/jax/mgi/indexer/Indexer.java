@@ -74,6 +74,7 @@ public abstract class Indexer implements Runnable {
 		logger.info("Working with index: " + solrBaseUrl + "/" + solrIndexName);
 
 		client.setConnectionTimeout(3 * 60000);
+		client.setSoTimeout(3 * 60000);
 
 		try {
 			logger.info("Deleting current index: " + solrIndexName);
