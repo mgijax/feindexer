@@ -32,7 +32,6 @@ public class DiseaseIndexerSQL extends Indexer {
 
 			// Parse the main query results here.
 
-			logger.info("Parsing them");
 			while (!rs_overall.isAfterLast()) {
 				SolrInputDocument doc = new SolrInputDocument();
 				doc.addField(IndexConstants.DISEASE_ID, rs_overall.getString("primary_id"));

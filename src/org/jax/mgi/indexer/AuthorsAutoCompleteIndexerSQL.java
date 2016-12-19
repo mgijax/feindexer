@@ -106,7 +106,7 @@ public class AuthorsAutoCompleteIndexerSQL extends Indexer {
 		// Parse out the solr documents
 
 		String authorIndexedForGxd;
-		logger.info("Parsing them");
+
 		for (String thisAuthor:authors) {
 			authorIndexedForGxd = uniqueAuthors.get(thisAuthor);
 

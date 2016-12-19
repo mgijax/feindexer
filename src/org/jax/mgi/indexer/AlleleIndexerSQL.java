@@ -137,7 +137,6 @@ public class AlleleIndexerSQL extends Indexer {
 				"allele_sequence_num asn on asn.allele_key=a.allele_key "+
 				"where mta.allele_key > "+startKey+" and mta.allele_key <= "+endKey+" ");
 
-		logger.info("Parsing them");
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		while (rs.next()) {
 			SolrInputDocument doc = new SolrInputDocument();
@@ -244,7 +243,7 @@ public class AlleleIndexerSQL extends Indexer {
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
-		logger.info("Adding final stack of the documents to Solr");
+
 		writeDocs(docs);
 		commit();
 	}

@@ -175,7 +175,6 @@ public class GXDImagePaneIndexerSQL extends Indexer
 	            //Map<String,SolrInputDocument> docs = new HashMap<String,SolrInputDocument>();
 	            Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 	            
-	            logger.info("Parsing them");
 	            while (rs.next()) 
 	            {           
 	            	int imagepane_key = rs.getInt("imagepane_key");

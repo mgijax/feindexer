@@ -48,7 +48,6 @@ public class JournalsAutoCompleteIndexerSQL extends Indexer {
 
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
-		logger.info("Parsing them");
 		while (rs_overall.next()) {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));

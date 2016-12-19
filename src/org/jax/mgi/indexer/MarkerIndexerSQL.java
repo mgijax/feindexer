@@ -137,7 +137,6 @@ public class MarkerIndexerSQL extends Indexer
 		List<String> nomenKeyList = new ArrayList<String>(MarkerSummaryFields.NOMEN_FIELDS.keySet());
 
 		// Parse the base query, adding its contents into solr  
-		logger.info("Parsing them");
 		while (rs.next()) 
 		{
 			String mrkKey = rs.getString("marker_key");

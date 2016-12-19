@@ -55,7 +55,6 @@ public class ImageIndexerSQL extends Indexer {
 
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
-		logger.info("Parsing them");
 		while (!rs_overall.isAfterLast()) {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.IMAGE_KEY, rs_overall.getString("image_key"));

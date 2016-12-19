@@ -166,7 +166,6 @@ public class RefIndexerSQL extends Indexer {
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		// Parse the base query, adding its contents into solr
 
-		logger.info("Parsing them");
 		int count=0;
 		while (!rs_overall.isAfterLast()) {
 			count++;

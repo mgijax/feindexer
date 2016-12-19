@@ -469,7 +469,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = rs_tmp.getInt("max_result_key");
-		int chunkSize = 15000;
+		int chunkSize = 5000;
 
 		// While it appears that modValue could be one iteration too low (due
 		// to rounding down), this is accounted for by using <= in the loop.
@@ -544,7 +544,6 @@ public class GXDResultIndexerSQL extends Indexer {
 
 			Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
-			logger.info("Parsing them");
 			while (rs.next()) {
 				String markerKey = rs.getString("marker_key");
 				// the marker symbol sort
