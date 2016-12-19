@@ -87,8 +87,8 @@ public class Main {
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
 						System.out.println(s);
-						System.exit(0);
 					}
+					System.exit(0);
 				} else {
 					logger.info("unknown indexer \""+arg+"\"");
 				}
