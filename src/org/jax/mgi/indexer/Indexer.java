@@ -116,13 +116,26 @@ public abstract class Indexer implements Runnable {
 		}
 		
 		commit(true);
-		
+		optimize(true);
 		logger.info("Solr Documents are flushed to the server shuting down: " + solrIndexName);
 		client.close();
 	}
 	
 	public void commit() {
-		commit(false);
+		commit(true);
+	}
+	
+	public void optimize(boolean wait) {
+		try {
+			logger.info("Waiting for Solr Optimize");
+			if(wait) {
+				client.optimize(wait, wait);
+			} else {
+				client.optimize();
+			}
+		} catch (SolrServerException | IOException e) {
+			e.printStackTrace();
+		}
 	}
 	
 	public void commit(boolean wait) {
