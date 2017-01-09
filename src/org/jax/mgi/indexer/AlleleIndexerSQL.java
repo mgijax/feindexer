@@ -298,8 +298,13 @@ public class AlleleIndexerSQL extends Indexer {
 				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoIdMap = populateLookup(mpAncIdsSQL,"allele_key","ancestor_primary_id","allele_key->ancestor IDs",allelePhenoIdMap);
 
-		String doIdSql="select aot.allele_key,aot.term_id from tmp_allele_do_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
-		allelePhenoIdMap = populateLookup(doIdSql,"allele_key","term_id","allele_key->DO IDs",allelePhenoIdMap);
+		// add DO IDs
+		String doIdSql="select aot.allele_key,tas.ancestor_primary_id "
+				+ "from tmp_allele_do_term aot "
+				+ "join term t on t.primary_id=mpt.term_id "
+				+ "join term_ancestor_simple tas on tas.term_key=t.term_key"
+				+ "where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
+		allelePhenoIdMap = populateLookup(doIdSql,"allele_key","ancestor_primary_id","allele_key->DO IDs",allelePhenoIdMap);
 
 		// add the alt IDs for all parents and MP and DO terms
 		String altIdSQL="select at.allele_key, ti.acc_id " + 
@@ -323,10 +328,14 @@ public class AlleleIndexerSQL extends Indexer {
 		String mpTermsSQL="select mpt.allele_key, mpt.term\r\n from tmp_allele_mp_term mpt where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		Map<String,Set<String>> allelePhenoTermMap = populateLookup(mpTermsSQL,"allele_key","term","allele_key->MP terms");
 
-		// add DO IDs
-		String doTermSql="select aot.allele_key,aot.term from tmp_allele_do_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
-		allelePhenoTermMap = populateLookup(doTermSql,"allele_key","term","allele_key->DO IDs",allelePhenoTermMap);
-
+		// add DO Terms
+		String doIdSql="select aot.allele_key, tas.ancestor_term "
+				+ "from tmp_allele_do_term aot "
+				+ "join term t on t.primary_id=mpt.term_id "
+				+ "join term_ancestor_simple tas on tas.term_key=t.term_key"
+				+ "where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
+		allelePhenoTermMap = populateLookup(doIdSql,"allele_key","ancestor_term","allele_key->DO IDs",allelePhenoTermMap);
+		
 		// add the parent terms
 		String mpAncTermsSQL="select mpt.allele_key, tas.ancestor_term\r\n" + 
 				"from tmp_allele_mp_term mpt join "+
