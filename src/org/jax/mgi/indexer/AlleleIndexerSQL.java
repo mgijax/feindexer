@@ -302,7 +302,7 @@ public class AlleleIndexerSQL extends Indexer {
 		String doIdSql="select aot.allele_key,tas.ancestor_primary_id "
 				+ "from tmp_allele_do_term aot "
 				+ "join term t on t.primary_id=mpt.term_id "
-				+ "join term_ancestor_simple tas on tas.term_key=t.term_key"
+				+ "join term_ancestor_simple tas on tas.term_key=t.term_key "
 				+ "where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoIdMap = populateLookup(doIdSql,"allele_key","ancestor_primary_id","allele_key->DO IDs",allelePhenoIdMap);
 
@@ -332,7 +332,7 @@ public class AlleleIndexerSQL extends Indexer {
 		String doIdSql="select aot.allele_key, tas.ancestor_term "
 				+ "from tmp_allele_do_term aot "
 				+ "join term t on t.primary_id=mpt.term_id "
-				+ "join term_ancestor_simple tas on tas.term_key=t.term_key"
+				+ "join term_ancestor_simple tas on tas.term_key=t.term_key "
 				+ "where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoTermMap = populateLookup(doIdSql,"allele_key","ancestor_term","allele_key->DO IDs",allelePhenoTermMap);
 		
