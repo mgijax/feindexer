@@ -13,6 +13,9 @@ import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 /* Is: an indexer that builds the index supporting the Disease tab of the 
  *		HMDC summary page.  Each document in the index represents data for
  *		a single disease, and each disease is included in a single document.
+ * Note: For diseases that have ancestors in the DAG, four pieces of data are percolated upward
+ * 		and included in those ancestor terms as well:  count of models, list of mouse genes,
+ * 		list of human genes, count of disease references
  */
 public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 
@@ -40,7 +43,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 	private void processDiseases() throws Exception {
 		logger.info("loading disease terms");
 
-		// main query - DO disease terms that are no obsolete.  We don't bother to
+		// main query - DO disease terms that are not obsolete.  We don't bother to
 		// specify an order, because we will compute ordering in-memory to ensure it
 		// is smart-alpha.  (The term.sequence_num field is not.)
 		String diseaseTermQuery = "select t.term_key, t.term, t.primary_id, a.marker_key, "
