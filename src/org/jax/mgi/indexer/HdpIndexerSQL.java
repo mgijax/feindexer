@@ -874,15 +874,28 @@ public abstract class HdpIndexerSQL extends Indexer {
 		Timer.reset();
 
 		// This had used getNonNormalAnnotationsTable() as a source, but optimizing to
-		// bring the 'where' clause up into this query and simplify.
-		String markerQuery = "select distinct h.term_id, h.marker_key, m.symbol "
-			+ "from hdp_annotation h, marker m "
-			+ "where h.vocab_name='Disease Ontology' "
-			+ "  and h.organism_key in (1, 2) "
-			+ "  and h.marker_key = m.marker_key "
-			+ "  and h.qualifier_type is null "
-			+ "  and (h.genotype_type!='complex' or h.genotype_type is null) "
-			+ "order by h.term_id, m.symbol";
+		// bring the 'where' clause up into this query and simplify.  Added closure to
+		// consider DAG relationships of diseases when collecting their markers.
+		String markerQuery = 
+				"with closure as ( "
+					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
+					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "where ha.term_key = s.term_key "
+					+ "  and ha.vocab_name = 'Disease Ontology' "
+					+ "union " 
+					+ "select ha.term_key, ha.term_id, ha.term_id "
+					+ "from hdp_annotation ha "
+					+ "where ha.vocab_name = 'Disease Ontology' "
+					+ ") "
+				+ "select distinct c.ancestor_primary_id as term_id, h.marker_key, m.symbol "
+				+ "from hdp_annotation h, marker m, closure c "
+				+ "where h.vocab_name='Disease Ontology' "
+				+ " and h.organism_key in (1, 2) "
+				+ " and h.term_id = c.term_id "
+				+ " and h.marker_key = m.marker_key "
+				+ " and h.qualifier_type is null "
+				+ " and (h.genotype_type!='complex' or h.genotype_type is null) "
+				+ "order by 1, 3";
 
 		markersPerDisease = populateLookupOrdered(markerQuery, "term_id", "marker_key", "diseases to markers");
 
@@ -944,13 +957,25 @@ public abstract class HdpIndexerSQL extends Indexer {
 			refCountPerDisease = new HashMap<String,Integer>();
 
 			logger.info("building counts of disease relevant refs to disease ID");
-			String diseaseRefCountQuery = "select ha.term_id as disease_id, "
-					+ "  count(distinct trt.reference_key) as ref_count "
-					+ "from hdp_term_to_reference trt, "
-					+ "  hdp_annotation ha "
-					+ "where ha.term_key=trt.term_key "
-					+ "  and ha.vocab_name='Disease Ontology' "
-					+ "group by disease_id ";
+			
+			// updated to include references for descendant terms, since diseases are now a DAG
+			String diseaseRefCountQuery = 
+				"with closure as ( "
+					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
+					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "where ha.term_key = s.term_key "
+					+ "  and ha.vocab_name = 'Disease Ontology' "
+					+ "union " 
+					+ "select ha.term_key, ha.term_id, ha.term_id "
+					+ "from hdp_annotation ha "
+					+ "where ha.vocab_name = 'Disease Ontology' "
+					+ ") "
+				+ "select c.ancestor_primary_id as disease_id, count(distinct trt.reference_key) as ref_count "
+				+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
+				+ "where ha.term_key = trt.term_key "
+				+ " and ha.term_key = c.term_key "
+				+ " and ha.vocab_name='Disease Ontology' "
+				+ "group by 1";
 
 			ResultSet rs = ex.executeProto(diseaseRefCountQuery, cursorLimit);
 			while(rs.next()) {
@@ -1025,10 +1050,24 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 			logger.info("building counts of disease models for disease IDs");
 
-			String diseaseModelQuery="select dm.disease_id, count(dm.disease_model_key) diseaseModelCount " +
-					"from disease_model dm " +
-					"where is_not_model=0 " +
-					"group by disease_id ";
+			// updated to include models for descendant terms, since diseases are now a DAG
+			String diseaseModelQuery=
+				"with closure as ( "
+					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
+					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "where ha.term_key = s.term_key "
+					+ " and ha.vocab_name = 'Disease Ontology' "
+					+ "union "
+					+ "select ha.term_key, ha.term_id, ha.term_id "
+					+ "from hdp_annotation ha "
+					+ "where ha.vocab_name = 'Disease Ontology' "
+					+ ") "
+				+ "select c.ancestor_primary_id as disease_id, "
+				+ " count(distinct dm.disease_model_key) as diseaseModelCount "
+				+ "from disease_model dm, closure c "
+				+ "where dm.is_not_model=0 "
+				+ " and dm.disease_id = c.term_id "
+				+ "group by 1";
 
 			ResultSet rs = ex.executeProto(diseaseModelQuery, cursorLimit);
 			while(rs.next()) {
