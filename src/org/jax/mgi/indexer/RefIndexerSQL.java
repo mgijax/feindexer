@@ -22,6 +22,7 @@ import org.jax.mgi.shr.fe.IndexConstants;
  */
 
 public class RefIndexerSQL extends Indexer {
+	
 
 
 
@@ -44,10 +45,24 @@ public class RefIndexerSQL extends Indexer {
 		Map<String,Set<String>> diseaseRelevantMarkerMap = populateLookup(diseaseRelevantMarkerQuery,"reference_key","marker_id",
 				"disease relevant marker IDs (for linking from disease portal)");
 
-		String diseaseRelevantRefQuery = "select trt.reference_key, ha.term_id disease_id " +
-				"from hdp_term_to_reference trt,hdp_annotation ha " +
-				"where ha.term_key=trt.term_key " +
-				"and ha.vocab_name='Disease Ontology' ";
+		String diseaseRelevantRefQuery =
+				"with closure as ( "
+					+ "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
+					+ "from hdp_annotation ha, term_ancestor_simple s, term t "
+					+ "where ha.term_key = s.term_key "
+					+ " and ha.vocab_name = 'Disease Ontology' "
+					+ " and s.ancestor_primary_id = t.primary_id "
+					+ " and t.vocab_name = 'Disease Ontology' "
+					+ "union "
+					+ "select ha.term_key, ha.term_key, ha.term_id "
+					+ "from hdp_annotation ha "
+					+ "where ha.vocab_name = 'Disease Ontology' "
+					+ ") "
+				+ "select distinct trt.reference_key, c.ancestor_primary_id as disease_id "
+				+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
+				+ "where ha.term_key = c.term_key "
+				+ " and c.term_key = trt.term_key "
+				+ " and ha.vocab_name = 'Disease Ontology' ";
 		Map<String,Set<String>> diseaseRelevantRefMap = populateLookup(diseaseRelevantRefQuery,"reference_key","disease_id",
 				"disease IDs to references (for linking from disease portal)");
 
