@@ -9,7 +9,7 @@ package org.jax.mgi.indexer;
 public class SharedQueries {
 	
 	// This list is for querying only, not the autocomplete. It defines which term IDs can be used in queries.
-	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'DO', 'MouseCyc')";
+	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'Disease Ontology', 'MouseCyc')";
 	
 	// Gets vocab annotation IDs(including children, excluding NOTs) by marker key
 	// Also excludes the 3 GO high level terms

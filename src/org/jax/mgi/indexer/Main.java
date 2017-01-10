@@ -28,7 +28,7 @@ public class Main {
 		indexerMap.put("anatomyAC",new AnatomyAutoCompleteIndexerSQL());
 		indexerMap.put("emapaAC",new EmapaAutoCompleteIndexerSQL());
 		indexerMap.put("driverAC",new DriverAutoCompleteIndexerSQL());
-		indexerMap.put("gxdEmapaAC",new GXDEmapaAutoCompleteIndexerSQL());
+
 		indexerMap.put("journalsAC",new JournalsAutoCompleteIndexerSQL());
 		indexerMap.put("reference", new RefIndexerSQL());
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
@@ -38,12 +38,16 @@ public class Main {
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
-		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
+
 		indexerMap.put("dagEdge", new DagEdgeIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
+		
+		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
 		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
 		indexerMap.put("gxdImagePane", new GXDImagePaneIndexerSQL());
 		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
+		indexerMap.put("gxdEmapaAC",new GXDEmapaAutoCompleteIndexerSQL());
+
 		indexerMap.put("mpAnnotation", new MPAnnotationIndexerSQL());
 		indexerMap.put("interaction", new InteractionIndexerSQL());
 		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
@@ -84,6 +88,12 @@ public class Main {
 					SPECIFIED_INDEXERS.add("hdpDisease");
 					SPECIFIED_INDEXERS.add("hdpGrid");
 					SPECIFIED_INDEXERS.add("hdpGridAnnotation");
+				} else if("gxd".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("gxdLitIndex");
+					SPECIFIED_INDEXERS.add("gxdResult");
+					SPECIFIED_INDEXERS.add("gxdImagePane");
+					SPECIFIED_INDEXERS.add("gxdDifferentialMarker");
+					SPECIFIED_INDEXERS.add("gxdEmapaAC");
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
 						System.out.println(s);
