@@ -96,6 +96,7 @@ public class AlleleIndexerSQL extends Indexer {
 		Map<String,Set<String>> alleleNotesMap = getAlleleNotesMap(startKey,endKey);
 		Map<String,Set<String>> alleleTermMap = getAlleleTermsMap(startKey,endKey);
 		Map<String,Set<String>> alleleTermIdMap = getAlleleTermIdsMap(startKey,endKey);
+		populateOMIMNumberPartsForIds(alleleTermIdMap);
 
 		// mutation involves markers
 		Map<String,Set<String>> mutationInvolvesMap = getMutationInvolvesMap(startKey, endKey);
@@ -249,13 +250,6 @@ public class AlleleIndexerSQL extends Indexer {
 	}
 
 
-	/*
-	 * Lookup access functions
-	 */
-
-	/* maps from allele key to a set of marker IDs, where they are related
-	 * through a 'mutation involves' relationship
-	 */
 	public Map<String,Set<String>> getMutationInvolvesMap(int start, int end) throws Exception {
 		String mutationInvolvesSQL = "select allele_key, related_marker_id "
 				+ "from allele_related_marker "
