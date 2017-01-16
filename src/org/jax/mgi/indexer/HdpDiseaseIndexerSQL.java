@@ -112,8 +112,17 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			}
 
 			// add reference count and model count for disease
-			doc.addField(DiseasePortalFields.DISEASE_REF_COUNT, getDiseaseReferenceCount(termId));
-			doc.addField(DiseasePortalFields.DISEASE_MODEL_COUNTS, getDiseaseModelCount(termId));
+			int diseaseRefCount = getDiseaseReferenceCount(termId);
+			int diseaseModelCount = getDiseaseModelCount(termId);
+			doc.addField(DiseasePortalFields.DISEASE_REF_COUNT, diseaseRefCount);
+			doc.addField(DiseasePortalFields.DISEASE_MODEL_COUNTS, diseaseModelCount);
+
+			// need to return diseases based on their ancestor terms' data,
+			// but only if this disease has annotations
+			if ((diseaseRefCount > 0) || (diseaseModelCount > 0) || ( (markerKey != null) && (markerKey > 0) ) ) {
+				doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_ID, getTermAncestorIDs(termKey));
+				doc.addAllDistinct(DiseasePortalFields.TERM_ANCESTOR_TEXT, getTermAncestorText(termKey));
+			}
 
 			// add terms and IDs from related annotations (those annotations for the same genocluster
 			// for mouse annotations, or for the same marker for human annotations)
