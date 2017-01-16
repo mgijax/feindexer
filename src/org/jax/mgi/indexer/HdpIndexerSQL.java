@@ -347,7 +347,14 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// For searching, add the alternate form for DO IDs
 			for (String termId : termAlternateIds.keySet()) {
 				Set<String> altIds = termAlternateIds.get(termId);
-				addDOAlternateIds(altIds);
+				List<String> newIds = new ArrayList<String>();
+				// This adds the Number part of OMIM to the alt ids also for searching
+				for (String altId : altIds) {
+					if (altId.startsWith("OMIM:")) {
+						newIds.add(altId.replaceFirst("OMIM:", ""));
+					}
+				}
+				altIds.addAll(newIds);
 			}
 
 			logger.info("finished retrieving alternate IDs" + Timer.getElapsedMessage());
@@ -355,19 +362,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return termAlternateIds;
 	}
 	
-	/*
-	 * Add DO alternates without DO: prefix
-	 */
-	protected void addDOAlternateIds(Set<String> altIds) {
-		List<String> newIds = new ArrayList<String>();
-		for (String altId : altIds) {
-			if (altId.startsWith("DOID:")) {
-				newIds.add(altId.replaceFirst("DOID:", ""));
-			}
-		}
-		altIds.addAll(newIds);
-	}
-
 	/* get the alternate term IDs for the term identified by the given primary ID
 	 */
 	protected Set<String> getAlternateTermIds(String termId) throws Exception {
@@ -1412,8 +1406,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	 * annotations or if the given annotation key is unknown.  Also includes relevant terms,
 	 * synonyms, and IDs of ancestors, according to the parameters.
 	 */
-	protected Set<String> getRelatedTerms (Integer annotationKey, boolean getTerms, boolean getIds,
-			boolean getDiseases, boolean getPhenotypes) throws Exception {
+	protected Set<String> getRelatedTerms (Integer annotationKey, boolean getTerms, boolean getIds, boolean getDiseases, boolean getPhenotypes) throws Exception {
 
 		Set<Integer> relatedAnnot = getRelatedAnnotations(annotationKey);
 		if (relatedAnnot == null) { return null; }
