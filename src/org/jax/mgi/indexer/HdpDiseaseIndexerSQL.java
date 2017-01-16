@@ -3,7 +3,9 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
@@ -100,6 +102,7 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 			addAllFromLookup(doc,DiseasePortalFields.TERM_SYNONYM, termId, termSynonymMap);
 			addAll(doc, DiseasePortalFields.TERM_ALT_ID, getAlternateTermIds(termId));
 			doc.addAllDistinct(DiseasePortalFields.DO_ID, getDiseaseDoIds(termId));
+			doc.addAllDistinct(DiseasePortalFields.OMIM_ID, getDiseaseOmimIds(termId));
 
 			// add term headers for the disease
 			if (headersPerTerm.containsKey(termId)) {
@@ -232,6 +235,24 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		rs.close();
 
 		logger.info("done processing " + uniqueKey + " disease terms");
+	}
+
+	/* return the OMIM IDs for the given disease term (specified by DO ID)
+	 */
+	protected List<String> getDiseaseOmimIds(String termId) throws Exception {
+		List<String> omimIds = new ArrayList<String>();
+		
+
+		Set<String> altIds = getAlternateTermIds(termId);
+		for (String altId : altIds) {
+			if (altId.startsWith("OMIM:")) {
+				omimIds.add(altId);
+			}
+		}
+		
+		Collections.sort(omimIds);
+		
+		return omimIds;
 	}
 
 	/*----------------------*/
