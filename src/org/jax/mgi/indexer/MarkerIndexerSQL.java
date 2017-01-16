@@ -114,7 +114,8 @@ public class MarkerIndexerSQL extends Indexer
 		Map<String,Set<String>> alleleNotesMap = getAlleleNotesMap(start,end);
 		Map<String,Set<String>> alleleTermMap = getAlleleTermsMap(start,end);
 		Map<String,Set<String>> alleleTermIdMap = getAlleleTermIdsMap(start,end);
-
+		populateOMIMNumberPartsForIds(alleleTermIdMap);
+		
 		logger.info("Getting all mouse markers");
 		String markerSQL = "select m.marker_key, m.primary_id marker_id,m.symbol, " +
 				"m.name, m.marker_type, m.marker_subtype, m.status, m.organism, " +

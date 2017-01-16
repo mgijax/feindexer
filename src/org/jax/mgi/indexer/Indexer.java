@@ -290,6 +290,24 @@ public abstract class Indexer implements Runnable {
 		
 		return returnLookup;
 	}
+	
+
+	protected void populateOMIMNumberPartsForIds(Map<String, Set<String>> idMap) {
+		
+		for(String termSetKey: idMap.keySet()) {
+			
+			Set<String> ids = idMap.get(termSetKey);
+			
+			List<String> newIds = new ArrayList<String>();
+			// This adds the Number part of OMIM to the alt ids also for searching
+			for (String id: ids) {
+				if (id.startsWith("OMIM:")) {
+					newIds.add(id.replaceFirst("OMIM:", ""));
+				}
+			}
+			ids.addAll(newIds);
+		}
+	}
 
 	/*
 	 * Convenience method to add the given value for the given solr field.
