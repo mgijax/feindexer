@@ -30,6 +30,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 
 	Map<Integer,Integer> genotypeToGenocluster = null;		// genotype key -> genocluster key
 	Map<String,Integer> headerSequenceNum = null;			// header -> sequence num
+	Map<Integer,String> doTermToOmimID = null;				// maps DO term key to OMIM ID (where only 1 ID per term)
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -42,6 +43,50 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 	/*-----------------------*/
 	/*--- private methods ---*/
 	/*-----------------------*/
+
+	/* cache the set of OMIM IDs for DO terms, where each DO term as exactly one associated OMIM ID
+	 */
+	protected void cacheSoloOmimIDs() throws Exception {
+		if (doTermToOmimID != null) { return; }
+		
+		logger.info("Collecting solo OMIM IDs for DO terms");
+		Timer.reset();
+
+		String soloOmimQuery = "with do_one_omim as ( "
+				+ "select o.term_key "
+				+ "from term t, term_id o "
+				+ "where t.vocab_name = 'Disease Ontology' "
+				+ " and t.term_key = o.term_key "
+				+ " and o.logical_db = 'OMIM' "
+				+ "group by 1 "
+				+ "having count(distinct o.acc_id) = 1 "
+				+ ") "
+			+ "select t.term_key, t.acc_id "
+			+ "from term_id t, do_one_omim o "
+			+ "where t.term_key = o.term_key "
+			+ " and t.logical_db = 'OMIM'";
+		
+		doTermToOmimID = new HashMap<Integer,String>();
+
+		ResultSet rs = ex.executeProto(soloOmimQuery, cursorLimit);
+		while (rs.next()) {
+			doTermToOmimID.put(rs.getInt("term_key"), rs.getString("acc_id"));
+		}
+		rs.close();
+
+		logger.info("Finished collecting data for " + doTermToOmimID.size()
+				+ " solo OMIM IDs " + Timer.getElapsedMessage());
+	}
+
+	/* get the OMIM ID associated with the given DO term key, if there is only one
+	 */
+	protected String getSoloOmimID(Integer termKey) throws Exception {
+		if (doTermToOmimID == null) { cacheSoloOmimIDs(); }
+		if (doTermToOmimID.containsKey(termKey)) {
+			return doTermToOmimID.get(termKey);
+		}
+		return null;
+	}
 
 	/* cache necessary data for genotypes, including which genocluster each is
 	 * associated with
@@ -159,7 +204,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		
 		if (sourceTermKey != null) {
 			doc.addField(DiseasePortalFields.SOURCE_TERM, this.getTerm(sourceTermKey));
-			doc.addField(DiseasePortalFields.SOURCE_TERM_ID, this.getTermId(sourceTermKey));
+			doc.addField(DiseasePortalFields.SOURCE_TERM_ID, this.getSoloOmimID(sourceTermKey));
 		}
 		
 		if ((backgroundSensitive != null) && (backgroundSensitive >= 1)) {
