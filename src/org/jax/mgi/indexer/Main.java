@@ -54,6 +54,7 @@ public class Main {
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
 		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
+		indexerMap.put("cdna", new CdnaIndexerSQL());
 	}
 
 	public static int maxThreads = 1;
