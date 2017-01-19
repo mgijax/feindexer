@@ -48,13 +48,7 @@ MEMORY_ARGS="-d64 -Xms${MIN_MEM}g -Xmx${MAX_MEM}g -XX:MaxPermSize=256m -XX:-UseP
 
 # set up the classpath for the JVM
 
-CLASSPATH=
-for i in `ls -1 $LIB_DIR`
-do
-CLASSPATH=$LIB_DIR/$i:$CLASSPATH
-done
-
-CLASSPATH=$INSTALL_DIR/dist/feindexer.jar:$CLASSPATH
+CLASSPATH=$INSTALL_DIR/dist/feindexer.jar:$LIB_DIR/*
 export CLASSPATH
 
 # map the index name to its Java class
