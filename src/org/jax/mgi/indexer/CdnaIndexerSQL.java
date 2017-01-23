@@ -98,7 +98,7 @@ public class CdnaIndexerSQL extends Indexer {
 			+ " s.by_symbol, mtp.qualifier "
 			+ "from probe_cdna p, marker_to_probe mtp, marker m, marker_sequence_num s "
 			+ "where p.probe_key = mtp.probe_key "
-			+ " and mtp.qualifier in ('E', 'P', 'H') "
+			+ " and mtp.qualifier in ('E', 'P') "
 			+ " and mtp.marker_key = m.marker_key "
 			+ " and m.marker_key = s.marker_key "
 			+ "order by s.by_symbol";
@@ -130,7 +130,9 @@ public class CdnaIndexerSQL extends Indexer {
 			markerCache.get(probeKey).add(marker);
 			
 			// only markers associated via (E)ncodes or (P)utative relationships to a probe are
-			// included in the list of marker IDs that can be used to retrieve that probe
+			// included in the list of marker IDs that can be used to retrieve that probe.  (At the
+			// moment, (H)ybridizes relationships are ruled out by the query above, but leaving this
+			// check in for now, in case that decision is reversed.)
 			if ("E".equals(qualifier) || "P".equals(qualifier)) {
 				if (!searchableMarkers.containsKey(probeKey)) {
 					searchableMarkers.put(probeKey, new ArrayList<String>());
