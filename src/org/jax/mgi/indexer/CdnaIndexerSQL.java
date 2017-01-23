@@ -29,7 +29,8 @@ public class CdnaIndexerSQL extends Indexer {
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
 
-	private Map<Integer,List<CloneMarker>> markerCache = null;	// markers per clone key
+	private Map<Integer,List<CloneMarker>> markerCache = null;	// displayed markers per clone key
+	private Map<Integer,List<String>> searchableMarkers = null;	// searchable marker IDs per clone key
 	private Map<Integer,List<String>> collectionCache = null;	// collections per clone key
 
 	private ObjectMapper mapper = new ObjectMapper();			// converts objects to JSON
@@ -97,6 +98,7 @@ public class CdnaIndexerSQL extends Indexer {
 			+ " s.by_symbol, mtp.qualifier "
 			+ "from probe_cdna p, marker_to_probe mtp, marker m, marker_sequence_num s "
 			+ "where p.probe_key = mtp.probe_key "
+			+ " and mtp.qualifier in ('E', 'P', 'H') "
 			+ " and mtp.marker_key = m.marker_key "
 			+ " and m.marker_key = s.marker_key "
 			+ "order by s.by_symbol";
@@ -106,33 +108,57 @@ public class CdnaIndexerSQL extends Indexer {
 
 		int i = 0;
 		markerCache = new HashMap<Integer,List<CloneMarker>>();
+		searchableMarkers = new HashMap<Integer,List<String>>();
 		
 		while (rs.next()) {
 			Integer probeKey = rs.getInt("probe_key");
+			String qualifier = rs.getString("qualifier");
+			String markerID = rs.getString("marker_id");
 			i++;
 
 			CloneMarker marker = new CloneMarker();
 			marker.setSymbol(rs.getString("symbol"));
-			marker.setPrimaryID(rs.getString("marker_id"));
-			if ("P".equals(rs.getString("qualifier"))) {
+			marker.setPrimaryID(markerID);
+			if ("P".equals(qualifier)) {
 				marker.setIsPutative(true);
 			}
 			
+			// any markers associated with the probe go into the cache of markers for display
 			if (!markerCache.containsKey(probeKey)) {
 				markerCache.put(probeKey, new ArrayList<CloneMarker>());
 			}
 			markerCache.get(probeKey).add(marker);
+			
+			// only markers associated via (E)ncodes or (P)utative relationships to a probe are
+			// included in the list of marker IDs that can be used to retrieve that probe
+			if ("E".equals(qualifier) || "P".equals(qualifier)) {
+				if (!searchableMarkers.containsKey(probeKey)) {
+					searchableMarkers.put(probeKey, new ArrayList<String>());
+				}
+				searchableMarkers.get(probeKey).add(markerID);
+			}
 		}
 		rs.close();
 		logger.info("  - done caching " + i + " marker/clone pairs");
+		logger.info("  - found " + searchableMarkers.size() + " clones that can be retrieved by marker ID");
 	}
 	
-	/* retrieve the markers assocaited with the given clone.  Assumes cacheMarkers() has
+	/* retrieve the markers associated with the given clone for display purposes.  Assumes cacheMarkers() has
 	 * been called.
 	 */
 	private List<CloneMarker> getMarkers(int cloneKey) throws Exception {
 		if (markerCache.containsKey(cloneKey)) {
 			return markerCache.get(cloneKey);
+		}
+		return null;
+	}
+
+	/* retrieve the markers IDs that can be used to retrieve a given clone.  Assumes cacheMarkers() has
+	 * been called.
+	 */
+	private List<String> getSearchableMarkers(int cloneKey) throws Exception {
+		if (searchableMarkers.containsKey(cloneKey)) {
+			return searchableMarkers.get(cloneKey);
 		}
 		return null;
 	}
@@ -174,12 +200,16 @@ public class CdnaIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.CDNA_SEQUENCE_NUM, rs.getInt("sequence_num"));
 			
 			// if clone has associated markers (and it must), add them to the clone object
-			// and add the IDs to the searchable field in the index
 			List<CloneMarker> markers = getMarkers(cloneKey);
 			if (markers != null) {
 				clone.setMarkers(markers);
-				for (CloneMarker m : markers) {
-					doc.addField(IndexConstants.CDNA_MARKER_ID, m.getPrimaryID());
+			}
+
+			// and add the IDs to the searchable field in the index
+			List<String> searchableMarkerIDs = getSearchableMarkers(cloneKey);
+			if (searchableMarkerIDs != null) {
+				for (String markerID : searchableMarkerIDs) {
+					doc.addField(IndexConstants.CDNA_MARKER_ID, markerID);
 				}
 			}
 
