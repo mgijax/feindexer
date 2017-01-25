@@ -55,6 +55,8 @@ public class Main {
 		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 		indexerMap.put("cdna", new CdnaIndexerSQL());
+		indexerMap.put("gxdHtSample", new GXDHtSampleIndexerSQL());
+		indexerMap.put("gxdHtExperiment", new GXDHtExperimentIndexerSQL());
 	}
 
 	public static int maxThreads = 1;
@@ -95,6 +97,9 @@ public class Main {
 					SPECIFIED_INDEXERS.add("gxdImagePane");
 					SPECIFIED_INDEXERS.add("gxdDifferentialMarker");
 					SPECIFIED_INDEXERS.add("gxdEmapaAC");
+				} else if ("gxdht".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("gxdHtSample");
+					SPECIFIED_INDEXERS.add("gxdHtExperiment");
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
 						System.out.println(s);

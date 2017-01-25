@@ -24,19 +24,44 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
  */
 
 public class EmapaAutoCompleteIndexerSQL extends Indexer {   
-
 	public EmapaAutoCompleteIndexerSQL () {
 		super("emapaAC");
 	}
 
+	/* retrieve the set of EMAPA term keys that have associations for GXD high-throughput samples,
+	 * including knowledge of which paths exist at which Theiler Stages.
+	 */
+	private Set<Integer> getEmapaKeysForGxdHT() throws Exception {
+		String emapTable = SharedQueries.createEmapTempTable(logger, ex);
+		
+		String query = "select distinct emapa_ancestor_key " +
+			"from " + emapTable + " t, expression_ht_sample s " +
+			"where t.emapa_descendant_key = s.emapa_key " +
+			"and t.stage = s.theiler_stage";
+		ResultSet rs = ex.executeProto(query);
+		
+		Set<Integer> keys = new HashSet<Integer>();
+		while (rs.next()) {
+			keys.add(rs.getInt("emapa_ancestor_key"));
+		}
+		rs.close();
+		
+		logger.info("Got " + keys.size() + " EMAPA keys for GXD HT");
+		return keys;
+	}
+	
 	public void index() throws Exception {    
 		Set<String> uniqueIds = new HashSet<String>();
 		Map<String,Integer> termSort = new HashMap<String,Integer>();
 		ArrayList<String> termsToSort = new ArrayList<String>();
 
+		Set<Integer> emapaWithGxdHT = getEmapaKeysForGxdHT();
+		
 		logger.info("Getting all distinct structures & synonyms");
-		String query = "WITH anatomy_synonyms as "+
-				"(select distinct t.term structure, ts.synonym, "+
+		
+		// has_gxdhd -- refers to whether a structure is cited in samples in the high-throughput expression data
+		String query = "with anatomy_synonyms as "+
+				"(select distinct t.term structure, ts.synonym, t.term_key, "+
 				/* disabled until we want to use the picklist for actually picking a specific
 				 * term to search by ID, rather than a set of words
 				 *	    "  t.primary_id, " +
@@ -48,7 +73,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				 "from term t join term_emap e on t.term_key = e.term_key left outer join " +
 				 "term_synonym ts on t.term_key = ts.term_key "+
 				 "where t.vocab_name='EMAPA') "+
-				 "select distinct a1.structure, a1.synonym, a1.has_cre, " +
+				 "select distinct a1.structure, a1.synonym, a1.has_cre, a1.term_key, " +
 				 /* disabled until we want to use the picklist for actually picking a specific
 				  * term to search by ID, rather than a set of words
 				  *	    "  a1.primary_id, " +
@@ -102,6 +127,10 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 			String structure = rs.getString("structure");
 			String synonym = rs.getString("synonym");
 			Boolean hasCre = rs.getBoolean("has_cre");
+			Boolean hasGxdHT = Boolean.FALSE;
+			if (emapaWithGxdHT.contains(rs.getInt("term_key"))) {
+				hasGxdHT = Boolean.TRUE;
+			}
 
 			/* disabled until we want to use the picklist for actually picking a specific
 			 * term to search by ID, rather than a set of words
@@ -139,6 +168,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+				doc.addField(IndexConstants.STRUCTUREAC_HAS_GXDHT,hasGxdHT);
 				docs.add(doc);
 			}
 
@@ -168,6 +198,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, false);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+				doc.addField(IndexConstants.STRUCTUREAC_HAS_GXDHT,hasGxdHT);
 				docs.add(doc);
 			}
 		} // end while loop

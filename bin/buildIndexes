@@ -121,6 +121,11 @@ processCommandLine() {
 		INDEXERS="hdpGrid hdpDisease hdpGridAnnotation hdpGene"
 		log "Converted $1 to: ${INDEXERS}"
 
+	# if we receive a GXD high-throughput flag, then do those indexers
+	elif [ "$1" = "gxdht" ]; then
+		INDEXERS="gxdHtSample gxdHtExperiment"
+		log "Converted $1 to: ${INDEXERS}"
+
 	# otherwise the user specified one or more indexes; see if there are
 	# any invalid ones in the list and exit with an error message if so
 	else
