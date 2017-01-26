@@ -18,7 +18,7 @@ import org.jax.mgi.shr.fe.indexconstants.GxdHtFields;
  */
 public class GXDHtExperimentIndexerSQL extends Indexer {
 	public GXDHtExperimentIndexerSQL() {
-		super("index.url.gxdHtExperiment");
+		super("gxdHtExperiment");
 	}
 
 	// return the first String appearing in 'items', or null if empty
