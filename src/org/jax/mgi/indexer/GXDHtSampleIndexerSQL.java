@@ -36,7 +36,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	//--- methods ---//
 	
 	public GXDHtSampleIndexerSQL() {
-		super("index.url.gxdHtSample");
+		super("gxdHtSample");
 	}
 
 	private void cacheReferenceIDs() throws Exception {
