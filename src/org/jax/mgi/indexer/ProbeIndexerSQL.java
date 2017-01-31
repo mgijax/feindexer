@@ -231,7 +231,7 @@ public class ProbeIndexerSQL extends Indexer {
 			searchableReferences.get(probeKey).add(rs.getString("acc_id"));
 		}
 		rs.close();
-		logger.info(" - cached " + ct + " references for " + searchableReferences.size() + " probes");
+		logger.info(" - cached " + ct + " reference IDs for " + searchableReferences.size() + " probes");
 	}
 	
 	/* retrieve the reference IDs that can be used to retrieve a given probe.  Assumes cacheReferences()
@@ -243,6 +243,18 @@ public class ProbeIndexerSQL extends Indexer {
 		}
 		return null;
 	}
+	
+	/* get a segment type that can be used to restrict the query results.  This includes:
+	 * 	genomic, cDNA, primer, and other
+	 */
+	private String getSearchableSegmentType(String segmentType) {
+		if ("genomic".equalsIgnoreCase(segmentType)) { return segmentType; }
+		else if ("cdna".equalsIgnoreCase(segmentType)) { return segmentType; }
+		else if ("primer pair".equalsIgnoreCase(segmentType)) { return "primer"; }
+		else if ("primer".equalsIgnoreCase(segmentType)) { return "primer"; }
+		return "other";
+	}
+
 	/* retrieve probes from the database, build Solr docs, and write them to the server.
 	 */
 	private void processProbes() throws Exception {
@@ -273,6 +285,7 @@ public class ProbeIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.PRB_KEY, probeKey);
 			doc.addField(IndexConstants.PRB_BY_NAME, rs.getInt("by_name"));
 			doc.addField(IndexConstants.PRB_BY_TYPE, rs.getInt("by_type"));
+			doc.addField(IndexConstants.PRB_SEGEMENT_TYPE, getSearchableSegmentType(rs.getString("segment_type")));
 			
 			// if probe has associated markers, add them to the probe object
 			List<ProbeMarker> markers = getMarkers(probeKey);
