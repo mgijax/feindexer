@@ -14,8 +14,8 @@ import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
-import org.jax.mgi.shr.jsonmodel.Probe;
-import org.jax.mgi.shr.jsonmodel.ProbeMarker;
+import org.jax.mgi.shr.jsonmodel.MolecularProbe;
+import org.jax.mgi.shr.jsonmodel.MolecularProbeMarker;
 
 /* Is: an indexer that builds the index supporting the molecular probe summary page (reachable from the
  * 		marker detail page and the reference summary/detail page).  Each document in the index represents
@@ -32,7 +32,7 @@ public class ProbeIndexerSQL extends Indexer {
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
 
-	private Map<Integer,List<ProbeMarker>> markerCache = null;		// displayed markers per probe key
+	private Map<Integer,List<MolecularProbeMarker>> markerCache = null;		// displayed markers per probe key
 	private Map<Integer,List<String>> searchableMarkers = null;		// searchable marker IDs per probe key
 	private Map<Integer,List<String>> searchableReferences = null;	// searchable reference IDs per probe key
 	private Map<Integer,List<String>> collectionCache = null;		// collections per probe key
@@ -98,45 +98,35 @@ public class ProbeIndexerSQL extends Indexer {
 	private void cacheMarkers() throws Exception {
 		logger.info("caching marker locations");
 		
-		// union to retrieve locations for mouse markers that are associated to probes:
-		// 1. mouse markers with cM offsets >= 0; use both chromosome and cM offset
-		//		-- offsets less than one will later be converted to nulls
-		// 2. mouse markers with a coordinate but not cM location; use chromosome from coordinate, but null offset
-		String cmd1 = "select distinct ml.marker_key, ml.chromosome, ml.cm_offset "
+		// ordered by marker key then location type to prefer centimorgans to coordinates to cytogenetic
+		String cmd1 = "select distinct ml.marker_key, ml.chromosome, ml.cm_offset, ml.location_type "
 			+ "from marker_to_probe p, marker_location ml, marker m "
 			+ "where p.marker_key = m.marker_key "
 			+ "  and m.organism = 'mouse' "
+			+ "  and m.status = 'official' "
 			+ "  and m.marker_key = ml.marker_key "
-			+ "  and ml.location_type = 'centimorgans' "
-			+ "  and ml.cm_offset >= 0 "
-			+ "union "
-			+ "select distinct ml.marker_key, ml.chromosome, -1.0 "
-			+ "from marker_to_probe p, marker_location ml, marker m "
-			+ "where p.marker_key = m.marker_key "
-			+ "  and m.organism = 'mouse' "
-			+ "  and m.marker_key = ml.marker_key "
-			+ "  and ml.location_type = 'coordinates' "
-			+ "  and not exists (select 1 from marker_location cl "
-			+ "    where ml.marker_key = cl.marker_key "
-			+ "    and cl.location_type = 'centimorgans')";
+			+ "order by ml.marker_key, ml.location_type";
 		
-		Map<Integer,String> chromosomes = new HashMap<Integer,String>();
-		Map<Integer,String> offsets = new HashMap<Integer,String>();
-		
+		Map<Integer,String> locations = new HashMap<Integer,String>();
 		DecimalFormat formatter = new DecimalFormat("#.00", DecimalFormatSymbols.getInstance(Locale.US));
 
 		ResultSet rs1 = ex.executeProto(cmd1, cursorLimit);
 		while (rs1.next()) {
-			chromosomes.put(rs1.getInt("marker_key"), rs1.getString("chromosome"));
-			Double cmOffset = rs1.getDouble("cm_offset");
-			if ((cmOffset == null) || (cmOffset < 0.0)) {
-				offsets.put(rs1.getInt("marker_key"), null);
-			} else {
-				offsets.put(rs1.getInt("marker_key"), formatter.format(cmOffset));
+			Integer markerKey = rs1.getInt("marker_key");
+
+			if (!locations.containsKey(markerKey)) {
+				String chromosome = rs1.getString("chromosome");
+				Double cmOffset = rs1.getDouble("cm_offset");
+
+				if ((cmOffset == null) || (cmOffset <= 0.0)) {
+					locations.put(markerKey, chromosome);
+				} else {
+					locations.put(markerKey, chromosome + " (" + formatter.format(cmOffset) + " cM)");
+				}
 			}
 		}
 		rs1.close();
-		logger.info(" - cached " + chromosomes.size() + " marker locations");
+		logger.info(" - cached " + locations.size() + " marker locations");
 
 		logger.info("caching markers");
 		String cmd = "select distinct mtp.probe_key, m.symbol, m.primary_id as marker_id, "
@@ -150,7 +140,7 @@ public class ProbeIndexerSQL extends Indexer {
 		logger.debug("  - finished marker query in " + ex.getTimestamp());
 
 		int i = 0;
-		markerCache = new HashMap<Integer,List<ProbeMarker>>();
+		markerCache = new HashMap<Integer,List<MolecularProbeMarker>>();
 		searchableMarkers = new HashMap<Integer,List<String>>();
 		
 		while (rs.next()) {
@@ -160,22 +150,19 @@ public class ProbeIndexerSQL extends Indexer {
 			Integer markerKey = rs.getInt("marker_key");
 			i++;
 
-			ProbeMarker marker = new ProbeMarker();
+			MolecularProbeMarker marker = new MolecularProbeMarker();
 			marker.setSymbol(rs.getString("symbol"));
 			marker.setPrimaryID(markerID);
 			if ("P".equals(qualifier)) {
 				marker.setIsPutative(true);
 			}
-			if (chromosomes.containsKey(markerKey)) {
-				marker.setChromosome(chromosomes.get(markerKey));
-			}
-			if (offsets.containsKey(markerKey)) {
-				marker.setOffset(offsets.get(markerKey));
+			if (locations.containsKey(markerKey)) {
+				marker.setLocation(locations.get(markerKey));
 			}
 			
 			// any markers associated with the probe go into the cache of markers for display
 			if (!markerCache.containsKey(probeKey)) {
-				markerCache.put(probeKey, new ArrayList<ProbeMarker>());
+				markerCache.put(probeKey, new ArrayList<MolecularProbeMarker>());
 			}
 			markerCache.get(probeKey).add(marker);
 			
@@ -192,7 +179,7 @@ public class ProbeIndexerSQL extends Indexer {
 	/* retrieve the markers associated with the given probe for display purposes.  Assumes cacheMarkers() has
 	 * been called.
 	 */
-	private List<ProbeMarker> getMarkers(int probeKey) throws Exception {
+	private List<MolecularProbeMarker> getMarkers(int probeKey) throws Exception {
 		if (markerCache.containsKey(probeKey)) {
 			return markerCache.get(probeKey);
 		}
@@ -275,7 +262,7 @@ public class ProbeIndexerSQL extends Indexer {
 
 			// start building the object that we will store as JSON in the probe field
 			// of the index
-			Probe probe = new Probe();
+			MolecularProbe probe = new MolecularProbe();
 			probe.setName(rs.getString("name"));
 			probe.setPrimaryID(rs.getString("primary_id"));
 			probe.setSegmentType(rs.getString("segment_type"));
@@ -285,10 +272,10 @@ public class ProbeIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.PRB_KEY, probeKey);
 			doc.addField(IndexConstants.PRB_BY_NAME, rs.getInt("by_name"));
 			doc.addField(IndexConstants.PRB_BY_TYPE, rs.getInt("by_type"));
-			doc.addField(IndexConstants.PRB_SEGEMENT_TYPE, getSearchableSegmentType(rs.getString("segment_type")));
+			doc.addField(IndexConstants.PRB_SEGMENT_TYPE, getSearchableSegmentType(rs.getString("segment_type")));
 			
 			// if probe has associated markers, add them to the probe object
-			List<ProbeMarker> markers = getMarkers(probeKey);
+			List<MolecularProbeMarker> markers = getMarkers(probeKey);
 			if (markers != null) {
 				probe.setMarkers(markers);
 			}
