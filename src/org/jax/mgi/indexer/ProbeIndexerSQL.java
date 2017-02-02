@@ -98,14 +98,15 @@ public class ProbeIndexerSQL extends Indexer {
 	private void cacheMarkers() throws Exception {
 		logger.info("caching marker locations");
 		
-		// ordered by marker key then location type to prefer centimorgans to coordinates to cytogenetic
-		String cmd1 = "select distinct ml.marker_key, ml.chromosome, ml.cm_offset, ml.location_type "
+		// ordered to prefer centimorgans to cytogenetic band to coordinates
+		String cmd1 = "select distinct ml.marker_key, ml.chromosome, ml.cm_offset, "
+			+ "  ml.cytogenetic_offset, ml.start_coordinate "
 			+ "from marker_to_probe p, marker_location ml, marker m "
 			+ "where p.marker_key = m.marker_key "
 			+ "  and m.organism = 'mouse' "
 			+ "  and m.status = 'official' "
 			+ "  and m.marker_key = ml.marker_key "
-			+ "order by ml.marker_key, ml.location_type";
+			+ "order by ml.marker_key, ml.cm_offset, ml.cytogenetic_offset, ml.start_coordinate";
 		
 		Map<Integer,String> locations = new HashMap<Integer,String>();
 		DecimalFormat formatter = new DecimalFormat("#.00", DecimalFormatSymbols.getInstance(Locale.US));
@@ -118,8 +119,16 @@ public class ProbeIndexerSQL extends Indexer {
 				String chromosome = rs1.getString("chromosome");
 				Double cmOffset = rs1.getDouble("cm_offset");
 
+				// if cM offset, show it
+				// else if cytogenetic band, show it
+				// else just show chromosome
 				if ((cmOffset == null) || (cmOffset <= 0.0)) {
-					locations.put(markerKey, chromosome);
+					String cytoband = rs1.getString("cytogenetic_offset");
+					if ((cytoband != null) && (cytoband.length() > 0)) {
+						locations.put(markerKey, chromosome + " (" + cytoband + ")");
+					} else {
+						locations.put(markerKey, chromosome);
+					}
 				} else {
 					locations.put(markerKey, chromosome + " (" + formatter.format(cmOffset) + " cM)");
 				}
