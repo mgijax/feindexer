@@ -16,7 +16,7 @@
         
         <appender name="ASYNC" class="org.apache.log4j.AsyncAppender">
                 <appender-ref ref="CONSOLE"/>
-                <appender-ref ref="FILE"/>
+                <!-- <appender-ref ref="FILE"/> -->
         </appender>
 
        <!--  <appender name="FILE" class="org.apache.log4j.RollingFileAppender">
