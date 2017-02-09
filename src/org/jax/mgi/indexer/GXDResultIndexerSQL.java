@@ -36,32 +36,25 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * each of which is a high-level EMAPA term (a high-levevl ancestor of
 	 * the structure noted in the result
 	 */
-	private Map<String, List<String>> getAnatomicalSystemMap()
-			throws Exception {
+	private Map<String, List<String>> getAnatomicalSystemMap() throws Exception {
 		logger.info ("building map of high-level EMAPA terms");
 
-		Map<String, List<String>> systemMap =
-				new HashMap<String, List<String>>();
+		Map<String, List<String>> systemMap = new HashMap<String, List<String>>();
 
-		String systemQuery = "select result_key, anatomical_system, "
-				+ "emapa_id "
-				+ "from expression_result_anatomical_systems";
+		String systemQuery = "select result_key, anatomical_system, emapa_id from expression_result_anatomical_systems";
 
 		ResultSet rs = ex.executeProto(systemQuery);
 
 		while (rs.next()) {
 			String resultKey = rs.getString("result_key");
-			String system = rs.getString("anatomical_system")
-					+ "_" + rs.getString("emapa_id");
+			String system = rs.getString("anatomical_system") + "_" + rs.getString("emapa_id");
 
 			if (!systemMap.containsKey(resultKey)) {
-				systemMap.put(resultKey,
-						new ArrayList<String>());
+				systemMap.put(resultKey, new ArrayList<String>());
 			}
 			systemMap.get(resultKey).add(system);
 		}
-		logger.info(" - gathered EMAPA terms for "
-				+ systemMap.size() + " results");
+		logger.info(" - gathered EMAPA terms for " + systemMap.size() + " results");
 
 		return systemMap;
 	}
@@ -94,8 +87,7 @@ public class GXDResultIndexerSQL extends Indexer {
 			}
 			markerNomenMap.get(mkey).add(term);
 		}
-		logger.info(" - gathered synonyms for " + markerNomenMap.size()
-				+ " markers");
+		logger.info(" - gathered synonyms for " + markerNomenMap.size() + " markers");
 
 		return markerNomenMap;
 	}
@@ -135,8 +127,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * marker key : { "symbol" : symbol, "name" : name } } } The mapping only
 	 * includes genotypes tied to expression results.
 	 */
-	private Map<String, Map<String, Map<String, String>>> getMutatedInMap()
-			throws Exception {
+	private Map<String, Map<String, Map<String, String>>> getMutatedInMap() throws Exception {
 
 		// maps from genotype key (as a String) to a map of marker data like:
 		// { marker key : { "symbol" : symbol,
@@ -188,8 +179,7 @@ public class GXDResultIndexerSQL extends Indexer {
 			mutatedInMap.get(gkey).get(mkey).put("symbol", symbol);
 			mutatedInMap.get(gkey).get(mkey).put("name", name);
 		}
-		logger.info(" - gathered markers for " + mutatedInMap.size()
-				+ " genotypes");
+		logger.info(" - gathered markers for " + mutatedInMap.size() + " genotypes");
 
 		return mutatedInMap;
 	}
@@ -372,8 +362,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * we find each 'key'. 'msg' specifies the type of items we are gathering,
 	 * only used for debugging output.
 	 */
-	private Map<String, List<String>> getMap(String query, String key,
-			String value1, String value2, String msg) throws Exception {
+	private Map<String, List<String>> getMap(String query, String key, String value1, String value2, String msg) throws Exception {
 
 		Map<String, List<String>> structureAncestorMap = new HashMap<String, List<String>>();
 
@@ -416,8 +405,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		// mapping from result key to List of high-level EMAPA
 		// structures for each result
-		Map<String, List<String>> systemMap =
-				getAnatomicalSystemMap();
+		Map<String, List<String>> systemMap = getAnatomicalSystemMap();
 
 		// mapping from marker key to List of synonyms for each marker
 		Map<String, List<String>> markerNomenMap = getMarkerNomenMap();
@@ -462,14 +450,12 @@ public class GXDResultIndexerSQL extends Indexer {
 		// find the maximum result key, so we have an upper bound when
 		// stepping through chunks of results
 
-		ResultSet rs_tmp = ex
-				.executeProto("select max(result_key) as max_result_key "
-						+ "from expression_result_summary");
+		ResultSet rs_tmp = ex.executeProto("select max(result_key) as max_result_key from expression_result_summary");
 		rs_tmp.next();
 
 		Integer start = 0;
 		Integer end = rs_tmp.getInt("max_result_key");
-		int chunkSize = 5000;
+		int chunkSize = 100000;
 
 		// While it appears that modValue could be one iteration too low (due
 		// to rounding down), this is accounted for by using <= in the loop.
@@ -481,6 +467,8 @@ public class GXDResultIndexerSQL extends Indexer {
 		logger.info("Getting all assay results and related search criteria");
 		logger.info("Max result_key: " + end + ", chunks: " + (modValue + 1));
 
+		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
+		
 		for (int i = 0; i <= modValue; i++) {
 
 			start = i * chunkSize;
@@ -541,8 +529,6 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  and ers.result_key <= " + end + " ";
 
 			ResultSet rs = ex.executeProto(query);
-
-			Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 			while (rs.next()) {
 				String markerKey = rs.getString("marker_key");
@@ -631,13 +617,10 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.ASSAY_TYPE, assay_type);
 				doc.addField(GxdResultFields.THEILER_STAGE, theilerStage);
 				doc.addField(GxdResultFields.IS_EXPRESSED, isExpressed);
-				doc.addField(GxdResultFields.AGE_MIN,
-						roundAge(rs.getString("age_min")));
-				doc.addField(GxdResultFields.AGE_MAX,
-						roundAge(rs.getString("age_max")));
+				doc.addField(GxdResultFields.AGE_MIN, roundAge(rs.getString("age_min")));
+				doc.addField(GxdResultFields.AGE_MAX, roundAge(rs.getString("age_max")));
 
-				boolean isWildType = rs.getString("is_wild_type").equals("1")
-						|| rs.getString("genotype_key").equals("-1");
+				boolean isWildType = rs.getString("is_wild_type").equals("1") || rs.getString("genotype_key").equals("-1");
 
 				String wildType = "mutant";
 				if (isWildType) {
@@ -671,8 +654,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.CENTIMORGAN, cm_offset);
 
 				// assay summary
-				doc.addField(GxdResultFields.ASSAY_HAS_IMAGE,
-						a_has_image.equals("1"));
+				doc.addField(GxdResultFields.ASSAY_HAS_IMAGE, a_has_image.equals("1"));
 				doc.addField(GxdResultFields.PROBE_KEY, a_probe_key);
 				doc.addField(GxdResultFields.ANTIBODY_KEY, a_antibody_key);
 
@@ -681,14 +663,12 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.A_BY_ASSAY_TYPE, a_by_assay_type);
 
 				// result summary
-				doc.addField(GxdResultFields.DETECTION_LEVEL,
-						mapDetectionLevel(detection_level));
+				doc.addField(GxdResultFields.DETECTION_LEVEL, mapDetectionLevel(detection_level));
 				doc.addField(GxdResultFields.STRUCTURE_PRINTNAME, printname);
 				doc.addField(GxdResultFields.AGE, age);
 				doc.addField(GxdResultFields.ASSAY_MGIID, assay_id);
 				doc.addField(GxdResultFields.JNUM, jnum);
-				doc.addField(GxdResultFields.PUBMED_ID,
-						rs.getString("pubmed_id"));
+				doc.addField(GxdResultFields.PUBMED_ID, rs.getString("pubmed_id"));
 				doc.addField(GxdResultFields.SHORT_CITATION, mini_citation);
 				doc.addField(GxdResultFields.GENOTYPE, genotype);
 				doc.addField(GxdResultFields.PATTERN, rs.getString("pattern"));
@@ -699,6 +679,7 @@ public class GXDResultIndexerSQL extends Indexer {
 					for (String system : systemMap.get(result_key)) {
 						doc.addField(GxdResultFields.ANATOMICAL_SYSTEM, system);
 					}
+					systemMap.remove(result_key);
 				}
 
 				if (markerNomenMap.containsKey(markerKey)) {
@@ -709,29 +690,22 @@ public class GXDResultIndexerSQL extends Indexer {
 
 				String genotype_key = rs.getString("genotype_key");
 				if (mutatedInMap.containsKey(genotype_key)) {
-					Map<String, Map<String, String>> gMap = mutatedInMap
-							.get(genotype_key);
+					Map<String, Map<String, String>> gMap = mutatedInMap.get(genotype_key);
 					for (String genotype_marker_key : gMap.keySet()) {
-						doc.addField(GxdResultFields.MUTATED_IN,
-								gMap.get(genotype_marker_key).get("symbol"));
-						doc.addField(GxdResultFields.MUTATED_IN,
-								gMap.get(genotype_marker_key).get("name"));
+						doc.addField(GxdResultFields.MUTATED_IN, gMap.get(genotype_marker_key).get("symbol"));
+						doc.addField(GxdResultFields.MUTATED_IN, gMap.get(genotype_marker_key).get("name"));
 
 						// get any synonyms
 						if (markerNomenMap.containsKey(genotype_marker_key)) {
-							for (String synonym : markerNomenMap
-									.get(genotype_marker_key)) {
-
-								doc.addField(GxdResultFields.MUTATED_IN,
-										synonym);
+							for (String synonym : markerNomenMap.get(genotype_marker_key)) {
+								doc.addField(GxdResultFields.MUTATED_IN, synonym);
 							}
 						}
 					}
 				}
 
 				if (mutatedInAlleleMap.containsKey(genotype_key)) {
-					List<String> alleleIds = mutatedInAlleleMap
-							.get(genotype_key);
+					List<String> alleleIds = mutatedInAlleleMap.get(genotype_key);
 
 					for (String alleleId : alleleIds) {
 						doc.addField(GxdResultFields.ALLELE_ID, alleleId);
@@ -745,9 +719,7 @@ public class GXDResultIndexerSQL extends Indexer {
 					for (String termId : markerVocabMap.get(markerKey)) {
 						uniqueAnnotationIDs.add(termId);
 						if (vocabAncestorMap.containsKey(termId)) {
-							for (String ancestorId : vocabAncestorMap
-									.get(termId)) {
-
+							for (String ancestorId : vocabAncestorMap.get(termId)) {
 								uniqueAnnotationIDs.add(ancestorId);
 							}
 						}
@@ -766,6 +738,7 @@ public class GXDResultIndexerSQL extends Indexer {
 							doc.addField(GxdResultFields.FIGURE_PLAIN, figure);
 						}
 					}
+					imageMap.remove(result_key);
 				}
 
 				String structureID = rs.getString("structure_id");
@@ -778,20 +751,16 @@ public class GXDResultIndexerSQL extends Indexer {
 
 				if (structureAncestorIdMap.containsKey(structureTermKey)) {
 					// get ancestors
-					List<String> structure_ancestor_ids = structureAncestorIdMap
-							.get(structureTermKey);
+					List<String> structure_ancestor_ids = structureAncestorIdMap.get(structureTermKey);
 
 					for (String structure_ancestor_id : structure_ancestor_ids) {
 						// get synonyms for each ancestor/term
 
-						if (structureSynonymMap
-								.containsKey(structure_ancestor_id)) {
+						if (structureSynonymMap.containsKey(structure_ancestor_id)) {
 
 							// also add structure MGI ID
 							ancestorIDs.add(structure_ancestor_id);
-							for (String structureSynonym : structureSynonymMap
-									.get(structure_ancestor_id)) {
-
+							for (String structureSynonym : structureSynonymMap.get(structure_ancestor_id)) {
 								ancestorStructures.add(structureSynonym);
 							}
 						}
@@ -803,8 +772,7 @@ public class GXDResultIndexerSQL extends Indexer {
 						doc.addField(GxdResultFields.STRUCTURE_ID, ancestorId);
 					}
 					for (String ancestorStructure : ancestorStructures) {
-						doc.addField(GxdResultFields.STRUCTURE_ANCESTORS,
-								ancestorStructure);
+						doc.addField(GxdResultFields.STRUCTURE_ANCESTORS, ancestorStructure);
 					}
 				}
 
@@ -813,14 +781,11 @@ public class GXDResultIndexerSQL extends Indexer {
 
 				Set<String> structureKeys = new HashSet<String>();
 				structureKeys.add(mgd_structure_key);
-				doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY,
-						mgd_structure_key);
+				doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
 
 				if (structureAncestorKeyMap.containsKey(structureTermKey)) {
 					// get ancestors by key as well (for links from AD browser)
-					for (String structureAncestorKey : structureAncestorKeyMap
-							.get(structureTermKey)) {
-
+					for (String structureAncestorKey : structureAncestorKeyMap.get(structureTermKey)) {
 						structureKeys.add(structureAncestorKey);
 					}
 				}
@@ -835,45 +800,32 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.R_BY_AGE, r_by_age);
 				doc.addField(GxdResultFields.R_BY_STRUCTURE, r_by_structure);
 				doc.addField(GxdResultFields.R_BY_EXPRESSED, r_by_expressed);
-				doc.addField(GxdResultFields.R_BY_MUTANT_ALLELES,
-						r_by_mutant_alleles);
+				doc.addField(GxdResultFields.R_BY_MUTANT_ALLELES, r_by_mutant_alleles);
 				doc.addField(GxdResultFields.R_BY_REFERENCE, r_by_reference);
 
 				// add matrix grouping fields
-				String stageMatrixGroup = StringUtils.join(
-						Arrays.asList(emapaID, isExpressed, theilerStage), "_");
-				doc.addField(GxdResultFields.STAGE_MATRIX_GROUP,
-						stageMatrixGroup);
+				String stageMatrixGroup = StringUtils.join(Arrays.asList(emapaID, isExpressed, theilerStage), "_");
+				doc.addField(GxdResultFields.STAGE_MATRIX_GROUP, stageMatrixGroup);
 
-				String geneMatrixGroup = StringUtils.join(Arrays.asList(
-						emapaID, isExpressed, markerKey, theilerStage), "_");
+				String geneMatrixGroup = StringUtils.join(Arrays.asList(emapaID, isExpressed, markerKey, theilerStage), "_");
 				doc.addField(GxdResultFields.GENE_MATRIX_GROUP, geneMatrixGroup);
 
 				docs.add(doc);
-				if (docs.size() > 1000) {
-					startTime();
+				if (docs.size() > 5000) {
 					writeDocs(docs);
-
-					long endTime = stopTime();
-					if (endTime > 500) {
-						logger.info("time to call writeDocs() " + stopTime());
-					}
-
 					docs = new ArrayList<SolrInputDocument>();
 				}
 			} // while loop (stepping through rows for this chunk)
 
-			// add and commit
-			writeDocs(docs);
-			commit();
-
 		} // for loop (stepping through chunks)
+		
+		writeDocs(docs);
+		commit();
 	}
 
 	// maps detection level to currently approved display text.
 	public String mapDetectionLevel(String level) {
-		List<String> detectedYesLevels = Arrays.asList("Present", "Trace",
-				"Weak", "Moderate", "Strong", "Very strong");
+		List<String> detectedYesLevels = Arrays.asList("Present", "Trace", "Weak", "Moderate", "Strong", "Very strong");
 		if (level.equals("Absent"))
 			return "No";
 		else if (detectedYesLevels.contains(level))
