@@ -12,6 +12,7 @@ import java.util.Set;
 
 import org.apache.commons.lang.StringUtils;
 import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.util.Hash;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
@@ -38,7 +39,10 @@ public class GXDResultIndexerSQL extends Indexer {
 	 */
 	private Map<String, List<String>> getAnatomicalSystemMap() throws Exception {
 		logger.info ("building map of high-level EMAPA terms");
-
+		
+		// Using this allTermBuffer cuts memory usage by about 50%
+		HashMap<String, String> allTermBuffer = new HashMap<String, String>();
+		
 		Map<String, List<String>> systemMap = new HashMap<String, List<String>>();
 
 		String systemQuery = "select result_key, anatomical_system, emapa_id from expression_result_anatomical_systems";
@@ -52,10 +56,13 @@ public class GXDResultIndexerSQL extends Indexer {
 			if (!systemMap.containsKey(resultKey)) {
 				systemMap.put(resultKey, new ArrayList<String>());
 			}
-			systemMap.get(resultKey).add(system);
+			if(!allTermBuffer.containsKey(system)) {
+				allTermBuffer.put(system, system);
+			}
+			systemMap.get(resultKey).add(allTermBuffer.get(system));
 		}
 		logger.info(" - gathered EMAPA terms for " + systemMap.size() + " results");
-
+		allTermBuffer.clear();
 		return systemMap;
 	}
 
@@ -232,6 +239,9 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * List of IDs.
 	 */
 	private Map<String, List<String>> getMarkerVocabMap() throws Exception {
+		
+		HashMap<String, String> allTermIdBuffer = new HashMap<String, String>();
+		
 		Map<String, List<String>> markerVocabMap = new HashMap<String, List<String>>();
 
 		logger.info("building map of vocabulary annotations");
@@ -248,7 +258,10 @@ public class GXDResultIndexerSQL extends Indexer {
 			if (!markerVocabMap.containsKey(mkey)) {
 				markerVocabMap.put(mkey, new ArrayList<String>());
 			}
-			markerVocabMap.get(mkey).add(termId);
+			if(!allTermIdBuffer.containsKey(termId)) {
+				allTermIdBuffer.put(termId, termId);
+			}
+			markerVocabMap.get(mkey).add(allTermIdBuffer.get(termId));
 		}
 		logger.info(" - gathered annotated terms for " + markerVocabMap.size() + " markers");
 
@@ -263,17 +276,19 @@ public class GXDResultIndexerSQL extends Indexer {
 			termId = rs2.getString("term_id");
 
 			if (!markerVocabMap.containsKey(mkey)) {
-				markerVocabMap.put(mkey,
-						new ArrayList<String>());
+				markerVocabMap.put(mkey, new ArrayList<String>());
+			}
+			if(!allTermIdBuffer.containsKey(termId)) {
+				allTermIdBuffer.put(termId, termId);
 			}
 			if (!markerVocabMap.get(mkey).contains(termId)) {
-				markerVocabMap.get(mkey).add(termId);
+				markerVocabMap.get(mkey).add(allTermIdBuffer.get(termId));
 				i++;
 			}
 		}
 
 		logger.info(" - added " + i + " annotations to DO via homology");
-
+		allTermIdBuffer.clear();
 		return markerVocabMap;
 	}
 
@@ -282,6 +297,9 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * for terms in non-anatomy vocabularies which are annotated to markers.
 	 */
 	private Map<String, List<String>> getVocabAncestorMap() throws Exception {
+		
+		HashMap<String, String> allAncestorBuffer = new HashMap<String, String>();
+		
 		Map<String, List<String>> vocabAncestorMap = new HashMap<String, List<String>>();
 
 		logger.info("building map of vocabulary term ancestors");
@@ -299,11 +317,13 @@ public class GXDResultIndexerSQL extends Indexer {
 			if (!vocabAncestorMap.containsKey(termId)) {
 				vocabAncestorMap.put(termId, new ArrayList<String>());
 			}
-			vocabAncestorMap.get(termId).add(ancestorId);
+			if(!allAncestorBuffer.containsKey(ancestorId)) {
+				allAncestorBuffer.put(ancestorId, ancestorId);
+			}
+			vocabAncestorMap.get(termId).add(allAncestorBuffer.get(ancestorId));
 		}
-		logger.info(" - gathered ancestor IDs for " + vocabAncestorMap.size()
-				+ " terms");
-
+		logger.info(" - gathered ancestor IDs for " + vocabAncestorMap.size() + " terms");
+		allAncestorBuffer.clear();
 		return vocabAncestorMap;
 	}
 
@@ -312,6 +332,9 @@ public class GXDResultIndexerSQL extends Indexer {
 	 * figure labels for that result.
 	 */
 	private Map<String, List<String>> getImageMap() throws Exception {
+		
+		HashMap<String, String> allLabelsBuffer = new HashMap<String, String>();
+		
 		Map<String, List<String>> imageMap = new HashMap<String, List<String>>();
 
 		logger.info("building map of expression images");
@@ -346,12 +369,14 @@ public class GXDResultIndexerSQL extends Indexer {
 				if (!imageMap.containsKey(rkey)) {
 					imageMap.put(rkey, new ArrayList<String>());
 				}
-				imageMap.get(rkey).add(label);
+				if(!allLabelsBuffer.containsKey(label)) {
+					allLabelsBuffer.put(label, label);
+				}
+				imageMap.get(rkey).add(allLabelsBuffer.get(label));
 			}
 		}
-		logger.info(" - gathered figure labels for " + imageMap.size()
-				+ " results");
-
+		logger.info(" - gathered figure labels for " + imageMap.size() + " results");
+		allLabelsBuffer.clear();
 		return imageMap;
 	}
 
@@ -364,6 +389,8 @@ public class GXDResultIndexerSQL extends Indexer {
 	 */
 	private Map<String, List<String>> getMap(String query, String key, String value1, String value2, String msg) throws Exception {
 
+		HashMap<String, String> allValuesBuffer = new HashMap<String, String>();
+		
 		Map<String, List<String>> structureAncestorMap = new HashMap<String, List<String>>();
 
 		logger.info("building map of " + msg + " for structures");
@@ -372,27 +399,35 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		String sKey; // value of structure key
 		String sValue1; // primary value to collect
+		String sValue2; // primary value to collect
 
 		while (rs.next()) {
 			sKey = rs.getString(key);
 			sValue1 = rs.getString(value1);
 
+			if(!allValuesBuffer.containsKey(sValue1)) {
+				allValuesBuffer.put(sValue1, sValue1);
+			}
+			
 			if (!structureAncestorMap.containsKey(sKey)) {
 				structureAncestorMap.put(sKey, new ArrayList<String>());
 
 				// add value2 the first time this key is found, if defined
 				if (value2 != null) {
-					structureAncestorMap.get(sKey).add(rs.getString(value2));
+					sValue2 = rs.getString(value2);
+					if(!allValuesBuffer.containsKey(sValue2)) {
+						allValuesBuffer.put(sValue2, sValue2);
+					}
+					structureAncestorMap.get(sKey).add(allValuesBuffer.get(sValue2));
 				}
 			}
 
 			if ((sValue1 != null) && (!sValue1.equals(""))) {
-				structureAncestorMap.get(sKey).add(sValue1);
+				structureAncestorMap.get(sKey).add(allValuesBuffer.get(sValue1));
 			}
 		}
-		logger.info(" - gathered " + msg + " for "
-				+ structureAncestorMap.size() + " terms");
-
+		logger.info(" - gathered " + msg + " for " + structureAncestorMap.size() + " terms");
+		allValuesBuffer.clear();
 		return structureAncestorMap;
 	}
 
@@ -412,7 +447,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		// mapping from marker key to its cM location, if available
 		Map<String, String> centimorganMap = getCentimorganMap();
-
+		
 		// get markers mutated in each genotype
 		Map<String, Map<String, Map<String, String>>> mutatedInMap = getMutatedInMap();
 
@@ -430,18 +465,15 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		// get List of ancestor IDs for each structure
 		Map<String, List<String>> structureAncestorIdMap = getMap(
-				SharedQueries.GXD_EMAP_ANCESTOR_QUERY, "structure_term_key",
-				"ancestor_id", "structure_id", "IDs");
+				SharedQueries.GXD_EMAP_ANCESTOR_QUERY, "structure_term_key", "ancestor_id", "structure_id", "IDs");
 
 		// get List of ancestor keys for each structure
 		Map<String, List<String>> structureAncestorKeyMap = getMap(
-				SharedQueries.GXD_EMAP_ANCESTOR_QUERY, "structure_term_key",
-				"default_parent_key", null, "keys");
+				SharedQueries.GXD_EMAP_ANCESTOR_QUERY, "structure_term_key", "default_parent_key", null, "keys");
 
 		// get List of synonyms for each structure
 		Map<String, List<String>> structureSynonymMap = getMap(
-				SharedQueries.GXD_EMAP_SYNONYMS_QUERY, "structure_id",
-				"synonym", "structure", "synonyms");
+				SharedQueries.GXD_EMAP_SYNONYMS_QUERY, "structure_id", "synonym", "structure", "synonyms");
 
 		// -------------------------------------------------------------------
 		// Finally finished gathering mappings, time for the main body of work
@@ -455,7 +487,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = rs_tmp.getInt("max_result_key");
-		int chunkSize = 100000;
+		int chunkSize = 50000;
 
 		// While it appears that modValue could be one iteration too low (due
 		// to rounding down), this is accounted for by using <= in the loop.
@@ -811,12 +843,14 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.GENE_MATRIX_GROUP, geneMatrixGroup);
 
 				docs.add(doc);
-				if (docs.size() > 5000) {
+				if (docs.size() > 1000) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
 				}
 			} // while loop (stepping through rows for this chunk)
 
+			if(memoryPercent() > .80) { printMemory(); commit(); }
+			
 		} // for loop (stepping through chunks)
 		
 		writeDocs(docs);
