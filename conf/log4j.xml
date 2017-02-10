@@ -8,13 +8,8 @@
 		</layout>
 	</appender>
 
-		<logger name="org.jax.mgi" additivity="false">
-		<level value="info"/>
-		<appender-ref ref="CONSOLE" />
-	</logger>
-	
 	<appender name="ASYNC" class="org.apache.log4j.AsyncAppender">
-		<appender-ref ref="CONSOLE"/>
+		<!-- <appender-ref ref="CONSOLE"/> -->
 		<appender-ref ref="FILE"/>
 	</appender>
 
