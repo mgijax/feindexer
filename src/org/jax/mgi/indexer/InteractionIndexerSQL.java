@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -36,10 +37,9 @@ public class InteractionIndexerSQL extends Indexer {
 		// 'interacts_with' relationships:  score, mature transcript, and
 		// notes.
 
-		String propSQL = "select mi_key, value, sequence_num "
+		String propSQL = "select name, mi_key, value, sequence_num "
 				+ "from marker_interaction_property "
-				+ "where name = '<NAME>' "
-				+ "  and mi_key > <START_KEY> "
+				+ "where mi_key > <START_KEY> "
 				+ "  and mi_key <= <END_KEY> "
 				+ "order by sequence_num";
 
@@ -70,7 +70,7 @@ public class InteractionIndexerSQL extends Indexer {
 
 		// iterate through chunks
 
-		int chunkSize = 100000;
+		int chunkSize = 250000;
 		int startKey = 0;
 		int endKey = startKey + chunkSize;
 
@@ -78,17 +78,19 @@ public class InteractionIndexerSQL extends Indexer {
 			logger.info ("Processing mi keys " + startKey + " to " + endKey);
 
 			// gather our sets of optional properties for this chunk
+			
+			HashMap<String, HashMap<String, List<String>>> allHashes = makeHashes(propSQL.replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)), "name", "mi_key", "value");
 
-			HashMap<String, HashSet<String>> miToScore =                makeHash(propSQL.replace("<NAME>", "score")                 .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToSource =               makeHash(propSQL.replace("<NAME>", "data_source")           .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToValidation =           makeHash(propSQL.replace("<NAME>", "validation")            .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToTranscript =           makeHash(propSQL.replace("<NAME>", "mature_transcript")     .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToNotes =                makeHash(propSQL.replace("<NAME>", "note")                  .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
+			HashMap<String, List<String>> miToScore =                getHash(allHashes, "score");
+			HashMap<String, List<String>> miToSource =               getHash(allHashes, "data_source");
+			HashMap<String, List<String>> miToValidation =           getHash(allHashes, "validation");
+			HashMap<String, List<String>> miToTranscript =           getHash(allHashes, "mature_transcript");
+			HashMap<String, List<String>> miToNotes =                getHash(allHashes, "note");
 
-			HashMap<String, HashSet<String>> miToAlgorithm =            makeHash(propSQL.replace("<NAME>", "algorithm")             .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToParticipantProductID = makeHash(propSQL.replace("<NAME>", "participant_product_ID").replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToOrganizerProductID =   makeHash(propSQL.replace("<NAME>", "organizer_product_ID")  .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
-			HashMap<String, HashSet<String>> miToOtherReferences =      makeHash(propSQL.replace("<NAME>", "other_refs")            .replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)),"mi_key", "value");
+			HashMap<String, List<String>> miToAlgorithm =            getHash(allHashes, "algorithm");
+			HashMap<String, List<String>> miToParticipantProductID = getHash(allHashes, "participant_product_ID");
+			HashMap<String, List<String>> miToOrganizerProductID =   getHash(allHashes, "organizer_product_ID");
+			HashMap<String, List<String>> miToOtherReferences =      getHash(allHashes, "other_refs");
 
 			// gather our basic interacts_with relationships for this chunk
 			ResultSet rs = ex.executeProto (basicSQL.replace("<START_KEY>", Integer.toString(startKey)).replace("<END_KEY>", Integer.toString(endKey)) );
@@ -244,7 +246,7 @@ public class InteractionIndexerSQL extends Indexer {
 				// keep memory requirements down by writing to Solr every
 				// 20k documents
 
-				if (docs.size() > 20000) {
+				if (docs.size() > 50000) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
 				}
@@ -262,4 +264,56 @@ public class InteractionIndexerSQL extends Indexer {
 		commit();
 		logger.info("Done");
 	}
+
+	private HashMap<String, List<String>> getHash(HashMap<String, HashMap<String, List<String>>> allHashes, String key) {
+		if(!allHashes.containsKey(key)) {
+			allHashes.put(key, new HashMap<String, List<String>>());
+		}
+		return allHashes.get(key);
+	}
+
+	private HashMap<String, HashMap<String, List<String>>> makeHashes(String sql, String hashKeyString, String keyString, String valueString) {
+		HashMap<String, String> allValues = new HashMap<String, String>();
+		
+		HashMap<String, HashMap<String, List<String>>> tempHashMap = new HashMap<String, HashMap<String, List<String>>> ();
+		HashMap<String, List<String>> tempMap;
+		
+		try {
+			ResultSet rs = ex.executeProto(sql);
+			
+			String hashKey = null;
+			String key = null;
+			String value = null;
+
+			while (rs.next()) {
+				hashKey = rs.getString(hashKeyString);
+				key = rs.getString(keyString);
+				value = rs.getString(valueString);
+				
+				if(!tempHashMap.containsKey(hashKey)) {
+					tempHashMap.put(hashKey, new HashMap<String, List<String>>());
+				}
+				
+				tempMap = tempHashMap.get(hashKey);
+				
+				if(allValues.containsKey(value)) {
+					value = allValues.get(value);
+				} else {
+					allValues.put(value, value);
+				}
+				
+				if (tempMap.containsKey(key)) {
+					tempMap.get(key).add(value);
+				}
+				else {
+					ArrayList <String> temp = new ArrayList<String> ();
+					temp.add(value);
+					tempMap.put(key, temp);
+				}
+			}
+			allValues.clear();
+		} catch (Exception e) {e.printStackTrace();}
+		return tempHashMap;
+	}
+
 }
