@@ -246,24 +246,6 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		logger.info("done processing " + uniqueKey + " disease terms");
 	}
 
-	/* return the OMIM IDs for the given disease term (specified by DO ID)
-	 */
-	protected List<String> getDiseaseOmimIds(String termId) throws Exception {
-		List<String> omimIds = new ArrayList<String>();
-		
-
-		Set<String> altIds = getAlternateTermIds(termId);
-		for (String altId : altIds) {
-			if (altId.startsWith("OMIM:")) {
-				omimIds.add(altId);
-			}
-		}
-		
-		Collections.sort(omimIds);
-		
-		return omimIds;
-	}
-
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
