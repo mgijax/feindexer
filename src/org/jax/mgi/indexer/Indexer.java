@@ -175,7 +175,8 @@ public abstract class Indexer implements Runnable {
 	// The hashSet is simply a collection for our 1->N cases.
 	// This does not belong in this class. It's a straight up utility function
 	protected HashMap <String, HashSet <String>> makeHash(String sql, String keyString, String valueString) {
-
+		HashMap<String, String> allValues = new HashMap<String, String>();
+		
 		HashMap <String, HashSet <String>> tempMap = new HashMap <String, HashSet <String>> ();
 
 		try {
@@ -187,6 +188,13 @@ public abstract class Indexer implements Runnable {
 			while (rs.next()) {
 				key = rs.getString(keyString);
 				value = rs.getString(valueString);
+				
+				if(allValues.containsKey(value)) {
+					value = allValues.get(value);
+				} else {
+					allValues.put(value, value);
+				}
+				
 				if (tempMap.containsKey(key)) {
 					tempMap.get(key).add(value);
 				}
@@ -196,7 +204,9 @@ public abstract class Indexer implements Runnable {
 					tempMap.put(key, temp);
 				}
 			}
+			
 		} catch (Exception e) {e.printStackTrace();}
+		allValues.clear();
 		return tempMap;
 
 	}
