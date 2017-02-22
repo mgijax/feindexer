@@ -67,8 +67,8 @@ if [ $? -ne 0 ]; then
 	exit 1
 fi
 
-./buildAllIndexes >> ${DIAG_LOG} 2>>${BUILD_LOG}
+./buildIndexes all >> ${DIAG_LOG} 2>>${BUILD_LOG}
 if [ $? -ne 0 ]; then
-	echo "Error: buildAllIndexes script failed"
+	echo "Error: buildIndexes all script failed"
 	exit 1
 fi
