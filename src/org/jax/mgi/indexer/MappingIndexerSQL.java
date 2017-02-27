@@ -193,11 +193,13 @@ public class MappingIndexerSQL extends Indexer {
 		logger.info("loading mapping experiments");
 		
 		String cmd = "select e.experiment_key, e.primary_id, r.jnum_id, r.short_citation, "
-			+ "  e.experiment_type, e.chromosome "
+			+ "  e.experiment_type, e.chromosome, case "
+			+ "  when e.chromosome in ('1', '2', '3', '4', '5', '6', '7', '8', '9') then '0' || e.chromosome "
+			+ "  else e.chromosome end as sortable_chromosome "
 			+ "from mapping_experiment e, reference r, reference_sequence_num n "
 			+ "where e.reference_key = r.reference_key "
 			+ "  and r.reference_key = n.reference_key "
-			+ "order by e.experiment_type, n.by_author, r.short_citation";
+			+ "order by e.experiment_type, n.by_author, r.short_citation, sortable_chromosome";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished main experiment query in " + ex.getTimestamp());
