@@ -41,6 +41,7 @@ public class Main {
 
 		indexerMap.put("dagEdge", new DagEdgeIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
+		indexerMap.put("vocabBrowser", new VocabBrowserIndexerSQL());
 		
 		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
 		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
