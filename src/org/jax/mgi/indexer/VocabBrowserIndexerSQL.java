@@ -184,7 +184,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "inner join term_child c on (p.term_key = c.term_key) "
 			+ "left outer join term_default_parent d on (c.child_term_key = d.term_key) "
 			+ "where p.vocab_name like '" + vocabName + "' "
-			+ "order by 1, 5 desc, 4";
+			+ "order by 1, 4";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
