@@ -326,7 +326,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private void processTerms(String vocabName) throws Exception {
 		logger.info(" - loading terms for " + vocabName);
 		
-		String cmd = "select t.term_key, t.primary_id, t.term, t.definition, s.by_dfs, t.vocab_name, "
+		String cmd = "select t.term_key, t.primary_id, t.term, t.definition, s.by_default, t.vocab_name, "
 			+ "    case when t.vocab_name = 'GO' then t.display_vocab_name "
 			+ "    else null end as dag_name "
 			+ "from term t, term_sequence_num s "
@@ -349,7 +349,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.VB_PRIMARY_ID, rs.getString("primary_id"));
 			doc.addField(IndexConstants.VB_TERM, rs.getString("term"));
-			doc.addField(IndexConstants.VB_SEQUENCE_NUM, rs.getInt("by_dfs"));
+			doc.addField(IndexConstants.VB_SEQUENCE_NUM, rs.getInt("by_default"));
 			doc.addField(IndexConstants.VB_BROWSER_TERM, mapper.writeValueAsString(browserTerm));
 			doc.addField(IndexConstants.VB_VOCAB_NAME, rs.getString("vocab_name"));
 			if (dagName != null) {
