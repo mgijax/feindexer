@@ -22,8 +22,8 @@ import org.jax.mgi.shr.jsonmodel.BrowserTerm;
 import org.jax.mgi.shr.jsonmodel.MappingExperimentSummary;
 
 /* Is: an indexer that builds the index supporting the shared vocabulary browser (beginning with the 
- * 		[Adult] Mouse Anatomy vocabulary, but hopefully being extended to others).  Each document in the
- * 		index represents data for a single vocabulary term.
+ * 		[Adult] Mouse Anatomy vocabulary, now extended to the Mammalian Phenotype Ontology, and hopefully
+ * 		being extended to others).  Each document in the index represents data for a single vocabulary term.
  * Notes: The index is intended to support searches by accession ID, term, and synonym.  Details of the
  * 		terms are encapsulated in a JSON object in the browserTerm field.
  */
@@ -34,6 +34,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	/*--------------------------*/
 
 	private static String MA_VOCAB = "Adult Mouse Anatomy";		// name of the MA vocabulary
+	private static String MP_VOCAB = "Mammalian Phenotype";		// name of the MP vocabulary
 	
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -77,6 +78,27 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		if (MA_VOCAB.equals(vocabName)) {
 			return;							// no annotations for MA vocabulary
 		}
+		
+		if (MP_VOCAB.equals(vocabName)) {
+			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
+				+ "from term t, term_annotation_counts c "
+				+ "where t.term_key = c.term_key "
+				+ "and t.vocab_name = '" + MP_VOCAB + "'";
+
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next()) {
+				Integer termKey = rs.getInt("term_key");
+				String termID = rs.getString("primary_id");
+				Integer objectCount = rs.getInt("object_count_with_descendents");
+				Integer annotCount = rs.getInt("annot_count_with_descendents");
+
+				annotationCount.put(termKey, annotCount);
+				annotationUrl.put(termKey, "mp/annotations/" + termID);
+				annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
+			}
+		}
+
+		logger.info(" - cached annotations for " + annotationCount.size() + " terms");
 	}
 	
 	/* Cache accession IDs for the given vocabulary name, populating primaryIDs and allIDs objects.
@@ -413,6 +435,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	public void index() throws Exception {
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processVocabulary(MA_VOCAB);
+		processVocabulary(MP_VOCAB);
 		
 		// commit all the changes to Solr
 		commit();
