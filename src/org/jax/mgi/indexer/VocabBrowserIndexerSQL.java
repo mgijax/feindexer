@@ -83,6 +83,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
+				+ "and t.is_obsolete = 0 "
 				+ "and t.vocab_name = '" + MP_VOCAB + "'";
 
 			ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -115,6 +116,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "from term t, term_id i "
 			+ "where t.vocab_name = '" + vocabName + "' "
 			+ "and t.term_key = i.term_key "
+			+ "and t.is_obsolete = 0 "
 			+ "order by 1, 2";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -169,6 +171,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "from term t, term_synonym s "
 			+ "where t.vocab_name like '" + vocabName + "' "
 			+ "  and t.term_key = s.term_key "
+			+ "  and t.is_obsolete = 0 "
 			+ "order by 1, 2, 3";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -206,6 +209,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "inner join term_child c on (p.term_key = c.term_key) "
 			+ "left outer join term_default_parent d on (c.child_term_key = d.term_key) "
 			+ "where p.vocab_name like '" + vocabName + "' "
+			+ "  and p.is_obsolete = 0 "
 			+ "order by 1, 4";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -260,6 +264,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "inner join term_child c on (p.term_key = c.term_key) "
 			+ "left outer join child_counts cc on (c.child_term_key = cc.term_key) "
 			+ "where p.vocab_name like '" + vocabName + "' "
+			+ "  and p.is_obsolete = 0 "
 			+ "order by 1, 4";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -353,6 +358,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "    else null end as dag_name "
 			+ "from term t, term_sequence_num s "
 			+ "where t.vocab_name = '" + vocabName + "' "
+			+ "  and t.is_obsolete = 0 "
 			+ "  and t.term_key = s.term_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
