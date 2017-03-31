@@ -35,6 +35,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 
 	private static String MA_VOCAB = "Adult Mouse Anatomy";		// name of the MA vocabulary
 	private static String MP_VOCAB = "Mammalian Phenotype";		// name of the MP vocabulary
+	private static String GO_VOCAB = "GO";						// name of the GO vocabulary
 	
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -79,12 +80,12 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			return;							// no annotations for MA vocabulary
 		}
 		
-		if (MP_VOCAB.equals(vocabName)) {
+		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName)) {
 			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
 				+ "and t.is_obsolete = 0 "
-				+ "and t.vocab_name = '" + MP_VOCAB + "'";
+				+ "and t.vocab_name = '" + vocabName + "'";
 
 			ResultSet rs = ex.executeProto(cmd, cursorLimit);
 			while (rs.next()) {
@@ -94,8 +95,13 @@ public class VocabBrowserIndexerSQL extends Indexer {
 				Integer annotCount = rs.getInt("annot_count_with_descendents");
 
 				annotationCount.put(termKey, annotCount);
-				annotationUrl.put(termKey, "mp/annotations/" + termID);
-				annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
+				if (MP_VOCAB.equals(vocabName)) {
+					annotationUrl.put(termKey, "mp/annotations/" + termID);
+					annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
+				} else {
+					annotationUrl.put(termKey, "go/term/" + termID);
+					annotationLabel.put(termKey, objectCount + " genes, " + annotCount + " annotations");
+				}
 			}
 		}
 
@@ -442,6 +448,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processVocabulary(MA_VOCAB);
 		processVocabulary(MP_VOCAB);
+		processVocabulary(GO_VOCAB);
 		
 		// commit all the changes to Solr
 		commit();
