@@ -96,10 +96,18 @@ public class VocabBrowserIndexerSQL extends Indexer {
 
 				annotationCount.put(termKey, annotCount);
 				if (MP_VOCAB.equals(vocabName)) {
-					annotationUrl.put(termKey, "mp/annotations/" + termID);
+					if (annotCount > 0) {
+						annotationUrl.put(termKey, "mp/annotations/" + termID);
+					} else {
+						annotationUrl.put(termKey,  null);
+					}
 					annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
 				} else {
-					annotationUrl.put(termKey, "go/term/" + termID);
+					if (annotCount > 0) {
+						annotationUrl.put(termKey, "go/term/" + termID);
+					} else {
+						annotationUrl.put(termKey,  null);
+					}
 					annotationLabel.put(termKey, objectCount + " genes, " + annotCount + " annotations");
 				}
 			}
@@ -250,7 +258,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	}
 	
 	/* Cache children for terms in the given vocabulary, populating children object.
-	 * Assumes cacheIDs has been run for the current vocabulary.
+	 * Assumes cacheIDs and cacheAnnotations have been run for the current vocabulary.
 	 */
 	private void cacheChildren(String vocabName) throws Exception {
 		logger.info(" - caching children for " + vocabName);
@@ -289,6 +297,12 @@ public class VocabBrowserIndexerSQL extends Indexer {
 
 			BrowserChild child = new BrowserChild(childID.getAccID(), childID.getLogicalDB(), 
 				rs.getString("child_term"), rs.getString("edge_label"), rs.getInt("has_children"));
+
+			if (annotationCount.containsKey(childKey) && annotationLabel.containsKey(childKey) && annotationUrl.containsKey(childKey)) {
+				child.setAnnotationCount(annotationCount.get(childKey));
+				child.setAnnotationLabel(annotationLabel.get(childKey));
+				child.setAnnotationUrl(annotationUrl.get(childKey));
+			}
 
 			if (!children.containsKey(parentKey)) {
 				children.put(parentKey, new ArrayList<BrowserChild>());
@@ -344,8 +358,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			t.setChildren(children.get(termKey));
 		}
 		
-		if (annotationCount.containsKey(termKey) && (annotationCount.get(termKey) > 0)
-				&& annotationLabel.containsKey(termKey) && annotationUrl.containsKey(termKey)) {
+		if (annotationCount.containsKey(termKey) && annotationLabel.containsKey(termKey) && annotationUrl.containsKey(termKey)) {
 			t.setAnnotationCount(annotationCount.get(termKey));
 			t.setAnnotationLabel(annotationLabel.get(termKey));
 			t.setAnnotationUrl(annotationUrl.get(termKey));
@@ -432,8 +445,8 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		cacheIDs(vocabName);
 		cacheSynonyms(vocabName);
 		cacheParents(vocabName);
-		cacheChildren(vocabName);
 		cacheAnnotations(vocabName);
+		cacheChildren(vocabName);
 		processTerms(vocabName);
 		
 		logger.info("finished " + vocabName);
