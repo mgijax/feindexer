@@ -53,6 +53,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private Map<Integer,Integer> annotationCount;			// term key : count of annotations
 	private Map<Integer,String> annotationLabel;			// term key : label for annotation link
 	private Map<Integer,String> annotationUrl;				// term key : url for annotation link
+	private Map<Integer,String> comments;					// term key : comment field
 	
 	private ObjectMapper mapper = new ObjectMapper();				// converts objects to JSON
 
@@ -68,6 +69,28 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	/*--- private methods ---*/
 	/*-----------------------*/
 
+	/* cache comments for the given vocabulary name, populating the comments object
+	 */
+	private void cacheComments(String vocabName) throws Exception {
+		comments = new HashMap<Integer,String>();
+		logger.info(" - caching comments for " + vocabName);
+		
+		if (GO_VOCAB.equals(vocabName)) {
+			String cmd = "select n.term_key, n.note "
+				+ "from term t, term_note n "
+				+ "where t.term_key = n.term_key "
+				+ "and t.vocab_name = '" + vocabName + "' "
+				+ "and n.note is not null "
+				+ "and n.note_type = 'Comment'";
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next()) {
+				comments.put(rs.getInt("term_key"), rs.getString("note"));
+			}
+			rs.close();
+		}
+		logger.info(" - cached " + comments.size() + " comments");
+	}
+	
 	/* Cache annotation data for the given vocabulary name, populating annotationCount, annotationLabel,
 	 * and annotationUrl objects
 	 */
@@ -111,6 +134,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 					annotationLabel.put(termKey, objectCount + " genes, " + annotCount + " annotations");
 				}
 			}
+			rs.close();
 		}
 
 		logger.info(" - cached annotations for " + annotationCount.size() + " terms");
@@ -186,6 +210,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			+ "where t.vocab_name like '" + vocabName + "' "
 			+ "  and t.term_key = s.term_key "
 			+ "  and t.is_obsolete = 0 "
+			+ "  and s.synonym_type not in ('Synonym Type 1', 'Synonym Type 2') "
 			+ "order by 1, 2, 3";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -366,6 +391,19 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		return t;
 	}
 	
+	/* translate from a one-word abbreviation for a GO (Gene Ontology) DAG to its full name for display
+	 */
+	private String translateToFullOntology(String goAbbrev) {
+		if ("Component".equals(goAbbrev)) {
+			return "Cellular Component";
+		} else if ("Function".equals(goAbbrev)) {
+			return "Molecular Function";
+		} else if ("Process".equals(goAbbrev)) {
+			return "Biological Process";
+		}
+		return goAbbrev;
+	}
+	
 	/* Process the terms for the give vocabulary name, generating documents and sending them to Solr.
 	 * Assumes cacheIDs, cacheSynonyms, cacheParents, and cacheChilren have been run for this vocabulary.
 	 */
@@ -394,15 +432,22 @@ public class VocabBrowserIndexerSQL extends Indexer {
 
 			// start building the solr document 
 			SolrInputDocument doc = new SolrInputDocument();
+
+			if (dagName != null) {
+				doc.addField(IndexConstants.VB_DAG_NAME, dagName);			// for filtering by DAG
+				browserTerm.setDagName(translateToFullOntology(dagName));	// for display of DAG in term pane
+			}
+			
+			if (comments.containsKey(termKey)) {
+				browserTerm.setComment(comments.get(termKey));
+			}
+
 			doc.addField(IndexConstants.VB_PRIMARY_ID, rs.getString("primary_id"));
 			doc.addField(IndexConstants.VB_TERM, rs.getString("term"));
 			doc.addField(IndexConstants.VB_SEQUENCE_NUM, rs.getInt("by_default"));
 			doc.addField(IndexConstants.VB_BROWSER_TERM, mapper.writeValueAsString(browserTerm));
 			doc.addField(IndexConstants.VB_VOCAB_NAME, rs.getString("vocab_name"));
-			if (dagName != null) {
-				doc.addField(IndexConstants.VB_DAG_NAME, dagName);
-			}
-			
+
 			if (allIDs.containsKey(termKey)) {
 				for (BrowserID id : allIDs.get(termKey)) {
 					doc.addField(IndexConstants.VB_ACC_ID, id.getAccID());
@@ -447,6 +492,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		cacheParents(vocabName);
 		cacheAnnotations(vocabName);
 		cacheChildren(vocabName);
+		cacheComments(vocabName);
 		processTerms(vocabName);
 		
 		logger.info("finished " + vocabName);
