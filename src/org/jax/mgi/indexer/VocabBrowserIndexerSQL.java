@@ -75,7 +75,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		comments = new HashMap<Integer,String>();
 		logger.info(" - caching comments for " + vocabName);
 		
-		if (GO_VOCAB.equals(vocabName)) {
+		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName)) {
 			String cmd = "select n.term_key, n.note "
 				+ "from term t, term_note n "
 				+ "where t.term_key = n.term_key "
