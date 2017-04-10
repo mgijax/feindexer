@@ -124,7 +124,9 @@ public class VocabBrowserIndexerSQL extends Indexer {
 					} else {
 						annotationUrl.put(termKey,  null);
 					}
-					annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
+					if (!"MP:0000001".equals(termID)) {
+						annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
+					}
 				} else {
 					if (annotCount > 0) {
 						annotationUrl.put(termKey, "go/term/" + termID);
