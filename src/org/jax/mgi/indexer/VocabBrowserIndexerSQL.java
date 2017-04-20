@@ -36,6 +36,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private static String MA_VOCAB = "Adult Mouse Anatomy";		// name of the MA vocabulary
 	private static String MP_VOCAB = "Mammalian Phenotype";		// name of the MP vocabulary
 	private static String GO_VOCAB = "GO";						// name of the GO vocabulary
+	private static String HPO_VOCAB = "Human Phenotype Ontology";	// name of HPO vocabulary
 	
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -75,7 +76,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		comments = new HashMap<Integer,String>();
 		logger.info(" - caching comments for " + vocabName);
 		
-		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName)) {
+		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			String cmd = "select n.term_key, n.note "
 				+ "from term t, term_note n "
 				+ "where t.term_key = n.term_key "
@@ -103,7 +104,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			return;							// no annotations for MA vocabulary
 		}
 		
-		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName)) {
+		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
@@ -127,7 +128,14 @@ public class VocabBrowserIndexerSQL extends Indexer {
 					if (!"MP:0000001".equals(termID)) {
 						annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
 					}
-				} else {
+				} else if (HPO_VOCAB.equals(vocabName)) {
+					if (annotCount > 0) {
+						annotationUrl.put(termKey, "diseasePortal?termID=" + termID);
+					} else {
+						annotationUrl.put(termKey,  null);
+					}
+					annotationLabel.put(termKey, objectCount + " diseases with annotations");
+				} else {	// GO_VOCAB
 					if (annotCount > 0) {
 						annotationUrl.put(termKey, "go/term/" + termID);
 					} else {
@@ -510,6 +518,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		processVocabulary(MA_VOCAB);
 		processVocabulary(MP_VOCAB);
 		processVocabulary(GO_VOCAB);
+		processVocabulary(HPO_VOCAB);
 		
 		// commit all the changes to Solr
 		commit();
