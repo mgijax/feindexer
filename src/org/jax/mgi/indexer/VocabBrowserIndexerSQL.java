@@ -37,6 +37,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private static String MP_VOCAB = "Mammalian Phenotype";		// name of the MP vocabulary
 	private static String GO_VOCAB = "GO";						// name of the GO vocabulary
 	private static String HPO_VOCAB = "Human Phenotype Ontology";	// name of HPO vocabulary
+	private static String DO_VOCAB = "Disease Ontology";		// name of DO vocabulary
 	
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -76,7 +77,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		comments = new HashMap<Integer,String>();
 		logger.info(" - caching comments for " + vocabName);
 		
-		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
+		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			String cmd = "select n.term_key, n.note "
 				+ "from term t, term_note n "
 				+ "where t.term_key = n.term_key "
@@ -104,7 +105,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			return;							// no annotations for MA vocabulary
 		}
 		
-		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
+		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
@@ -128,6 +129,9 @@ public class VocabBrowserIndexerSQL extends Indexer {
 					if (!"MP:0000001".equals(termID)) {
 						annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
 					}
+				} else if (DO_VOCAB.equals(vocabName)) {
+					annotationUrl.put(termKey, "diseasePortal?termID=" + termID);
+					annotationLabel.put(termKey, "view human &amp; mouse annotations");
 				} else if (HPO_VOCAB.equals(vocabName)) {
 					if (annotCount > 0) {
 						annotationUrl.put(termKey, "diseasePortal?termID=" + termID);
@@ -327,7 +331,9 @@ public class VocabBrowserIndexerSQL extends Indexer {
 			
 			BrowserID childID = getPrimaryID(childKey);
 			if (childID == null) {
-				throw new Exception("Unexpected term key (" + childKey + ") with no primary ID");
+				// can happen because of obsolete terms in some vocabularies
+				continue;
+//				throw new Exception("Unexpected term key (" + childKey + ") with no primary ID");
 			}
 
 			BrowserChild child = new BrowserChild(childID.getAccID(), childID.getLogicalDB(), 
@@ -519,6 +525,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		processVocabulary(MP_VOCAB);
 		processVocabulary(GO_VOCAB);
 		processVocabulary(HPO_VOCAB);
+		processVocabulary(DO_VOCAB);
 		
 		// commit all the changes to Solr
 		commit();
