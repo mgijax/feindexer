@@ -55,6 +55,7 @@ public class Main {
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
 		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
+		indexerMap.put("sequence", new SequenceIndexerSQL());
 		indexerMap.put("cdna", new CdnaIndexerSQL());
 		indexerMap.put("probe", new ProbeIndexerSQL());
 		indexerMap.put("mapping", new MappingIndexerSQL());
