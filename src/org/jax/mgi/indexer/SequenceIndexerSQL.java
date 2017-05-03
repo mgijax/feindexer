@@ -115,7 +115,7 @@ public class SequenceIndexerSQL extends Indexer {
 	/* gather genomic locations for each sequence and arbitrarily choose one for each (in case of multiples)
 	 */
 	private void cacheLocations(int startKey, int endKey) throws Exception {
-		logger.info("caching locations");
+		logger.debug("caching locations");
 		String cmd = "select sequence_key, chromosome, start_coordinate, end_coordinate, strand "
 			+ "from sequence_location "
 			+ "where sequence_key >= " + startKey
@@ -132,7 +132,7 @@ public class SequenceIndexerSQL extends Indexer {
 				rs.getString("start_coordinate"), rs.getString("end_coordinate"), rs.getString("strand")) );
 		}
 		rs.close();
-		logger.info("  - done locations for " + collections.size() + " sequences");
+		logger.debug("  - done locations for " + collections.size() + " sequences");
 	}
 	
 	/* retrieve the location for the given sequence key.  Assumes cacheLocation() has been called.
@@ -147,7 +147,7 @@ public class SequenceIndexerSQL extends Indexer {
 	/* gather the clone collections from the database and cache them in a global cache (collections)
 	 */
 	private void cacheCollections(int startKey, int endKey) throws Exception {
-		logger.info("caching collections");
+		logger.debug("caching collections");
 		String cmd = "select sequence_key, collection "
 			+ "from sequence_clone_collection "
 			+ "where sequence_key >= " + startKey
@@ -171,7 +171,7 @@ public class SequenceIndexerSQL extends Indexer {
 			}
 		}
 		rs.close();
-		logger.info("  - done caching collections for " + collections.size() + " sequences");
+		logger.debug("  - done caching collections for " + collections.size() + " sequences");
 	}
 	
 	/* retrieve the clone collections for the given sequence key.  Assumes cacheCollections()
@@ -187,7 +187,7 @@ public class SequenceIndexerSQL extends Indexer {
 	/* gather the mouse strains from the database and cache them in a global cache (strains)
 	 */
 	private void cacheStrains(int startKey, int endKey) throws Exception {
-		logger.info("caching strains");
+		logger.debug("caching strains");
 		String cmd = "select s.sequence_key, o.strain "
 			+ "from sequence s, sequence_source o "
 			+ "where s.sequence_key >= " + startKey
@@ -212,7 +212,7 @@ public class SequenceIndexerSQL extends Indexer {
 			}
 		}
 		rs.close();
-		logger.info("  - done caching strains for " + strains.size() + " sequences");
+		logger.debug("  - done caching strains for " + strains.size() + " sequences");
 	}
 	
 	/* retrieve the strains for the given sequence key.  Assumes cacheStrains() has been called.
@@ -227,7 +227,7 @@ public class SequenceIndexerSQL extends Indexer {
 	/* retrieve the references associated with each sequence and store their keys in a cache
 	 */
 	private void cacheReferences(int startKey, int endKey) throws Exception {
-		logger.info("caching references");
+		logger.debug("caching references");
 		String cmd = "select sequence_key, reference_key "
 			+ "from reference_to_sequence "
 			+ "where sequence_key >= " + startKey
@@ -248,7 +248,7 @@ public class SequenceIndexerSQL extends Indexer {
 			referenceKeys.get(sequenceKey).add(rs.getString("reference_key"));
 		}
 		rs.close();
-		logger.info("  - found reference keys for " + markers.size() + " sequences");
+		logger.debug("  - found reference keys for " + markers.size() + " sequences");
 	}
 
 	/* retrieve the reference keys that can be used to retrieve a given sequence.  Assumes cacheReferences() has
@@ -264,7 +264,7 @@ public class SequenceIndexerSQL extends Indexer {
 	/* retrieve the other (non-preferred) IDs associated with each sequence
 	 */
 	private void cacheIDs(int startKey, int endKey) throws Exception {
-		logger.info("caching other IDs");
+		logger.debug("caching other IDs");
 		String cmd = "select i.sequence_key, i.acc_id, i.logical_db "
 			+ "from sequence_id i, sequence s "
 			+ "where i.sequence_key = s.sequence_key "
@@ -288,7 +288,7 @@ public class SequenceIndexerSQL extends Indexer {
 			otherIDs.get(sequenceKey).add(new AccessionID(rs.getString("acc_id"), rs.getString("logical_db")));
 		}
 		rs.close();
-		logger.info("  - found other IDs keys for " + markers.size() + " sequences");
+		logger.debug("  - found other IDs keys for " + markers.size() + " sequences");
 	}
 
 	/* retrieve the other (non-preferred) accession IDs for the given sequence.  Assumes cacheIDs() has
@@ -305,7 +305,7 @@ public class SequenceIndexerSQL extends Indexer {
 	 * in the cache of marker keys
 	 */
 	private void cacheMarkers(int startKey, int endKey) throws Exception {
-		logger.info("caching markers");
+		logger.debug("caching markers");
 		String cmd = "select s.sequence_key, m.symbol, m.primary_id, n.by_symbol, s.marker_key "
 			+ "from marker_to_sequence s, marker m, marker_sequence_num n "
 			+ "where s.sequence_key >= " + startKey
@@ -333,7 +333,7 @@ public class SequenceIndexerSQL extends Indexer {
 			markerKeys.get(sequenceKey).add(rs.getString("marker_key"));
 		}
 		rs.close();
-		logger.info("  - found markers and keys for " + markers.size() + " sequences");
+		logger.debug("  - found markers and keys for " + markers.size() + " sequences");
 	}
 	
 	/* retrieve the markers associated with the given sequence.  Assumes cacheMarkers() has
@@ -359,7 +359,7 @@ public class SequenceIndexerSQL extends Indexer {
 	/* retrieve sequences from the database, build Solr docs, and write them to the server.
 	 */
 	private void processSequences(int startKey, int endKey) throws Exception {
-		logger.info("loading sequences");
+		logger.debug("loading sequences");
 		
 		String cmd = "select s.sequence_key, s.sequence_type, s.provider, s.length, s.description, s.primary_id, "
 			+ "  s.organism, i.acc_id as genbank_id "
@@ -445,7 +445,7 @@ public class SequenceIndexerSQL extends Indexer {
 
 		// any leftover docs to send to the server?  (likely yes)
 		writeDocs(docs);
-		logger.info("done processing " + i + " sequences");
+		logger.debug("done processing " + i + " sequences");
 	}
 	
 	/*----------------------*/
