@@ -11,7 +11,9 @@ import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
-import org.jax.mgi.shr.jsonmodel.Sequence;
+import org.jax.mgi.shr.jsonmodel.SimpleSequence;
+import org.jax.mgi.shr.jsonmodel.AccessionID;
+import org.jax.mgi.shr.jsonmodel.GenomicLocation;
 import org.jax.mgi.shr.jsonmodel.SimpleMarker;
 
 /* Is: an indexer that builds the index supporting the sequence summary page (reachable from the
@@ -28,7 +30,7 @@ public class SequenceIndexerSQL extends Indexer {
 
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
-	private int sequenceChunkSize = 250000;			// number of sequence keys to handle on each iteration
+	private int sequenceChunkSize = 225000;			// number of sequence keys to handle on each iteration
 	
 	private List<String> emptyList = new ArrayList<String>();	// shared empty string for simpler code
 	
@@ -38,6 +40,8 @@ public class SequenceIndexerSQL extends Indexer {
 	private Map<Integer,List<String>> collections;			// sequence key to list of clone collection names
 	private Map<Integer,List<String>> strains;				// sequence key to list of strain names
 	private Map<Integer,Integer> sequenceNum;				// sequence key to sequence num for ordering
+	private Map<Integer,GenomicLocation> locations;			// sequence key to primary genomic location
+	private Map<Integer,List<AccessionID>> otherIDs;		// sequence key to list of non-preferred IDs
 	
 	private ObjectMapper mapper = new ObjectMapper();			// converts objects to JSON
 
@@ -84,7 +88,7 @@ public class SequenceIndexerSQL extends Indexer {
 		 */
 		String cmd = "select sequence_key "
 			+ "from sequence_sequence_num "
-			+ "order by by_sequence_type, by_provider, by_length desc";
+			+ "order by by_sequence_type, by_provider, by_length";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished sequence ordering query in " + ex.getTimestamp());
@@ -106,6 +110,38 @@ public class SequenceIndexerSQL extends Indexer {
 			return sequenceNum.get(sequenceKey);
 		}
 		return 0;
+	}
+	
+	/* gather genomic locations for each sequence and arbitrarily choose one for each (in case of multiples)
+	 */
+	private void cacheLocations(int startKey, int endKey) throws Exception {
+		logger.info("caching locations");
+		String cmd = "select sequence_key, chromosome, start_coordinate, end_coordinate, strand "
+			+ "from sequence_location "
+			+ "where sequence_key >= " + startKey
+			+ "  and sequence_key < " + endKey
+			+ "  and sequence_num = 1";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished location query in " + ex.getTimestamp());
+
+		locations = new HashMap<Integer,GenomicLocation>();
+		
+		while (rs.next()) {
+			locations.put(rs.getInt("sequence_key"), new GenomicLocation(rs.getString("chromosome"),
+				rs.getString("start_coordinate"), rs.getString("end_coordinate"), rs.getString("strand")) );
+		}
+		rs.close();
+		logger.info("  - done locations for " + collections.size() + " sequences");
+	}
+	
+	/* retrieve the location for the given sequence key.  Assumes cacheLocation() has been called.
+	 */
+	private GenomicLocation getLocation(int sequenceKey) throws Exception {
+		if (locations.containsKey(sequenceKey)) {
+			return locations.get(sequenceKey);
+		}
+		return null;
 	}
 	
 	/* gather the clone collections from the database and cache them in a global cache (collections)
@@ -225,6 +261,46 @@ public class SequenceIndexerSQL extends Indexer {
 		return emptyList;
 	}
 	
+	/* retrieve the other (non-preferred) IDs associated with each sequence
+	 */
+	private void cacheIDs(int startKey, int endKey) throws Exception {
+		logger.info("caching other IDs");
+		String cmd = "select i.sequence_key, i.acc_id, i.logical_db "
+			+ "from sequence_id i, sequence s "
+			+ "where i.sequence_key = s.sequence_key "
+			+ "  and (i.acc_id != s.primary_id or i.logical_db != s.logical_db) "
+			+ "  and i.private = 0 "
+			+ "  and i.sequence_key >= " + startKey
+			+ "  and i.sequence_key < " + endKey;
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished other ID query in " + ex.getTimestamp());
+
+		otherIDs = new HashMap<Integer,List<AccessionID>>();
+		
+		while (rs.next()) {
+			Integer sequenceKey = rs.getInt("sequence_key");
+			
+			// any IDs associated with the sequence go into the cache of IDs for display
+			if (!otherIDs.containsKey(sequenceKey)) {
+				otherIDs.put(sequenceKey, new ArrayList<AccessionID>());
+			}
+			otherIDs.get(sequenceKey).add(new AccessionID(rs.getString("acc_id"), rs.getString("logical_db")));
+		}
+		rs.close();
+		logger.info("  - found other IDs keys for " + markers.size() + " sequences");
+	}
+
+	/* retrieve the other (non-preferred) accession IDs for the given sequence.  Assumes cacheIDs() has
+	 * been called.
+	 */
+	private List<AccessionID> getOtherIDs(int sequenceKey) throws Exception {
+		if (otherIDs.containsKey(sequenceKey)) {
+			return otherIDs.get(sequenceKey);
+		}
+		return null;
+	}
+	
 	/* retrieve the markers associated with each sequence and store them in the cache of markers and 
 	 * in the cache of marker keys
 	 */
@@ -285,8 +361,12 @@ public class SequenceIndexerSQL extends Indexer {
 	private void processSequences(int startKey, int endKey) throws Exception {
 		logger.info("loading sequences");
 		
-		String cmd = "select s.sequence_key, s.sequence_type, s.provider, s.length, s.description, s.primary_id, s.organism "
+		String cmd = "select s.sequence_key, s.sequence_type, s.provider, s.length, s.description, s.primary_id, "
+			+ "  s.organism, i.acc_id as genbank_id "
 			+ "from sequence s "
+			+ "left outer join sequence_id i on (s.sequence_key = i.sequence_key "
+			+ "  and i.logical_db = 'Sequence DB' "
+			+ "  and i.preferred = 1) "
 			+ "where s.sequence_key >= " + startKey
 			+ "  and s.sequence_key < " + endKey;
 
@@ -300,12 +380,22 @@ public class SequenceIndexerSQL extends Indexer {
 			Integer sequenceKey = rs.getInt("sequence_key");
 
 			// start building the object that we will store as JSON in the sequence field of the index
-			Sequence seq = new Sequence(sequenceKey, rs.getString("primary_id"), rs.getString("provider"),
+			SimpleSequence seq = new SimpleSequence(sequenceKey, rs.getString("primary_id"), rs.getString("provider"),
 				rs.getString("sequence_type"), rs.getString("length"), rs.getString("organism"),
 				rs.getString("description"));
 
 			// collect and assign items from memory caches
 			
+			GenomicLocation location = getLocation(sequenceKey);
+			if (location != null) {
+				seq.setLocation(location);
+			}
+
+			String genbankID = rs.getString("genbank_id");
+			if (genbankID != null) {
+				seq.setPreferredGenbankID(genbankID);
+			}
+
 			List<SimpleMarker> myMarkers = this.getMarkers(sequenceKey);
 			if (myMarkers != null) {
 				seq.setMarkers(myMarkers);
@@ -316,11 +406,15 @@ public class SequenceIndexerSQL extends Indexer {
 				seq.setCloneCollections(myCollections);
 			}
 			
+			List<AccessionID> myOtherIDs = this.getOtherIDs(sequenceKey);
+			if (myOtherIDs != null) {
+				seq.setOtherIDs(myOtherIDs);
+			}
+
 			// start building the solr document
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
 			doc.addField(IndexConstants.BY_DEFAULT, this.getSequenceNum(sequenceKey));
-			doc.addField(IndexConstants.SEQ_SEQUENCE, mapper.writeValueAsString(seq));
 			doc.addField(IndexConstants.SEQ_PROVIDER, seq.getProvider());
 			doc.addField(IndexConstants.SEQ_TYPE, seq.getSequenceType());
 			
@@ -334,7 +428,10 @@ public class SequenceIndexerSQL extends Indexer {
 			
 			for (String strain : this.getStrains(sequenceKey)) {
 				doc.addField(IndexConstants.SEQ_STRAIN, strain);
+				seq.setStrain(strain);
 			}
+
+			doc.addField(IndexConstants.SEQ_SEQUENCE, mapper.writeValueAsString(seq));
 			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
@@ -378,6 +475,8 @@ public class SequenceIndexerSQL extends Indexer {
 			cacheReferences(startKeyInclusive, endKeyExclusive);
 			cacheCollections(startKeyInclusive, endKeyExclusive);
 			cacheStrains(startKeyInclusive, endKeyExclusive);
+			cacheIDs(startKeyInclusive, endKeyExclusive);
+			cacheLocations(startKeyInclusive, endKeyExclusive);
 			
 			// caches are filled, so now process this slice of sequences
 			processSequences(startKeyInclusive, endKeyExclusive); 
