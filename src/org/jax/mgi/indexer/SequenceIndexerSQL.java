@@ -356,6 +356,15 @@ public class SequenceIndexerSQL extends Indexer {
 		return emptyList;
 	}
 	
+	/* get the provider name by which we can search by to find a given sequence, as some of them
+	 * require customizations.
+	 */
+	private String getSearchableProvider(String provider) {
+		if ("SWISS-PROT".equals(provider) || "TrEMBL".equals(provider)) {
+			return "UniProt";
+		}
+		return provider;
+	}
 	/* retrieve sequences from the database, build Solr docs, and write them to the server.
 	 */
 	private void processSequences(int startKey, int endKey) throws Exception {
@@ -415,7 +424,7 @@ public class SequenceIndexerSQL extends Indexer {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
 			doc.addField(IndexConstants.BY_DEFAULT, this.getSequenceNum(sequenceKey));
-			doc.addField(IndexConstants.SEQ_PROVIDER, seq.getProvider());
+			doc.addField(IndexConstants.SEQ_PROVIDER, getSearchableProvider(seq.getProvider()));
 			doc.addField(IndexConstants.SEQ_TYPE, seq.getSequenceType());
 			
 			for (String markerKey : this.getMarkerKeys(sequenceKey)) {
