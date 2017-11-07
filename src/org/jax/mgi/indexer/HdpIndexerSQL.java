@@ -165,7 +165,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		Timer.reset();
 
 		String ancestorQuery = "select ta.term_key, ta.ancestor_term_key "
-				+ "from term_ancestor ta "
+				+ "from term_ancestor_simple ta "
 				+ "where exists (select 1 from term t "
 				+ "  where t.vocab_name in ('Disease Ontology', 'Mammalian Phenotype', 'Human Phenotype Ontology') "
 				+ "    and t.term_key = ta.term_key)";
@@ -376,6 +376,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 		List<String> doIds = new ArrayList<String>();
 		
 		Set<String> altIds = getAlternateTermIds(termId);
+		if (altIds == null) { return doIds; }
+		
 		for (String altId : altIds) {
 			if (altId.startsWith("DOID:")) {
 				doIds.add(altId);
@@ -391,6 +393,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 		List<String> omimIds = new ArrayList<String>();
 		
 		Set<String> altIds = getAlternateTermIds(termId);
+		if (altIds == null) { return omimIds; }
+		
 		for (String altId : altIds) {
 			if (altId.startsWith("OMIM:")) {
 				omimIds.add(altId);

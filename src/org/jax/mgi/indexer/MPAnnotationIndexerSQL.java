@@ -49,7 +49,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				+ "  ta.ancestor_primary_id as search_term_id, "
 				+ "  a.term_id, "
 				+ "  a.qualifier "
-				+ "from term t, term_ancestor ta, annotation a, "
+				+ "from term t, term_ancestor_simple ta, annotation a, "
 				+ "  genotype_to_annotation ga, genotype g "
 				+ "where a.annotation_type = '" + annotationType + "' "
 				+ "  and a.annotation_key = ga.annotation_key "

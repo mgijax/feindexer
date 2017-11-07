@@ -107,7 +107,7 @@ public class SharedQueries {
 		    "emaps.term_key, " +
 		    "emapa.term_key " +
 		"from term emaps, " +
-		    "term_ancestor anc, " +
+		    "term_ancestor_simple anc, " +
 		    "term_emap te, " +
 		    "term emapa, " +
 		    "term_emap ae " +
@@ -172,7 +172,7 @@ public class SharedQueries {
 
 		String query2 = "insert into " + emapTable + " " +
 				"select distinct m.stage::varchar, e.emapa_term_key, p.emapa_term_key " +
-				"from term_emaps_child e, term_ancestor a, term_emaps_child p, term_emap m " +
+				"from term_emaps_child e, term_ancestor_simple a, term_emaps_child p, term_emap m " +
 				"where e.emaps_child_term_key = a.term_key " +
 				"and e.emaps_child_term_key = m.term_key " +
 				"and a.ancestor_term_key = p.emaps_child_term_key";
