@@ -41,7 +41,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 		// ancestor IDs for a given GO term key
 		Map<String,Set<String>> ancestorIds = null;
 		String goAncestorQuery = "select tas.term_key, ancestor_primary_id " +
-				"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
+				"from term t join term_ancestor tas on tas.term_key=t.term_key " +
 				"where t.vocab_name in ('GO','InterPro Domains') " +
 				"and tas.ancestor_term not in ('cellular_component','biological_process','molecular_function') ";
 		ancestorIds = this.populateLookup(goAncestorQuery, "term_key", "ancestor_primary_id", "term key -> Ancestor Term ID");

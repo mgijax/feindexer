@@ -56,7 +56,7 @@ public class SharedQueries {
 
 	// Gets all the ancestor IDs of each term. (To be combined with the above query)
 	static String GXD_VOCAB_ANCESTOR_QUERY = "select t.primary_id,ta.ancestor_primary_id "+
-    		"from term t,term_ancestor_simple ta "+
+    		"from term t,term_ancestor ta "+
     		"where t.vocab_name in "+GXD_VOCABULARIES+" "+
     		"and t.term_key = ta.term_key ";
 	
@@ -65,7 +65,7 @@ public class SharedQueries {
 			"t.primary_id structure_id, "+
 			"t.term_key structure_term_key, "+
 			"tae.mgd_structure_key ancestor_mgd_structure_key "+
-			"from term t, term_ancestor_simple ta, term_anatomy_extras tae, term ancestor_join "+
+			"from term t, term_ancestor ta, term_anatomy_extras tae, term ancestor_join "+
 			"where t.term_key=ta.term_key and t.vocab_name='Anatomical Dictionary' "+
 			"and ta.ancestor_primary_id=ancestor_join.primary_id "+
 			"and tae.term_key=ancestor_join.term_key ";
@@ -88,7 +88,7 @@ public class SharedQueries {
 		    "t.term_key structure_term_key, "+
 		    "tae.default_parent_key "+
 		"from term t, " +
-		    "term_ancestor_simple ta, " +
+		    "term_ancestor ta, " +
 		    "term_emap tae, " +
 		    "term ancestor_join "+
 		"where t.term_key = ta.term_key " +
@@ -107,7 +107,7 @@ public class SharedQueries {
 		    "emaps.term_key, " +
 		    "emapa.term_key " +
 		"from term emaps, " +
-		    "term_ancestor_simple anc, " +
+		    "term_ancestor anc, " +
 		    "term_emap te, " +
 		    "term emapa, " +
 		    "term_emap ae " +
@@ -172,7 +172,7 @@ public class SharedQueries {
 
 		String query2 = "insert into " + emapTable + " " +
 				"select distinct m.stage::varchar, e.emapa_term_key, p.emapa_term_key " +
-				"from term_emaps_child e, term_ancestor_simple a, term_emaps_child p, term_emap m " +
+				"from term_emaps_child e, term_ancestor a, term_emaps_child p, term_emap m " +
 				"where e.emaps_child_term_key = a.term_key " +
 				"and e.emaps_child_term_key = m.term_key " +
 				"and a.ancestor_term_key = p.emaps_child_term_key";

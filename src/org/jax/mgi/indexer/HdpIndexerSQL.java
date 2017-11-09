@@ -165,7 +165,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		Timer.reset();
 
 		String ancestorQuery = "select ta.term_key, ta.ancestor_term_key "
-				+ "from term_ancestor_simple ta "
+				+ "from term_ancestor ta "
 				+ "where exists (select 1 from term t "
 				+ "  where t.vocab_name in ('Disease Ontology', 'Mammalian Phenotype', 'Human Phenotype Ontology') "
 				+ "    and t.term_key = ta.term_key)";
@@ -891,7 +891,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		String markerQuery = 
 				"with closure as ( "
 					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "from hdp_annotation ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ "  and ha.vocab_name = 'Disease Ontology' "
 					+ "union " 
@@ -974,7 +974,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String diseaseRefCountQuery = 
 				"with closure as ( "
 					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "from hdp_annotation ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ "  and ha.vocab_name = 'Disease Ontology' "
 					+ "union " 
@@ -1066,7 +1066,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String diseaseModelQuery=
 				"with closure as ( "
 					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "from hdp_annotation ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ " and ha.vocab_name = 'Disease Ontology' "
 					+ "union "

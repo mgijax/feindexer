@@ -194,7 +194,7 @@ public class DagEdgeIndexerSQL extends Indexer
 		String query = "select tc.term_key parent_key,\n" + 
 				"tas.ancestor_primary_id ancestor_id\n" + 
 				"from term_child tc join\n" + 
-				"term_ancestor_simple tas on tas.term_key=tc.term_key\n" + 
+				"term_ancestor tas on tas.term_key=tc.term_key\n" + 
 				"where tc.term_key>"+start+" and tc.term_key<="+stop;
 		logger.debug("done building map of term_child.unique_key to ancestor terms");
 		return this.populateLookup(query,"parent_key","ancestor_id","parent_term_key->ancestor_id");

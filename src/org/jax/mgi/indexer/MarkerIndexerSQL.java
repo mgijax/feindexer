@@ -48,7 +48,7 @@ public class MarkerIndexerSQL extends Indexer
 	{
 		logger.info("loading go ancestor terms");
 		String goAncestorQuery = "select t.primary_id term_id,tas.ancestor_term,tas.ancestor_primary_id " +
-				"from term t join term_ancestor_simple tas on tas.term_key=t.term_key " +
+				"from term t join term_ancestor tas on tas.term_key=t.term_key " +
 				"where t.vocab_name in ('GO','InterPro Domains') " +
 				"and tas.ancestor_term not in ('cellular_component','biological_process','molecular_function') ";
 		this.ancestorTerms = this.populateLookup(goAncestorQuery,"term_id","ancestor_term","GO term ID -> Ancestor Term");
@@ -457,7 +457,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a, "
 				+ "    term t, "
-				+ "    term_ancestor_simple tas, "
+				+ "    term_ancestor tas, "
 				+ "    term anc, "
 				+ "    term_id i "
 				+ "where mta.annotation_key = a.annotation_key "
@@ -520,7 +520,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a, "
 				+ "    term t, "
-				+ "    term_ancestor_simple tas "
+				+ "    term_ancestor tas "
 				+ "where mta.annotation_key = a.annotation_key "
 				+ "    and a.annotation_type in ('Mammalian Phenotype/Marker', "
 				+ "        'DO/Marker') "
@@ -539,7 +539,7 @@ public class MarkerIndexerSQL extends Indexer
 				+ "from marker_to_annotation mta, "
 				+ "    annotation a, "
 				+ "    term t, "
-				+ "    term_ancestor_simple tas, "
+				+ "    term_ancestor tas, "
 				+ "    term anc, "
 				+ "    term_synonym s "
 				+ "where mta.annotation_key = a.annotation_key "
