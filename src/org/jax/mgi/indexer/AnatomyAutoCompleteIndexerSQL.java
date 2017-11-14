@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
  * This indexer populates the anatomyAC index, which drives the search box on
@@ -18,6 +19,7 @@ import org.apache.solr.common.SolrInputDocument;
  * 	synonym (multi-valued)
  * 	start stage
  * 	end stage
+ *  crossRef (cross-referenced IDs, currently from MP)
  * @author jsb
  */
 
@@ -45,6 +47,16 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 		HashMap <String, HashSet <String>> structureToSynonyms =
 				makeHash(synonymSQL, "term_key", "synonym");
 
+		// get a mapping from each EMAPA structure key to its cross-reference IDs (if any)
+		
+		logger.info("Getting cross-references");
+		String crossRefSQL = "select tt.term_key_2 as term_key, e.primary_id as crossRef " + 
+				"from term_to_term tt, term e " + 
+				"where tt.relationship_type = 'MP to EMAPA' " + 
+				"and tt.term_key_1 = e.term_key";
+		
+		HashMap <String, HashSet <String>> structureToCrossRefs = makeHash(crossRefSQL, "term_key", "crossRef");
+		
 		// get the main EMAPA term data
 
 		logger.info("Getting all EMAPA structures");
@@ -68,15 +80,21 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 			termKey = rs_overall.getString("term_key");
 
 			SolrInputDocument doc = new SolrInputDocument();
-			doc.addField("structureKey", termKey);
-			doc.addField("accID", rs_overall.getString("primary_id"));
-			doc.addField("structure", rs_overall.getString("term"));
-			doc.addField("startStage", rs_overall.getString("start_stage"));
-			doc.addField("endStage", rs_overall.getString("end_stage"));
+			doc.addField(IndexConstants.STRUCTUREAC_KEY, termKey);
+			doc.addField(IndexConstants.ACC_ID, rs_overall.getString("primary_id"));
+			doc.addField(IndexConstants.STRUCTUREAC_STRUCTURE, rs_overall.getString("term"));
+			doc.addField(IndexConstants.STRUCTUREAC_START_STAGE, rs_overall.getString("start_stage"));
+			doc.addField(IndexConstants.STRUCTUREAC_END_STAGE, rs_overall.getString("end_stage"));
 
 			if (structureToSynonyms.containsKey(termKey)) {
 				for (String synonym: structureToSynonyms.get(termKey)) {
-					doc.addField("synonym", synonym);
+					doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, synonym);
+				}
+			}
+			
+			if (structureToCrossRefs.containsKey(termKey)) {
+				for (String crossRef: structureToCrossRefs.get(termKey)) {
+					doc.addField(IndexConstants.STRUCTUREAC_CROSSREF, crossRef);
 				}
 			}
 
