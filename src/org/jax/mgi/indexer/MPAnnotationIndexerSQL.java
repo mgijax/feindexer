@@ -17,7 +17,8 @@ import org.jax.mgi.shr.fe.IndexConstants;
 
 public class MPAnnotationIndexerSQL extends Indexer {
 
-	private String vocabName = "Mammalian Phenotype";
+	private String mpVocabName = "Mammalian Phenotype";
+	private String emapaVocabName = "EMAPA";
 	private	String annotationType = "Mammalian Phenotype/Genotype";
 
 	public MPAnnotationIndexerSQL () {
@@ -104,13 +105,13 @@ public class MPAnnotationIndexerSQL extends Indexer {
 	}
 
 	// dataType should either be 'term' or 'primary_id', depending on what you want
-	public HashMap<String, HashSet<String>> getTermDataMap (String dataType) {
+	public HashMap<String, HashSet<String>> getTermDataMap (String vocabName, String dataType) {
 		String cmd = "select term_key, " + dataType + " "
 			+ "from term "
 			+ "where vocab_name = '" + vocabName + "'";
 
 		HashMap<String, HashSet<String>> termKeyToData = makeHash(cmd, "term_key", dataType);
-		logger.info("Found " + dataType + " for " + termKeyToData.size() + " terms");
+		logger.info("Found " + dataType + " for " + termKeyToData.size() + " " + vocabName + " terms");
 		return termKeyToData;
 	}
 
@@ -127,15 +128,25 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		return annotationToSeqNum;
 	}
 
-	public HashMap<String, HashSet<String>> getTermAncestorMap() {
+	public HashMap<String, HashSet<String>> getTermAncestorMap(String vocab) {
 		String ancestorQuery = "select a.term_key, a.ancestor_term_key "
 			+ "from term_ancestor a, term t " 
 			+ "where a.term_key = t.term_key " 
-			+ "and t.vocab_name = '" + vocabName + "'";
+			+ "and t.vocab_name = '" + vocab + "'";
 		
 		HashMap<String, HashSet<String>> ancestorMap = makeHash(ancestorQuery, "term_key", "ancestor_term_key");
-		logger.info("Found ancestors for " + ancestorMap.size() + " terms");
+		logger.info("Found ancestors for " + ancestorMap.size() + " " + vocab + " terms");
 		return ancestorMap;
+	}
+
+	public HashMap<String, HashSet<String>> getMpToEmapaMap() {
+		String cmd = "select tt.term_key_1 as mp_key, tt.term_key_2 as emapa_key "
+			+ "from term_to_term tt "
+			+ "where tt.relationship_type = 'MP to EMAPA'";
+
+		HashMap<String, HashSet<String>> mpToEmapaMap = makeHash(cmd, "mp_key", "emapa_key");
+		logger.info("Found EMAPA terms for " + mpToEmapaMap.size() + " MP terms");
+		return mpToEmapaMap;
 	}
 
 	// returns a single value for the given 'key' from 'map' and throws an Exception if more than one value exists
@@ -160,9 +171,12 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		HashMap<String, HashSet<String>> annotationToSeqNum = getAnnotationToSeqNumMap();
 		HashMap<String, HashSet<String>> genotypeToStrain = getGenotypeInfoMap("background_strain");
 		HashMap<String, HashSet<String>> genotypeToAlleles = getGenotypeInfoMap("combination_1");
-		HashMap<String, HashSet<String>> termKeyToTerm = getTermDataMap("term");
-		HashMap<String, HashSet<String>> termKeyToID = getTermDataMap("primary_id");
-		HashMap<String, HashSet<String>> ancestors = getTermAncestorMap();
+		HashMap<String, HashSet<String>> mpTermKeyToTerm = getTermDataMap(mpVocabName, "term");
+		HashMap<String, HashSet<String>> mpTermKeyToID = getTermDataMap(mpVocabName, "primary_id");
+		HashMap<String, HashSet<String>> mpAncestors = getTermAncestorMap(mpVocabName);
+		HashMap<String, HashSet<String>> emapaAncestors = getTermAncestorMap(emapaVocabName);
+		HashMap<String, HashSet<String>> emapaTermKeyToID = getTermDataMap(emapaVocabName, "primary_id");
+		HashMap<String, HashSet<String>> mpToEmapa = getMpToEmapaMap();
 		
 		// Our main relationship is between annotation keys and MP term
 		// IDs, while also including the ordering by genotype and by
@@ -177,7 +191,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = getMaxAnnotationKey();
-		int chunkSize = 10000;
+		int chunkSize = 25000;
 
 		int modValue = end.intValue() / chunkSize;
 
@@ -223,21 +237,21 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				
 				// make record searchable by this term ID and the IDs of all its ancestors
 
-				if (termKeyToID.containsKey(termKey)) {
-					String id = getOne(termKeyToID, termKey);
+				if (mpTermKeyToID.containsKey(termKey)) {
+					String id = getOne(mpTermKeyToID, termKey);
 					doc.addField(IndexConstants.TERM_ID, id);
 					doc.addField(IndexConstants.ANNOTATED_TERM_ID, id);
 				}
 
-				if (ancestors.containsKey(termKey)) {
-					for (String ancestorKey : ancestors.get(termKey)) {
-						doc.addField(IndexConstants.TERM_ID, getOne(termKeyToID, ancestorKey));
+				if (mpAncestors.containsKey(termKey)) {
+					for (String ancestorKey : mpAncestors.get(termKey)) {
+						doc.addField(IndexConstants.TERM_ID, getOne(mpTermKeyToID, ancestorKey));
 					}
 				}
 
 				// annotated term for display
-				if (termKeyToTerm.containsKey(termKey)) {
-					doc.addField(IndexConstants.TERM, getOne(termKeyToTerm, termKey));
+				if (mpTermKeyToTerm.containsKey(termKey)) {
+					doc.addField(IndexConstants.TERM, getOne(mpTermKeyToTerm, termKey));
 				}
 
 				// background strain for genotype
@@ -268,6 +282,19 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				if (annotationToRefs.containsKey(annotKey)) {
 					for (String jnumID: annotationToRefs.get(annotKey)) {
 						doc.addField(IndexConstants.JNUM_ID, jnumID);
+					}
+				}
+				
+				// include associated EMAPA structures and their ancestors (for searching down the EMAPA DAG)
+				
+				if (mpToEmapa.containsKey(termKey)) {
+					for (String emapaKey : mpToEmapa.get(termKey)) {
+						doc.addField(IndexConstants.VB_CROSSREF, getOne(emapaTermKeyToID, emapaKey));
+						if (emapaAncestors.containsKey(emapaKey)) {
+							for (String ancestorKey : emapaAncestors.get(emapaKey)) {
+								doc.addField(IndexConstants.VB_CROSSREF, getOne(emapaTermKeyToID, ancestorKey));
+							}
+						}
 					}
 				}
 
