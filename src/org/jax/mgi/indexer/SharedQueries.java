@@ -24,7 +24,7 @@ public class SharedQueries {
     		"where a.vocab_name in "+GXD_VOCABULARIES+" "+
     		"and a.annotation_key=mta.annotation_key "+
     		"and a.term_id != 'GO:0008150' and a.term_id != 'GO:0003674' and a.term_id != 'GO:0005575' "+
-    		"and (a.qualifier is null or a.qualifier not like 'NOT%') ";
+    		"and (a.qualifier is null or ((a.qualifier not like 'NOT%') and (a.qualifier != 'normal')) )";
 	
 	// excludes the above query to only markers with expression data
 	static String GXD_VOCAB_EXPRESSION_QUERY = GXD_VOCAB_QUERY+
