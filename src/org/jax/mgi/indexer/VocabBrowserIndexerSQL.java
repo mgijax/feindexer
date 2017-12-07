@@ -1,25 +1,22 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
-import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.BrowserChild;
 import org.jax.mgi.shr.jsonmodel.BrowserID;
 import org.jax.mgi.shr.jsonmodel.BrowserParent;
 import org.jax.mgi.shr.jsonmodel.BrowserSynonym;
 import org.jax.mgi.shr.jsonmodel.BrowserTerm;
-import org.jax.mgi.shr.jsonmodel.MappingExperimentSummary;
 
 /* Is: an indexer that builds the index supporting the shared vocabulary browser (beginning with the 
  * 		[Adult] Mouse Anatomy vocabulary, now extended to the Mammalian Phenotype Ontology, and hopefully
@@ -57,6 +54,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private Map<Integer,String> annotationUrl;				// term key : url for annotation link
 	private Map<Integer,String> comments;					// term key : comment field
 	private Map<Integer,List<String>> crossRefs;			// term key : list of IDs cited as cross-references
+	private Set<Integer> relatedToAnatomy;					// contains keys of terms with related anatomy terms
 	
 	private ObjectMapper mapper = new ObjectMapper();				// converts objects to JSON
 
@@ -414,6 +412,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		t.setPrimaryID(id);
 		t.setTerm(term);
 		t.setDefinition(definition);
+		t.setRelatedToTissues(crossRefs.containsKey(termKey));
 		
 		if (defaultParent.containsKey(termKey)) {
 			t.setDefaultParent(defaultParent.get(termKey));
