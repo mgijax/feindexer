@@ -174,7 +174,6 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		HashMap<String, HashSet<String>> mpTermKeyToTerm = getTermDataMap(mpVocabName, "term");
 		HashMap<String, HashSet<String>> mpTermKeyToID = getTermDataMap(mpVocabName, "primary_id");
 		HashMap<String, HashSet<String>> mpAncestors = getTermAncestorMap(mpVocabName);
-		HashMap<String, HashSet<String>> emapaAncestors = getTermAncestorMap(emapaVocabName);
 		HashMap<String, HashSet<String>> emapaTermKeyToID = getTermDataMap(emapaVocabName, "primary_id");
 		HashMap<String, HashSet<String>> mpToEmapa = getMpToEmapaMap();
 		
@@ -234,18 +233,30 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.UNIQUE_KEY, annotKey);
 				doc.addField(IndexConstants.ANNOTATION_KEY, annotKey);
 				doc.addField(IndexConstants.GENOTYPE_KEY, genotypeKey);
-				
-				// make record searchable by this term ID and the IDs of all its ancestors
+
+				// Make record searchable by this MP term ID and the IDs of all its ancestors.  As well,
+				// if either this term or one of its ancestors is mapped to an EMAPA term, then it should
+				// also be searchable by that cross-referenced EMAPA term ID.
 
 				if (mpTermKeyToID.containsKey(termKey)) {
 					String id = getOne(mpTermKeyToID, termKey);
 					doc.addField(IndexConstants.TERM_ID, id);
 					doc.addField(IndexConstants.ANNOTATED_TERM_ID, id);
+					if (mpToEmapa.containsKey(termKey)) {
+						for (String emapaKey : mpToEmapa.get(termKey)) {
+							doc.addField(IndexConstants.VB_CROSSREF, getOne(emapaTermKeyToID, emapaKey));
+						}
+					}
 				}
 
 				if (mpAncestors.containsKey(termKey)) {
 					for (String ancestorKey : mpAncestors.get(termKey)) {
 						doc.addField(IndexConstants.TERM_ID, getOne(mpTermKeyToID, ancestorKey));
+						if (mpToEmapa.containsKey(ancestorKey)) {
+							for (String emapaKey : mpToEmapa.get(ancestorKey)) {
+								doc.addField(IndexConstants.VB_CROSSREF, getOne(emapaTermKeyToID, emapaKey));
+							}
+						}
 					}
 				}
 
@@ -285,19 +296,6 @@ public class MPAnnotationIndexerSQL extends Indexer {
 					}
 				}
 				
-				// include associated EMAPA structures and their ancestors (for searching down the EMAPA DAG)
-				
-				if (mpToEmapa.containsKey(termKey)) {
-					for (String emapaKey : mpToEmapa.get(termKey)) {
-						doc.addField(IndexConstants.VB_CROSSREF, getOne(emapaTermKeyToID, emapaKey));
-						if (emapaAncestors.containsKey(emapaKey)) {
-							for (String ancestorKey : emapaAncestors.get(emapaKey)) {
-								doc.addField(IndexConstants.VB_CROSSREF, getOne(emapaTermKeyToID, ancestorKey));
-							}
-						}
-					}
-				}
-
 				hasRecord = rs_overall.next();
 
 				docs.add(doc);
