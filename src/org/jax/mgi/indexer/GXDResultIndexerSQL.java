@@ -34,7 +34,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	}
 
 	/* get a mapping from result keys (as Strings) to a List of Strings,
-	 * each of which is a high-level EMAPA term (a high-levevl ancestor of
+	 * each of which is a high-level EMAPA term (a high-level ancestor of
 	 * the structure noted in the result
 	 */
 	private Map<String, List<String>> getAnatomicalSystemMap() throws Exception {
@@ -631,13 +631,6 @@ public class GXDResultIndexerSQL extends Indexer {
 
 				SolrInputDocument doc = new SolrInputDocument();
 
-				// if(docs.containsKey(unique_key))
-				// {
-				// doc = docs.get(unique_key);
-				// }
-				// else
-				// {
-				//
 				// Add the single value fields
 				doc.addField(GxdResultFields.KEY, unique_key);
 				doc.addField(GxdResultFields.MARKER_KEY, markerKey);
