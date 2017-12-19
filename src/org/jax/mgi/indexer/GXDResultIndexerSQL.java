@@ -1,11 +1,13 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,10 +32,197 @@ public class GXDResultIndexerSQL extends Indexer {
 	// detected values that should be mapped to "yes"
 	public static List<String> detectedYesLevels = Arrays.asList("Present", "Trace", "Weak", "Moderate", "Strong", "Very strong");
 
+	// cached mapping from EMAPA ID to list of allele keys associated with it or its ancestors (alleles that
+	// should return results annotated to this structure)
+	public Map<String, List<Integer>> structureToAlleles = new HashMap<String, List<Integer>>();
+	
+	// keeps current set of EMAPA IDs mapped in 'structureToAlleles'
+	public Set<String> structureCacheMembers = new LinkedHashSet<String>();
+	
+	// how many structures do we keep mapped in 'structureToAlleles' at once?
+	public int structureCacheSize = 100;
+	
+	// how many Solr documents are kept in memory before being sent to Solr?
+	public int solrCacheSize = 500;
+	
+	// caches of genotype data (key is genotype key)
+	public Map<String, String> allelePairs = null;
+
+	// caches of structure data (key is annotated structure key)
+	public Map<String, String> structureID = null;
+	public Map<String, String> emapaID = null;
+	public Map<String, String> printname = null;
+
+	// caches of marker data (key is marker key)
+	public Map<String, String> markerSymbol = null;
+	public Map<String, String> markerID = null;
+	public Map<String, String> markerName = null;
+	public Map<String, String> markerSubtype = null;
+	public Map<String, String> markerBySymbol = null;
+	public Map<String, String> markerByLocation = null;
+	public Map<String, String> startCoord = null;
+	public Map<String, String> endCoord = null;
+	public Map<String, String> cytoband = null;
+	public Map<String, String> strand = null;
+	public Map<String, String> chromosome = null;
+	
+	// caches of reference data (key is reference key)
+	public Map<String, String> pubmedID = null;
+	public Map<String, String> citation = null;
+	
+	// caches of assay data (key is assay key)
+	public Map<String, String> assayHasImage = null;
+	public Map<String, String> assayProbeKey = null;
+	public Map<String, String> assayAntibodyKey = null;
+	public Map<String, String> assayBySymbol = null;
+	public Map<String, String> assayByType = null;
+	public Map<String, String> assayID = null;
+	
 	public GXDResultIndexerSQL() {
 		super("gxdResult");
 	}
 
+	// cache data for assays for expression results > startKey and <= endKey
+	public void cacheAssays (int startKey, int endKey) throws SQLException {
+		assayHasImage = new HashMap<String, String>();
+		assayProbeKey = new HashMap<String, String>();
+		assayAntibodyKey = new HashMap<String, String>();
+		assayBySymbol = new HashMap<String, String>();
+		assayByType = new HashMap<String, String>();
+		assayID = new HashMap<String, String>();
+
+		String assayQuery = "select distinct a.assay_key, a.has_image, a.probe_key, a.antibody_key, "
+			+ "  n.by_symbol, n.by_assay_type, e.assay_id "
+			+ "from expression_result_summary e, expression_assay a, expression_assay_sequence_num n "
+			+ "where e.result_key > " + startKey
+			+ " and e.result_key <= " + endKey
+			+ " and e.assay_key = a.assay_key "
+			+ " and e.assay_key = n.assay_key";
+		
+		ResultSet rs = ex.executeProto(assayQuery);
+		while (rs.next()) {
+			String assayKey = rs.getString("assay_key");
+			assayHasImage.put(assayKey, rs.getString("has_image"));
+			assayProbeKey.put(assayKey, rs.getString("probe_key"));
+			assayAntibodyKey.put(assayKey, rs.getString("antibody_key"));
+			assayBySymbol.put(assayKey, rs.getString("by_symbol"));
+			assayByType.put(assayKey, rs.getString("by_assay_type"));
+			assayID.put(assayKey, rs.getString("assay_id"));
+		}
+		rs.close();
+		logger.info("Cached data for " + assayByType.size() + " assays");
+	}
+	
+	// cache data for structures for expression results > startKey and <= endKey
+	public void cacheTerms (int startKey, int endKey) throws SQLException {
+		structureID = new HashMap<String, String>();
+		emapaID = new HashMap<String, String>();
+		printname = new HashMap<String, String>();
+
+		String structureQuery = "select distinct e.structure_key, e.structure_printname, "
+			+ "  structure.primary_id, emapa.primary_id as emapa_id "
+			+ "from expression_result_summary e, term structure, "
+			+ "  term_emap mapping, term emapa "
+			+ "where e.result_key > " + startKey
+			+ " and e.result_key <= " + endKey
+			+ " and e.structure_key = structure.term_key "
+			+ " and e.structure_key = mapping.term_key "
+			+ " and mapping.emapa_term_key = emapa.term_key";
+		
+		ResultSet rs = ex.executeProto(structureQuery);
+		while (rs.next()) {
+			String structureKey = rs.getString("structure_key");
+			structureID.put(structureKey, rs.getString("primary_id"));
+			emapaID.put(structureKey, rs.getString("emapa_id"));
+			printname.put(structureKey, rs.getString("structure_printname"));
+		}
+		rs.close();
+		logger.info("Cached data for " + emapaID.size() + " structures");
+	}
+	
+	// cache data for genotypes for expression results > startKey and <= endKey
+	public void cacheGenotypes (int startKey, int endKey) throws SQLException {
+		allelePairs = new HashMap<String, String>();
+
+		String genotypeQuery = "select distinct g.genotype_key, g.combination_1 "
+			+ "from expression_result_summary e, genotype g "
+			+ "where e.result_key > " + startKey
+			+ " and e.result_key <= " + endKey
+			+ " and e.genotype_key = g.genotype_key";
+		
+		ResultSet rs = ex.executeProto(genotypeQuery);
+		while (rs.next()) {
+			allelePairs.put(rs.getString("genotype_key"), rs.getString("combination_1"));
+		}
+		rs.close();
+		logger.info("Cached data for " + allelePairs.size() + " genotypes");
+	}
+	
+	// cache data for markers for expression results > startKey and <= endKey
+	public void cacheMarkers (int startKey, int endKey) throws SQLException {
+		markerSymbol = new HashMap<String, String>();
+		markerID = new HashMap<String, String>();
+		markerName = new HashMap<String, String>();
+		markerSubtype = new HashMap<String, String>();
+		markerBySymbol = new HashMap<String, String>();
+		markerByLocation = new HashMap<String, String>();
+		startCoord = new HashMap<String, String>();
+		endCoord = new HashMap<String, String>();
+		cytoband = new HashMap<String, String>();
+		strand = new HashMap<String, String>();
+		chromosome = new HashMap<String, String>();
+		
+		String markerQuery = "select distinct m.marker_key, m.symbol, m.primary_id, m.name, m.marker_subtype, "
+			+ " s.by_location, s.by_symbol, loc.chromosome, loc.cytogenetic_offset, loc.start_coordinate, "
+			+ " loc.end_coordinate, loc.strand "
+			+ "from expression_result_summary e, marker m, marker_sequence_num s, marker_location loc "
+			+ "where e.result_key > " + startKey
+			+ " and e.result_key <= " + endKey
+			+ " and e.marker_key = s.marker_key"
+			+ " and e.marker_key = loc.marker_key"
+			+ " and loc.sequence_num = 1"
+			+ " and e.marker_key = m.marker_key";
+
+		ResultSet rs = ex.executeProto(markerQuery);
+		while (rs.next()) {
+			String markerKey = rs.getString("marker_key");
+			markerSymbol.put(markerKey, rs.getString("symbol"));
+			markerID.put(markerKey, rs.getString("primary_id"));
+			markerName.put(markerKey, rs.getString("name"));
+			markerSubtype.put(markerKey, rs.getString("marker_subtype"));
+			markerByLocation.put(markerKey, rs.getString("by_location"));
+			markerBySymbol.put(markerKey, rs.getString("by_symbol"));
+			startCoord.put(markerKey, rs.getString("start_coordinate"));
+			endCoord.put(markerKey, rs.getString("end_coordinate"));
+			cytoband.put(markerKey, rs.getString("cytogenetic_offset"));
+			strand.put(markerKey, rs.getString("strand"));
+			chromosome.put(markerKey, rs.getString("chromosome"));
+		}
+		rs.close();
+		logger.info("Cached data for " + markerID.size() + " markers");
+	}
+	
+	// cache data for references for expression results > startKey and <= endKey
+	public void cacheReferences (int startKey, int endKey) throws SQLException {
+		pubmedID = new HashMap<String, String>();
+		citation = new HashMap<String, String>();
+
+		String referenceQuery = "select distinct r.reference_key, r.pubmed_id, r.mini_citation "
+			+ "from expression_result_summary e, reference r "
+			+ "where e.result_key > " + startKey
+			+ " and e.result_key <= " + endKey
+			+ " and e.reference_key = r.reference_key";
+		
+		ResultSet rs = ex.executeProto(referenceQuery);
+		while (rs.next()) {
+			String referenceKey = rs.getString("reference_key");
+			pubmedID.put(referenceKey, rs.getString("pubmed_id"));
+			citation.put(referenceKey, rs.getString("mini_citation"));
+		}
+		rs.close();
+		logger.info("Cached data for " + pubmedID.size() + " references");
+	}
+	
 	// join non-null strings s1, s2, and s3 together, separated by underscores
 	public String joiner (String s1, String s2, String s3) {
 		return joiner(s1, s2, s3, null);
@@ -52,6 +241,47 @@ public class GXDResultIndexerSQL extends Indexer {
 			sb.append(s4);
 		}
 		return sb.toString();
+	}
+	
+	// get a List of alleles for the given structure key (and its ancestors).  These are cached once
+	// computed for time/space efficiency.
+	public List<Integer> getAlleles(String structureKey,
+			Map<String, List<String>> structureAncestorIdMap,
+			Map<String, Set<Integer>> phenotypicAlleleMap) {
+
+		if (structureToAlleles.containsKey(structureKey)) {
+			// cache hit, so add & remove to bump up in ordering to be most recent structure
+			structureCacheMembers.remove(structureKey);
+			structureCacheMembers.add(structureKey);
+
+			return structureToAlleles.get(structureKey);
+		}
+		List<Integer> alleles = new ArrayList<Integer>();
+		
+		if (structureAncestorIdMap.containsKey(structureKey)) {
+			Set<Integer> alleleSet = new HashSet<Integer>();
+			for (String emapaID : structureAncestorIdMap.get(structureKey)) {
+				if (phenotypicAlleleMap.containsKey(emapaID)) {
+					for (Integer alleleKey : phenotypicAlleleMap.get(emapaID)) {
+						alleleSet.add(alleleKey);
+					}
+				}
+			}
+			
+			for (Integer alleleKey : alleleSet) {
+				alleles.add(alleleKey);
+			}
+		}
+		
+		// need to bump the oldest item from the cache?
+		if (structureCacheMembers.size() >= structureCacheSize) {
+			String oldest = structureCacheMembers.iterator().next();
+			structureCacheMembers.remove(oldest);
+			structureToAlleles.remove(oldest);
+		}
+		structureToAlleles.put(structureKey, alleles);
+		structureCacheMembers.add(structureKey);
+		return alleles;
 	}
 	
 	/* get a mapping from result keys (as Strings) to a List of Strings,
@@ -443,19 +673,18 @@ public class GXDResultIndexerSQL extends Indexer {
 		return structureAncestorMap;
 	}
 
-	/* get a mapping from EMAPA ID to a list of allele IDs (for alleles with non-normal phenotypes
+	/* get a mapping from EMAPA ID to a list of allele keys (for alleles with non-normal phenotypes
 	 * in those tissues)
 	 */
-	private Map<String, Set<String>> getPhenotypeAlleleMap() throws Exception {
+	private Map<String, Set<Integer>> getPhenotypeAlleleMap() throws Exception {
 		/* trace from allele to genotype (considering all genotypes currently)
 		 * - then to MP annotations (excluding those with a 'normal' qualifier)
 		 * - then to related EMAPA terms
 		 */
-		String cmd = "select a.primary_id as allele_id, emapa.primary_id as emapa_id "
-			+ "from allele a, allele_to_genotype atg, genotype_to_annotation gta, "
+		String cmd = "select atg.allele_key, emapa.primary_id as emapa_id "
+			+ "from allele_to_genotype atg, genotype_to_annotation gta, "
 			+ "  annotation anno, term_to_term tt, term emapa "
 			+ "where atg.genotype_key = gta.genotype_key "
-			+ "  and atg.allele_key = a.allele_key "
 			+ "  and gta.annotation_key = anno.annotation_key "
 			+ "  and anno.vocab_name = 'Mammalian Phenotype' "
 			+ "  and anno.qualifier is null "
@@ -463,18 +692,18 @@ public class GXDResultIndexerSQL extends Indexer {
 			+ "  and tt.relationship_type = 'MP to EMAPA' "
 			+ "  and tt.term_key_2 = emapa.term_key";
 		
-		Map<String, Set<String>> lookup = new HashMap<String, Set<String>>();
+		Map<String, Set<Integer>> lookup = new HashMap<String, Set<Integer>>();
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
 			String emapaID = rs.getString("emapa_id");
 			
 			if (!lookup.containsKey(emapaID)) {
-				lookup.put(emapaID, new HashSet<String>());
+				lookup.put(emapaID, new HashSet<Integer>());
 			}
-			lookup.get(emapaID).add(rs.getString("allele_id"));
+			lookup.get(emapaID).add(rs.getInt("allele_key"));
 		}
 		rs.close();
-		logger.info("Got allele IDs for " + lookup.size() + " EMAPA IDs, RAM used: " + memoryUsed());
+		logger.info("Got allele keys for " + lookup.size() + " EMAPA IDs, RAM used: " + memoryUsed());
 		return lookup;
 	}
 
@@ -486,7 +715,7 @@ public class GXDResultIndexerSQL extends Indexer {
 		// processing easier
 
 		// maps from EMAPA ID to all alleles with non-normal annotated phenotypes to that structure
-		Map<String, Set<String>> phenotypicAlleleMap = getPhenotypeAlleleMap();
+		Map<String, Set<Integer>> phenotypicAlleleMap = getPhenotypeAlleleMap();
 		
 		// mapping from marker key to List of synonyms for each marker
 		Map<String, List<String>> markerNomenMap = getMarkerNomenMap();
@@ -551,6 +780,12 @@ public class GXDResultIndexerSQL extends Indexer {
 			start = i * chunkSize;
 			end = start + chunkSize;
 
+			cacheGenotypes(start, end);		// cache allele combinastions for genotypes for this chunk
+			cacheMarkers(start, end);		// cache marker symbols, names, IDs, and subtypes for this chunk
+			cacheReferences(start, end);	// cache pubmed IDs and citations for references for this chunk
+			cacheAssays(start, end);		// cache data for assays in this chunk
+			cacheTerms(start, end);			// cache data for structures in this chunk
+			
 			// mapping from result key to List of high-level EMAPA structures for each result
 			Map<String, Set<String>> systemMap = getAnatomicalSystemMap(start, end);
 
@@ -560,54 +795,25 @@ public class GXDResultIndexerSQL extends Indexer {
 			logger.info("Processing result key > " + start + " and <= " + end + ", RAM used: " + memoryUsed());
 			String query = "select ers.result_key, "
 					+ "  ers.marker_key, ers.assay_key, ers.assay_type, "
-					+ "  tae.term_key as mgd_structure_key, "
-					+ "  ers.structure_key, ers.theiler_stage, ers.is_expressed, ers.has_image, ers.structure_printname, "
-					+ "  ers.age_abbreviation,  ers.jnum_id, ers.detection_level, ers.marker_symbol, ers.assay_id, "
-					+ "  ers.age_min, " + "  ers.age_max, " + "  ers.pattern, "
-					+ "  ers.is_wild_type, " + "  ers.genotype_key, " + "  m.marker_subtype, " + "  m.name marker_name, "
-					+ "  m.primary_id marker_id, "
-					+ "  ml.chromosome, ml.cytogenetic_offset, ml.start_coordinate, ml.end_coordinate,ml.strand, "
-					+ "  r.mini_citation, r.pubmed_id, "
-					+ "  g.combination_1 genotype, "
-					+ "  structure.primary_id structure_id, "
-					+ "  msqn.by_symbol, msqn.by_location, "
+					+ "  ers.structure_key, ers.theiler_stage, ers.is_expressed, ers.has_image, " 
+					+ "  ers.age_abbreviation,  ers.jnum_id, ers.detection_level, "
+					+ "  ers.age_min, ers.age_max, ers.pattern, "
+					+ "  ers.is_wild_type, ers.genotype_key, ers.reference_key, " 
 					+ "  ersn.by_assay_type r_by_assay_type, "
 					+ "  ersn.by_gene_symbol r_by_gene_symbol, "
 					+ "  ersn.by_age r_by_age, "
 					+ "  ersn.by_expressed r_by_expressed, "
 					+ "  ersn.by_structure r_by_structure, "
 					+ "  ersn.by_mutant_alleles r_by_mutant_alleles, "
-					+ "  ersn.by_reference r_by_reference, "
-					+ "  easn.by_symbol a_by_symbol, "
-					+ "  easn.by_assay_type a_by_assay_type, "
-					+ "  exa.has_image a_has_image, "
-					+ "  exa.probe_key a_probe_key, "
-					+ "  exa.antibody_key a_antibody_key, "
-					+ "  emapa.primary_id emapa_id "
+					+ "  ersn.by_reference r_by_reference "
 					+ "from expression_result_summary ers, "
-					+ "  marker_sequence_num msqn, marker_counts mc, "
-					+ "  marker m, marker_location ml, "
-					+ "  reference r, genotype g, "
-					+ "  term structure, term_emap tae, "
-					+ "  term emapa, expression_assay exa, "
-					+ "  expression_assay_sequence_num easn, "
+					+ "  marker_counts mc, "
 					+ "  expression_result_sequence_num ersn "
-					+ "where ers.marker_key=msqn.marker_key "
-					+ "  and ers.marker_key = ml.marker_key "
-					+ "  and ml.sequence_num=1 "
-					+ "  and ers.reference_key=r.reference_key "
-					+ "  and ers.genotype_key=g.genotype_key "
-					+ "  and ers.marker_key=mc.marker_key "
-					+ "  and ers.marker_key=m.marker_key "
+					+ "where ers.marker_key=mc.marker_key "
 					+ "  and ersn.result_key=ers.result_key "
-					+ "  and exa.assay_key=ers.assay_key "
-					+ "  and easn.assay_key=ers.assay_key "
 					+ "  and ers.assay_type != 'Recombinase reporter'"
 					+ "  and ers.assay_type != 'In situ reporter (transgenic)'"
 					+ "  and mc.gxd_literature_count>0 "
-					+ "  and ers.structure_key=structure.term_key "
-					+ "  and ers.structure_key=tae.term_key "
-					+ "  and tae.emapa_term_key=emapa.term_key "
 					+ "  and ers.result_key > " + start
 					+ "  and ers.result_key <= " + end + " ";
 
@@ -615,42 +821,26 @@ public class GXDResultIndexerSQL extends Indexer {
 
 			while (rs.next()) {
 				String markerKey = rs.getString("marker_key");
-				// the marker symbol sort
-				String by_symbol = rs.getString("by_symbol");
-				String by_location = rs.getString("by_location");
 				String result_key = rs.getString("result_key");
 				String assay_key = rs.getString("assay_key");
-
 				String assay_type = rs.getString("assay_type");
 
 				// result fields
 				String theilerStage = rs.getString("theiler_stage");
 				String isExpressed = rs.getString("is_expressed");
 				String detection_level = rs.getString("detection_level");
-				String printname = rs.getString("structure_printname");
 				String structureTermKey = rs.getString("structure_key");
-				String mgd_structure_key = rs.getString("mgd_structure_key");
 				String age = rs.getString("age_abbreviation");
-				String assay_id = rs.getString("assay_id");
 				String jnum = rs.getString("jnum_id");
-				String mini_citation = rs.getString("mini_citation");
-				String genotype = rs.getString("genotype");
 				String has_image = rs.getString("has_image");
 
-				String markerSymbol = rs.getString("marker_symbol");
-				String markerName = rs.getString("marker_name");
-				String markerType = rs.getString("marker_subtype");
-				String markerMgiid = rs.getString("marker_id");
-
-				String chr = rs.getString("chromosome");
+				String chr = chromosome.get(markerKey);
 				String cm_offset = "";
 				if (centimorganMap.containsKey(markerKey)) {
 					cm_offset = centimorganMap.get(markerKey);
 				}
-				String cytogenetic_offset = rs.getString("cytogenetic_offset");
-				String start_coord = rs.getString("start_coordinate");
-				String end_coord = rs.getString("end_coordinate");
-				String strand = rs.getString("strand");
+				String start_coord = startCoord.get(markerKey);
+				String end_coord = endCoord.get(markerKey);
 				String spatialString = new String("");
 				if ((start_coord != null) && (end_coord != null)) {
 					spatialString = SolrLocationTranslator.getIndexValue(
@@ -666,15 +856,6 @@ public class GXDResultIndexerSQL extends Indexer {
 						.getString("r_by_mutant_alleles");
 				String r_by_reference = rs.getString("r_by_reference");
 
-				// assay summary
-				String a_has_image = rs.getString("a_has_image");
-				String a_probe_key = rs.getString("a_probe_key");
-				String a_antibody_key = rs.getString("a_antibody_key");
-
-				// assay sorts
-				String a_by_symbol = rs.getString("a_by_symbol");
-				String a_by_assay_type = rs.getString("a_by_assay_type");
-
 				String unique_key = assay_type + "-" + result_key;
 				if (unique_key == null || unique_key.equals("-")) {
 					continue;
@@ -685,8 +866,8 @@ public class GXDResultIndexerSQL extends Indexer {
 				// Add the single value fields
 				doc.addField(GxdResultFields.KEY, unique_key);
 				doc.addField(GxdResultFields.MARKER_KEY, markerKey);
-				doc.addField(IndexConstants.MRK_BY_SYMBOL, by_symbol);
-				doc.addField(GxdResultFields.M_BY_LOCATION, by_location);
+				doc.addField(IndexConstants.MRK_BY_SYMBOL, markerBySymbol.get(markerKey));
+				doc.addField(GxdResultFields.M_BY_LOCATION, markerByLocation.get(markerKey));
 				doc.addField(GxdResultFields.ASSAY_KEY, assay_key);
 				doc.addField(GxdResultFields.RESULT_KEY, result_key);
 				doc.addField(GxdResultFields.RESULT_TYPE, assay_type);
@@ -706,21 +887,21 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.IS_WILD_TYPE, wildType);
 
 				// marker summary
-				doc.addField(GxdResultFields.MARKER_MGIID, markerMgiid);
-				doc.addField(GxdResultFields.MARKER_SYMBOL, markerSymbol);
-				doc.addField(GxdResultFields.MARKER_NAME, markerName);
+				doc.addField(GxdResultFields.MARKER_MGIID, markerID.get(markerKey));
+				doc.addField(GxdResultFields.MARKER_SYMBOL, markerSymbol.get(markerKey));
+				doc.addField(GxdResultFields.MARKER_NAME, markerName.get(markerKey));
 
 				// also add symbol and current name to searchable nomenclature
-				doc.addField(GxdResultFields.NOMENCLATURE, markerSymbol);
-				doc.addField(GxdResultFields.NOMENCLATURE, markerName);
-				doc.addField(GxdResultFields.MARKER_TYPE, markerType);
+				doc.addField(GxdResultFields.NOMENCLATURE, markerSymbol.get(markerKey));
+				doc.addField(GxdResultFields.NOMENCLATURE, markerName.get(markerKey));
+				doc.addField(GxdResultFields.MARKER_TYPE, markerSubtype.get(markerKey));
 
 				// location stuff
 				doc.addField(GxdResultFields.CHROMOSOME, chr);
 				doc.addField(GxdResultFields.START_COORD, start_coord);
 				doc.addField(GxdResultFields.END_COORD, end_coord);
-				doc.addField(GxdResultFields.CYTOBAND, cytogenetic_offset);
-				doc.addField(GxdResultFields.STRAND, strand);
+				doc.addField(GxdResultFields.CYTOBAND, cytoband.get(markerKey));
+				doc.addField(GxdResultFields.STRAND, strand.get(markerKey));
 				if (!spatialString.equals("")) {
 					doc.addField(GxdResultFields.MOUSE_COORDINATE, spatialString);
 				}
@@ -730,23 +911,23 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.CENTIMORGAN, cm_offset);
 
 				// assay summary
-				doc.addField(GxdResultFields.ASSAY_HAS_IMAGE, a_has_image.equals("1"));
-				doc.addField(GxdResultFields.PROBE_KEY, a_probe_key);
-				doc.addField(GxdResultFields.ANTIBODY_KEY, a_antibody_key);
+				doc.addField(GxdResultFields.ASSAY_HAS_IMAGE, "1".equals(assayHasImage.get(assay_key)));
+				doc.addField(GxdResultFields.PROBE_KEY, assayProbeKey.get(assay_key));
+				doc.addField(GxdResultFields.ANTIBODY_KEY, assayAntibodyKey.get(assay_key));
 
 				// assay sorts
-				doc.addField(GxdResultFields.A_BY_SYMBOL, a_by_symbol);
-				doc.addField(GxdResultFields.A_BY_ASSAY_TYPE, a_by_assay_type);
+				doc.addField(GxdResultFields.A_BY_SYMBOL, assayBySymbol.get(assay_key));
+				doc.addField(GxdResultFields.A_BY_ASSAY_TYPE, assayByType.get(assay_key));
 
 				// result summary
 				doc.addField(GxdResultFields.DETECTION_LEVEL, mapDetectionLevel(detection_level));
-				doc.addField(GxdResultFields.STRUCTURE_PRINTNAME, printname);
+				doc.addField(GxdResultFields.STRUCTURE_PRINTNAME, printname.get(structureTermKey));
 				doc.addField(GxdResultFields.AGE, age);
-				doc.addField(GxdResultFields.ASSAY_MGIID, assay_id);
+				doc.addField(GxdResultFields.ASSAY_MGIID, assayID.get(assay_key));
 				doc.addField(GxdResultFields.JNUM, jnum);
-				doc.addField(GxdResultFields.PUBMED_ID, rs.getString("pubmed_id"));
-				doc.addField(GxdResultFields.SHORT_CITATION, mini_citation);
-				doc.addField(GxdResultFields.GENOTYPE, genotype);
+				doc.addField(GxdResultFields.PUBMED_ID, pubmedID.get(rs.getString("reference_key")));
+				doc.addField(GxdResultFields.SHORT_CITATION, citation.get(rs.getString("reference_key")));
+				doc.addField(GxdResultFields.GENOTYPE, allelePairs.get("genotype_key"));
 				doc.addField(GxdResultFields.PATTERN, rs.getString("pattern"));
 
 				// multi values
@@ -816,13 +997,12 @@ public class GXDResultIndexerSQL extends Indexer {
 					imageMap.remove(result_key);
 				}
 
-				String structureID = rs.getString("structure_id");
-				String emapaID = rs.getString("emapa_id");
+				String myEmapaID = emapaID.get(structureTermKey);
 
 				Set<String> ancestorIDs = new HashSet<String>();
-				ancestorIDs.add(structureID);
+				ancestorIDs.add(structureID.get(structureTermKey));
 				Set<String> ancestorStructures = new HashSet<String>();
-				ancestorStructures.add(printname);
+				ancestorStructures.add(printname.get(structureTermKey));
 
 				if (structureAncestorIdMap.containsKey(structureTermKey)) {
 					// get ancestors
@@ -851,26 +1031,17 @@ public class GXDResultIndexerSQL extends Indexer {
 					}
 				}
 				
-				// track which allele IDs we've already added, so we can eliminate duplicates
-				HashSet<String> alleleIDs = new HashSet<String>();
-				for (String ancestorID : ancestorIDs) {
-					if (phenotypicAlleleMap.containsKey(ancestorID)) {
-						for (String alleleID : phenotypicAlleleMap.get(ancestorID)) {
-							alleleIDs.add(alleleID);
-						}
-					}
+				List<Integer> alleleKeys = getAlleles(structureTermKey, structureAncestorIdMap, phenotypicAlleleMap);
+				if (alleleKeys.size() > 0) {
+					doc.addField(GxdResultFields.ALLELE_KEY_VIA_PHENOTYPE, alleleKeys);
 				}
-				if (!alleleIDs.isEmpty()) {
-					doc.addField(GxdResultFields.ALLELE_ID_VIA_PHENOTYPE, alleleIDs);
-				}
-				alleleIDs.clear();
 
 				// add the id for this exact structure
-				doc.addField(GxdResultFields.STRUCTURE_EXACT, emapaID);
+				doc.addField(GxdResultFields.STRUCTURE_EXACT, myEmapaID);
 
 				Set<String> structureKeys = new HashSet<String>();
-				structureKeys.add(mgd_structure_key);
-				doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, mgd_structure_key);
+				structureKeys.add(structureTermKey);
+				doc.addField(GxdResultFields.ANNOTATED_STRUCTURE_KEY, structureTermKey);
 
 				if (structureAncestorKeyMap.containsKey(structureTermKey)) {
 					// get ancestors by key as well (for links from AD browser)
@@ -893,16 +1064,16 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.R_BY_REFERENCE, r_by_reference);
 
 				// add matrix grouping fields
-				String stageMatrixGroup = joiner(emapaID, isExpressed, theilerStage);
+				String stageMatrixGroup = joiner(myEmapaID, isExpressed, theilerStage);
 				doc.addField(GxdResultFields.STAGE_MATRIX_GROUP, stageMatrixGroup);
 
-				String geneMatrixGroup = joiner(emapaID, isExpressed, markerKey, theilerStage);
+				String geneMatrixGroup = joiner(myEmapaID, isExpressed, markerKey, theilerStage);
 				doc.addField(GxdResultFields.GENE_MATRIX_GROUP, geneMatrixGroup);
 
 				docs.add(doc);
-				if (docs.size() > 1000) {
+				if (docs.size() >= solrCacheSize) {
 					writeDocs(docs);
-					docs = new ArrayList<SolrInputDocument>(1001);		// max known size
+					docs = new ArrayList<SolrInputDocument>(solrCacheSize);		// max known size
 					System.gc();
 				}
 			} // while loop (stepping through rows for this chunk)
@@ -948,20 +1119,5 @@ public class GXDResultIndexerSQL extends Indexer {
 		}
 		// not sure what to do here... age should never be null.
 		return -1.0;
-	}
-
-	/*
-	 * For debugging purposes only
-	 */
-	private long startTime = 0;
-
-	public void startTime() {
-		startTime = System.nanoTime();
-	}
-
-	public long stopTime() {
-		long endTime = System.nanoTime();
-		return (endTime - startTime) / 1000000;
-
 	}
 }
