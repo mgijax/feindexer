@@ -32,18 +32,8 @@ public class GXDResultIndexerSQL extends Indexer {
 	// detected values that should be mapped to "yes"
 	public static List<String> detectedYesLevels = Arrays.asList("Present", "Trace", "Weak", "Moderate", "Strong", "Very strong");
 
-	// cached mapping from EMAPA ID to list of allele keys associated with it or its ancestors (alleles that
-	// should return results annotated to this structure)
-	public Map<String, List<Integer>> structureToAlleles = new HashMap<String, List<Integer>>();
-	
-	// keeps current set of EMAPA IDs mapped in 'structureToAlleles'
-	public Set<String> structureCacheMembers = new LinkedHashSet<String>();
-	
-	// how many structures do we keep mapped in 'structureToAlleles' at once?
-	public int structureCacheSize = 100;
-	
 	// how many Solr documents are kept in memory before being sent to Solr?
-	public int solrCacheSize = 500;
+	public int solrCacheSize = 1000;
 	
 	// caches of genotype data (key is genotype key)
 	public Map<String, String> allelePairs = null;
@@ -241,47 +231,6 @@ public class GXDResultIndexerSQL extends Indexer {
 			sb.append(s4);
 		}
 		return sb.toString();
-	}
-	
-	// get a List of alleles for the given structure key (and its ancestors).  These are cached once
-	// computed for time/space efficiency.
-	public List<Integer> getAlleles(String structureKey,
-			Map<String, List<String>> structureAncestorIdMap,
-			Map<String, Set<Integer>> phenotypicAlleleMap) {
-
-		if (structureToAlleles.containsKey(structureKey)) {
-			// cache hit, so add & remove to bump up in ordering to be most recent structure
-			structureCacheMembers.remove(structureKey);
-			structureCacheMembers.add(structureKey);
-
-			return structureToAlleles.get(structureKey);
-		}
-		List<Integer> alleles = new ArrayList<Integer>();
-		
-		if (structureAncestorIdMap.containsKey(structureKey)) {
-			Set<Integer> alleleSet = new HashSet<Integer>();
-			for (String emapaID : structureAncestorIdMap.get(structureKey)) {
-				if (phenotypicAlleleMap.containsKey(emapaID)) {
-					for (Integer alleleKey : phenotypicAlleleMap.get(emapaID)) {
-						alleleSet.add(alleleKey);
-					}
-				}
-			}
-			
-			for (Integer alleleKey : alleleSet) {
-				alleles.add(alleleKey);
-			}
-		}
-		
-		// need to bump the oldest item from the cache?
-		if (structureCacheMembers.size() >= structureCacheSize) {
-			String oldest = structureCacheMembers.iterator().next();
-			structureCacheMembers.remove(oldest);
-			structureToAlleles.remove(oldest);
-		}
-		structureToAlleles.put(structureKey, alleles);
-		structureCacheMembers.add(structureKey);
-		return alleles;
 	}
 	
 	/* get a mapping from result keys (as Strings) to a List of Strings,
@@ -673,40 +622,6 @@ public class GXDResultIndexerSQL extends Indexer {
 		return structureAncestorMap;
 	}
 
-	/* get a mapping from EMAPA ID to a list of allele keys (for alleles with non-normal phenotypes
-	 * in those tissues)
-	 */
-	private Map<String, Set<Integer>> getPhenotypeAlleleMap() throws Exception {
-		/* trace from allele to genotype (considering all genotypes currently)
-		 * - then to MP annotations (excluding those with a 'normal' qualifier)
-		 * - then to related EMAPA terms
-		 */
-		String cmd = "select atg.allele_key, emapa.primary_id as emapa_id "
-			+ "from allele_to_genotype atg, genotype_to_annotation gta, "
-			+ "  annotation anno, term_to_term tt, term emapa "
-			+ "where atg.genotype_key = gta.genotype_key "
-			+ "  and gta.annotation_key = anno.annotation_key "
-			+ "  and anno.vocab_name = 'Mammalian Phenotype' "
-			+ "  and anno.qualifier is null "
-			+ "  and anno.term_key = tt.term_key_1 "
-			+ "  and tt.relationship_type = 'MP to EMAPA' "
-			+ "  and tt.term_key_2 = emapa.term_key";
-		
-		Map<String, Set<Integer>> lookup = new HashMap<String, Set<Integer>>();
-		ResultSet rs = ex.executeProto(cmd);
-		while (rs.next()) {
-			String emapaID = rs.getString("emapa_id");
-			
-			if (!lookup.containsKey(emapaID)) {
-				lookup.put(emapaID, new HashSet<Integer>());
-			}
-			lookup.get(emapaID).add(rs.getInt("allele_key"));
-		}
-		rs.close();
-		logger.info("Got allele keys for " + lookup.size() + " EMAPA IDs, RAM used: " + memoryUsed());
-		return lookup;
-	}
-
 	/*
 	 * -------------------- main indexing method --------------------
 	 */
@@ -714,9 +629,6 @@ public class GXDResultIndexerSQL extends Indexer {
 		// first get a pull a bunch of mappings into memory, to make later
 		// processing easier
 
-		// maps from EMAPA ID to all alleles with non-normal annotated phenotypes to that structure
-		Map<String, Set<Integer>> phenotypicAlleleMap = getPhenotypeAlleleMap();
-		
 		// mapping from marker key to List of synonyms for each marker
 		Map<String, List<String>> markerNomenMap = getMarkerNomenMap();
 
@@ -1031,11 +943,6 @@ public class GXDResultIndexerSQL extends Indexer {
 					}
 				}
 				
-				List<Integer> alleleKeys = getAlleles(structureTermKey, structureAncestorIdMap, phenotypicAlleleMap);
-				if (alleleKeys.size() > 0) {
-					doc.addField(GxdResultFields.ALLELE_KEY_VIA_PHENOTYPE, alleleKeys);
-				}
-
 				// add the id for this exact structure
 				doc.addField(GxdResultFields.STRUCTURE_EXACT, myEmapaID);
 
@@ -1074,7 +981,6 @@ public class GXDResultIndexerSQL extends Indexer {
 				if (docs.size() >= solrCacheSize) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>(solrCacheSize);		// max known size
-					System.gc();
 				}
 			} // while loop (stepping through rows for this chunk)
 
@@ -1082,7 +988,6 @@ public class GXDResultIndexerSQL extends Indexer {
 			String ramUsed = memoryUsed();
 			systemMap = null;
 			imageMap = null;
-			System.gc();
 			logger.info("Finished chunk; RAM used: " + ramUsed + " -> " + memoryUsed());
 
 			if(memoryPercent() > .80) { printMemory(); commit(); }
