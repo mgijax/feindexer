@@ -4,6 +4,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,6 +14,7 @@ import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
 /**
  * MPCorrelationMatrixIndexerSQL - generates Solr index for the mpCorrelationMatrix index, including the phenotype
@@ -109,9 +112,54 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		}
 	}
 	
+	// Is: a minimal set of genocluster data, for use in sorting
+	private class SortableGenocluster {
+		public Integer genoclusterKey;
+		public String allelePairs;
+		public String genotypeType;
+		
+		public SortableGenocluster(Integer genoclusterKey, String allelePairs, String genotypeType) {
+			this.genoclusterKey = genoclusterKey;
+			this.allelePairs = allelePairs;
+			this.genotypeType = genotypeType;
+		}
+		
+		public SortableGenoclusterComparator getComparator() {
+			return new SortableGenoclusterComparator();
+		}
+		
+		private int getSortableType() {
+			if ("hm".equals(genotypeType)) { return 0; }
+			if ("ht".equals(genotypeType)) { return 1; }
+			if ("cn".equals(genotypeType)) { return 2; }
+			if ("cx".equals(genotypeType)) { return 3; }
+			if ("tg".equals(genotypeType)) { return 4; }
+			if ("ot".equals(genotypeType)) { return 5; }
+			return 6;
+		}
+		
+		public class SortableGenoclusterComparator implements Comparator<SortableGenocluster> {
+			@Override
+			public int compare(SortableGenocluster a, SortableGenocluster b) {
+				/* Sort first by preference of genotype types, the smart-alpha on the allele pairs.
+				 * Lastly, fall back on genocluster key (shouldn't happen).
+				 */
+				int out = Integer.compare(a.getSortableType(), b.getSortableType());
+				if (out != 0) { return out; }
+				
+				out = smartAlphaComparator.compare(a.allelePairs, b.allelePairs);
+				if (out != 0) { return out; }
+
+				return Integer.compare(a.genoclusterKey, b.genoclusterKey);
+			}
+		}
+	}
+	
 	/***--- class variables ---***/
 	
 	public static final String NORMAL = "normal";	// text of the normal qualifier
+	private static SmartAlphaComparator smartAlphaComparator = new SmartAlphaComparator();
+		
 	
 	/***--- instance variables ---***/
 	
@@ -235,11 +283,13 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 	// markers with keys >= startMarker and < endMarker
 	public void buildGenoclusterCaches(int startMarker, int endMarker) throws SQLException {
 		this.allelePairs = new HashMap<Integer,String>(); 
+		this.genoclusterSeqNum = new HashMap<Integer,Integer>();
+		List<SortableGenocluster> genoclusters = new ArrayList<SortableGenocluster>();
 		
 		// get the allele pairs for each genocluster, but strip out all the markup and just leave
 		// the allele symbols
 		
-		String cmd = "select distinct gc.hdp_genocluster_key, "
+		String cmd = "select distinct gc.hdp_genocluster_key, g.genotype_type, "
 			+ " regexp_replace("
 			+ "  regexp_replace(g.combination_1, '\\\\Allele\\([^\\|]*|', '', 'g'), "
 			+ "   '\\|\\)?', '', 'g') as allele_pairs "
@@ -252,9 +302,21 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
-			allelePairs.put(rs.getInt("hdp_genocluster_key"), rs.getString("allele_pairs").trim());
+			Integer genoclusterKey = rs.getInt("hdp_genocluster_key");
+			String alleles = rs.getString("allele_pairs").trim();
+			
+			allelePairs.put(genoclusterKey, alleles);
+			genoclusters.add(new SortableGenocluster(genoclusterKey, alleles, rs.getString("genotype_type")));
 		}
 		rs.close();
+		
+		if (genoclusters.size() > 0) {
+			Collections.sort(genoclusters, genoclusters.get(0).getComparator());
+			int seqNum = 0;
+			for (SortableGenocluster sgc : genoclusters) {
+				genoclusterSeqNum.put(sgc.genoclusterKey, seqNum++);
+			}
+		}
 		logger.info(" - cached alleles for " + allelePairs.size() + " genoclusters");
 	}
 	
@@ -399,6 +461,11 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 						doc.addField(IndexConstants.ANNOTATION_COUNT, cell.normals + cell.abnormals);
 						doc.addField(IndexConstants.IS_NORMAL, cell.isOnlyNormal());
 						doc.addField(IndexConstants.HAS_BACKGROUND_SENSITIVITY, cell.backgroundSensitive);
+						if (this.genoclusterSeqNum.containsKey(genoclusterKey)) {
+							doc.addField(IndexConstants.BY_GENOCLUSTER, genoclusterSeqNum.get(genoclusterKey));
+						} else {
+							doc.addField(IndexConstants.BY_GENOCLUSTER, 0);
+						}
 						
 						docs.add(doc);
 						if (docs.size() > this.documentCacheSize) {
