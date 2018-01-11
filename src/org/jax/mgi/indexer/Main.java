@@ -49,6 +49,7 @@ public class Main {
 		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
 		indexerMap.put("gxdEmapaAC",new GXDEmapaAutoCompleteIndexerSQL());
 
+		indexerMap.put("mpCorrelationMatrix", new MPCorrelationMatrixIndexerSQL());
 		indexerMap.put("mpAnnotation", new MPAnnotationIndexerSQL());
 		indexerMap.put("interaction", new InteractionIndexerSQL());
 		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
