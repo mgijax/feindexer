@@ -3,7 +3,6 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -28,25 +27,28 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 	
 	// Is: a log of which annotations we've already seen and handled (to ensure distinctness)
 	private class AnnotationLog {
-		// handled[marker key][genotype key][structure key][qualifier] = set of reference keys
-		private	Map<Integer,Map<Integer,Map<Integer,Map<String,Set<Integer>>>>> handled = 
-				new HashMap<Integer,Map<Integer,Map<Integer,Map<String,Set<Integer>>>>>();
+		// handled[marker key][genotype key][mp term key][structure key][qualifier] = set of reference keys
+		private	Map<Integer,Map<Integer,Map<Integer,Map<Integer,Map<String,Set<Integer>>>>>> handled = 
+				new HashMap<Integer,Map<Integer,Map<Integer,Map<Integer,Map<String,Set<Integer>>>>>>();
 		
-		public boolean seenIt (int markerKey, int genotypeKey, int structureKey, String qualifier, int referenceKey) {
+		public boolean seenIt (int markerKey, int genotypeKey, int mpTermKey, int structureKey, String qualifier, int referenceKey) {
 			if (!handled.containsKey(markerKey)) {
-				handled.put(markerKey, new HashMap<Integer,Map<Integer,Map<String,Set<Integer>>>>());
+				handled.put(markerKey, new HashMap<Integer,Map<Integer,Map<Integer,Map<String,Set<Integer>>>>>());
 			}
 			if (!handled.get(markerKey).containsKey(genotypeKey)) {
-				handled.get(markerKey).put(genotypeKey, new HashMap<Integer,Map<String,Set<Integer>>>());
+				handled.get(markerKey).put(genotypeKey, new HashMap<Integer,Map<Integer,Map<String,Set<Integer>>>>());
 			}
-			if (!handled.get(markerKey).get(genotypeKey).containsKey(structureKey)) {
-				handled.get(markerKey).get(genotypeKey).put(structureKey, new HashMap<String,Set<Integer>>());
+			if (!handled.get(markerKey).get(genotypeKey).containsKey(mpTermKey)) {
+				handled.get(markerKey).get(genotypeKey).put(mpTermKey, new HashMap<Integer,Map<String,Set<Integer>>>());
 			}
-			if (!handled.get(markerKey).get(genotypeKey).get(structureKey).containsKey(qualifier)) {
-				handled.get(markerKey).get(genotypeKey).get(structureKey).put(qualifier, new HashSet<Integer>());
+			if (!handled.get(markerKey).get(genotypeKey).get(mpTermKey).containsKey(structureKey)) {
+				handled.get(markerKey).get(genotypeKey).get(mpTermKey).put(structureKey, new HashMap<String,Set<Integer>>());
 			}
-			if (!handled.get(markerKey).get(genotypeKey).get(structureKey).get(qualifier).contains(referenceKey)) {
-				handled.get(markerKey).get(genotypeKey).get(structureKey).get(qualifier).add(referenceKey);
+			if (!handled.get(markerKey).get(genotypeKey).get(mpTermKey).get(structureKey).containsKey(qualifier)) {
+				handled.get(markerKey).get(genotypeKey).get(mpTermKey).get(structureKey).put(qualifier, new HashSet<Integer>());
+			}
+			if (!handled.get(markerKey).get(genotypeKey).get(mpTermKey).get(structureKey).get(qualifier).contains(referenceKey)) {
+				handled.get(markerKey).get(genotypeKey).get(mpTermKey).get(structureKey).get(qualifier).add(referenceKey);
 				return false;
 			}
 			return true;
@@ -166,12 +168,15 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 	public int batchSize = 10000;			// how many markers to process in each batch
 	public int documentCacheSize = 10000;	// how many Solr docs to cache in memory
 	
-	// caches of data for this batch of markers
+	// caches across all batches of markers (retrieve once and hold them)
 
 	public Map<Integer,String> anatomyTerm;				// maps from anatomical structure key to structure term
 	public Map<Integer,String> anatomyID;				// maps from anatomical structure key to structure term
 	public Map<Integer,List<Integer>> anatomyAncestors;	// maps from anatomical structure key to ancestor term IDs
 	public Map<Integer,List<String>> anatomyParents;	// maps from anatomical structure key to ancestor structure keys
+
+	// caches of data for this batch of markers
+
 	public Map<Integer,String> allelePairs;				// maps from genocluster key to allele pair string
 	public Map<Integer,Integer> genoclusterSeqNum;		// maps from genocluster key to sequence number
 	public Map<Integer,String> markerID;				// maps from marker key to marker ID
@@ -184,25 +189,18 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		super("mpCorrelationMatrix");
 	}
 
-	// populate the indexer's caches of anatomy term data for annotations rolled up to
-	// markers with keys >= startMarker and < endMarker
-	public void buildAnatomyCaches(int startMarker, int endMarker) throws SQLException {
+	// populate the indexer's caches of anatomy term data (IDs, terms, parents, ancestors)
+	public void buildAnatomyCaches() throws SQLException {
 		this.anatomyTerm = new HashMap<Integer,String>(); 
 		this.anatomyID = new HashMap<Integer,String>(); 
 		this.anatomyAncestors = new HashMap<Integer,List<Integer>>(); 
 		this.anatomyParents = new HashMap<Integer,List<String>>(); 
 		
-		// cache terms and IDs for anatomy terms used in this chunk of markers
+		// cache terms and IDs for anatomy terms
 		
-		String cmd = "select distinct e.term_key, e.primary_id, e.term "
-			+ "from marker m, hdp_genocluster gc, hdp_genocluster_annotation a, term_to_term ttt, term e "
-			+ "where gc.marker_key = m.marker_key "
-			+ " and gc.hdp_genocluster_key = a.hdp_genocluster_key "
-			+ " and a.term_key = ttt.term_key_1 "
-			+ " and ttt.relationship_type = 'MP to EMAPA' "
-			+ " and ttt.term_key_2 = e.term_key "
-			+ " and m.marker_key >= " + startMarker
-			+ " and m.marker_key < " + endMarker;
+		String cmd = "select term_key, primary_id, term "
+			+ "from term "
+			+ "where vocab_name = 'EMAPA' ";
 		
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
@@ -212,17 +210,13 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		// cache IDs for parents of anatomy terms used in this chunk of markers
+		// cache IDs for parents of anatomy terms
 		
-		String cmd2 = "select distinct tc.child_term_key, p.primary_id as parent_id "
-			+ "from hdp_genocluster gc, hdp_genocluster_annotation a, term_to_term ttt, term_child tc, term p "
-			+ "where gc.hdp_genocluster_key = a.hdp_genocluster_key "
-			+ " and a.term_key = ttt.term_key_1 "
-			+ " and ttt.relationship_type = 'MP to EMAPA' "
-			+ " and ttt.term_key_2 = tc.child_term_key "
-			+ " and tc.term_key = p.term_key "
-			+ " and gc.marker_key >= " + startMarker
-			+ " and gc.marker_key < " + endMarker;
+		String cmd2 = "select tc.child_term_key, p.primary_id as parent_id " + 
+				"from term t, term_child tc, term p " + 
+				"where t.vocab_name = 'EMAPA' " + 
+				" and t.term_key = tc.child_term_key " + 
+				" and tc.term_key = p.term_key";
 
 		ResultSet rs2 = ex.executeProto(cmd2);
 		while (rs2.next()) {
@@ -234,17 +228,12 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		}
 		rs2.close();
 		
-		// cache structure keys for all ancestors of anatomy terms used in this chunk of markers
+		// Cache structure keys for all ancestors of anatomy terms.
 		
-		String cmd3 = "select distinct ta.term_key, ta.ancestor_term_key "
-			+ "from marker m, hdp_genocluster gc, hdp_genocluster_annotation a, term_ancestor ta, term_to_term ttt "
-			+ "where gc.marker_key = m.marker_key "
-			+ " and gc.hdp_genocluster_key = a.hdp_genocluster_key "
-			+ " and a.term_key = ttt.term_key_1 "
-			+ " and ttt.relationship_type = 'MP to EMAPA' "
-			+ " and ttt.term_key_2 = ta.term_key "
-			+ " and m.marker_key >= " + startMarker
-			+ " and m.marker_key < " + endMarker;
+		String cmd3 = "select t.term_key, a.ancestor_term_key, a.ancestor_term, a.ancestor_primary_id " + 
+				"from term t, term_ancestor a " + 
+				"where t.vocab_name = 'EMAPA' " + 
+				"and t.term_key = a.term_key";
 		
 		ResultSet rs3 = ex.executeProto(cmd3);
 		while (rs3.next()) {
@@ -351,6 +340,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		int startMarker = minMarkerKey;
 		List<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		int uniqueKey = 1;
+		buildAnatomyCaches();
 				
 		while (startMarker < maxMarkerKey) {
 			int endMarker = startMarker + this.batchSize;
@@ -365,7 +355,6 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 				startMarker = endMarker;
 				continue;
 			}
-			buildAnatomyCaches(startMarker, endMarker);
 			buildGenoclusterCaches(startMarker, endMarker);
 			
 			/* For the purposes of this index, we define a unique annotation as a combination of
@@ -376,7 +365,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 			 */
 			String cmd = "select distinct g.marker_key, hga.hdp_genocluster_key, geno.genotype_key, "
 				+ " map.term_key_2 as structure_key, hga.qualifier_type, hga.has_backgroundnote, "
-				+ " r.reference_key "
+				+ " r.reference_key, hga.term_key "
 				+ "from hdp_genocluster g, hdp_genocluster_annotation hga, term_to_term map, "
 				+ " hdp_genocluster_genotype geno, genotype_to_annotation gta, annotation a, "
 				+ " annotation_reference r "
@@ -410,9 +399,10 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 				String qualifier = rs.getString("qualifier_type");
 				int backgroundSensitive = rs.getInt("has_backgroundnote");
 				int referenceKey = rs.getInt("reference_key");
+				int mpTermKey = rs.getInt("term_key");
 				
 				// If we've already processed an annotation matching this one, skip it and move on.
-				if (annotLog.seenIt(markerKey, genotypeKey, structureKey, qualifier, referenceKey)) {
+				if (annotLog.seenIt(markerKey, genotypeKey, mpTermKey, structureKey, qualifier, referenceKey)) {
 					continue;
 				}
 
