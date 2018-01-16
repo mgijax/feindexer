@@ -209,6 +209,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				+ "and a.annotation_key > " + start + " and a.annotation_key <= " + end + " "
 				+ "and a.annotation_key = t.annotation_key " 
 				+ "and t.genotype_key = g.genotype_key " 
+				+ "and a.qualifier is null "
 				+ "and g.combination_1 is not null";
 
 			ResultSet rs_overall = ex.executeProto(mainQuery);
