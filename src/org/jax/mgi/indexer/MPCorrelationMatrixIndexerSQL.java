@@ -437,11 +437,13 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 						String emapaTerm = this.anatomyTerm.get(structureKey);
 						String emapaID = this.anatomyID.get(structureKey);
 						List<String> emapaParents = this.anatomyParents.get(structureKey);
+						List<Integer> emapaAncestors = this.anatomyAncestors.get(structureKey);
 						Cell cell = cellBlock.getCell(markerKey, genoclusterKey, structureKey);
 
 						SolrInputDocument doc = new SolrInputDocument();
 						doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
 						doc.addField(IndexConstants.PARENT_ANATOMY_ID, emapaParents);
+						doc.addField(IndexConstants.ANCESTOR_ANATOMY_KEY, emapaAncestors);
 						doc.addField(IndexConstants.ANATOMY_TERM, emapaTerm);
 						doc.addField(IndexConstants.ANATOMY_ID, emapaID);
 						doc.addField(IndexConstants.MRK_ID, geneID);
