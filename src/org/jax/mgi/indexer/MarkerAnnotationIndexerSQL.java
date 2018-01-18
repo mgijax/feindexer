@@ -182,20 +182,6 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 					}
 				}
 
-				// if we have ancestors, add their ids, and ancestor synonyms
-				//           		if(this.ancestorIds.containsKey(mt.termId))
-				//           		{
-				//           			for(String ancestorId : this.ancestorIds.get(mt.termId))
-				//           			{
-				//           				doc.addField(IndexConstants.MRK_TERM_ID,ancestorId);
-				//                   		this.addAllFromLookupNoDups(doc,termField,ancestorId,this.termSynonyms);
-				//           			}
-				//           		}
-
-
-
-
-
 				docs.add(doc);
 
 				if (docs.size() > 5000) {
