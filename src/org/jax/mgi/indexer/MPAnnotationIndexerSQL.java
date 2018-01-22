@@ -203,13 +203,12 @@ public class MPAnnotationIndexerSQL extends Indexer {
 			end = start + chunkSize;
 
 			logger.info ("Processing annotation key > " + start + " and <= " + end);
-			String mainQuery = "select a.annotation_key, a.term_key, g.genotype_key " 
+			String mainQuery = "select a.annotation_key, a.term_key, g.genotype_key, a.qualifier " 
 				+ "from annotation a, genotype_to_annotation t, genotype g " 
 				+ "where a.annotation_type = '" + annotationType + "' "
 				+ "and a.annotation_key > " + start + " and a.annotation_key <= " + end + " "
 				+ "and a.annotation_key = t.annotation_key " 
 				+ "and t.genotype_key = g.genotype_key " 
-				+ "and a.qualifier is null "
 				+ "and g.combination_1 is not null";
 
 			ResultSet rs_overall = ex.executeProto(mainQuery);
@@ -234,6 +233,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.UNIQUE_KEY, annotKey);
 				doc.addField(IndexConstants.ANNOTATION_KEY, annotKey);
 				doc.addField(IndexConstants.GENOTYPE_KEY, genotypeKey);
+				doc.addField(IndexConstants.VOC_QUALIFIER, rs_overall.getString("qualifier"));
 
 				// Make record searchable by this MP term ID and the IDs of all its ancestors.  As well,
 				// if either this term or one of its ancestors is mapped to an EMAPA term, then it should
