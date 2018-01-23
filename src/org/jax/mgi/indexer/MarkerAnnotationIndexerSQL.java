@@ -42,7 +42,7 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 	}
 	
 	public Map<String, Integer> getSlimTermSequenceNumbers() throws Exception {
-		String slimTermQuery = "select distinct h.term "
+		String slimTermQuery = "select distinct h.abbreviation as term "
 			+ "from annotation a, term_to_header t, term h "
 			+ "where a.vocab_name = 'GO' "
 			+ " and a.term_key = t.term_key "
