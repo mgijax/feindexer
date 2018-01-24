@@ -30,6 +30,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		public int detected = 0;				// count of detected results
 		public int notDetected = 0;				// count of not detected results
 		public int ambiguous = 0;				// count of ambiguous results
+		public int children = 0;				// results from children cells
 		
 		public void addDetected() {
 			this.detected++;
@@ -50,6 +51,10 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		public int anyAmbiguous() {
 			if (ambiguous > 0) { return 1; }
 			return 0;
+		}
+		
+		public void addChildren() {
+			this.children++;
 		}
 	}
 
@@ -321,13 +326,16 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		logger.info(" - cached data for " + this.alleleID.size() + " alleles");
 	}
 
-	private void updateCell (Cell cell, String isExpressed) {
+	// only would want to expand a cell to see children if there are non-absent expression results
+	private void updateCell (Cell cell, String isExpressed, boolean isAncestor) {
 		if ("Yes".equals(isExpressed)) {
 			cell.addDetected();
+			if (isAncestor) { cell.addChildren(); }
 		} else if ("No".equals(isExpressed)) {
 			cell.addNotDetected();
 		} else {
 			cell.addAmbiguous();
+			if (isAncestor) { cell.addChildren(); }
 		}
 	}
 	
@@ -391,14 +399,14 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 				
 				// Otherwise, update data for the corresponding cell.
 				Cell cell = cellBlock.getCell(driverKey, ALLELE, alleleKey, structureKey);
-				updateCell(cell, isDetected);
+				updateCell(cell, isDetected, false);
 				
 				// And also add the annotation to any of its ancestor cells.  Each annotation is only
 				// counted once in each ancestor cell, regardless of how many paths there are to the root.
 				if (this.anatomyAncestors.containsKey(structureKey)) {
 					for (Integer ancestorKey : this.anatomyAncestors.get(structureKey)) {
 						Cell ancestorCell = cellBlock.getCell(driverKey, ALLELE, alleleKey, ancestorKey);
-						updateCell(ancestorCell, isDetected);
+						updateCell(ancestorCell, isDetected, true);
 					}
 				}
 			}
@@ -440,6 +448,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 						doc.addField(IndexConstants.DETECTED_RESULTS, cell.detected);
 						doc.addField(IndexConstants.NOT_DETECTED_RESULTS, cell.notDetected);
 						doc.addField(IndexConstants.ANY_AMBIGUOUS, cell.anyAmbiguous());
+						doc.addField(IndexConstants.CHILDREN, cell.children);
 						doc.addField(IndexConstants.BY_COLUMN, this.alleleSeqNum.get(alleleKey));
 
 						docs.add(doc);
