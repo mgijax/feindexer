@@ -292,12 +292,11 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		// the allele symbols
 		
 		String cmd = "select distinct a.allele_key, a.symbol, a.primary_id, a.allele_type, m.organism "
-			+ "from allele a, allele_to_genotype g, expression_result_summary ers, marker m "
-			+ "where a.allele_key = g.allele_key "
-			+ " and g.genotype_key = ers.genotype_key "
-			+ " and a.driver_key = m.marker_key"
-			+ " and a.driver_key >= " + startMarker
-			+ " and a.driver_key < " + endMarker;
+			+ "from allele a, recombinase_expression e, marker m "
+			+ "where a.allele_key = e.allele_key "
+			+ " and e.driver_key = m.marker_key"
+			+ " and e.driver_key >= " + startMarker
+			+ " and e.driver_key < " + endMarker;
 		
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
@@ -377,15 +376,10 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			/* Initially we are just populating this index with data for the recombinase alleles. A similar
 			 * process, however, could be used to also add the wild-type expression data for markers.
 			 */
-			String cmd = "select distinct a.allele_key, a.driver_key, ers.result_key, "
-				+ "  ers.is_expressed, c.emapa_term_key as structure_key "
-				+ "from allele a, allele_to_genotype g, expression_result_summary ers, term_emaps_child c "
-				+ "where a.allele_key = g.allele_key "
-				+ " and a.driver_key >= " + startMarker
-				+ " and a.driver_key < " + endMarker
-				+ " and g.genotype_key = ers.genotype_key "
-				+ " and ers.structure_key = c.emaps_child_term_key "
-				+ " and a.driver_key is not null";
+			String cmd = "select allele_key, driver_key, result_key, structure_key, is_detected "
+				+ "from recombinase_expression "
+				+ "where driver_key >= " + startMarker
+				+ " and driver_key < " + endMarker;
 
 			ResultSet rs = ex.executeProto(cmd);
 			
@@ -395,20 +389,19 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			while (rs.next()) {
 				int alleleKey = rs.getInt("allele_key");
 				int driverKey = rs.getInt("driver_key");
-				int resultKey = rs.getInt("result_key");
 				int structureKey = rs.getInt("structure_key");
-				String isExpressed = rs.getString("is_expressed");
+				String isDetected = rs.getString("is_detected");
 				
 				// Otherwise, update data for the corresponding cell.
 				Cell cell = cellBlock.getCell(driverKey, ALLELE, alleleKey, structureKey);
-				updateCell(cell, isExpressed);
+				updateCell(cell, isDetected);
 				
 				// And also add the annotation to any of its ancestor cells.  Each annotation is only
 				// counted once in each ancestor cell, regardless of how many paths there are to the root.
 				if (this.anatomyAncestors.containsKey(structureKey)) {
 					for (Integer ancestorKey : this.anatomyAncestors.get(structureKey)) {
 						Cell ancestorCell = cellBlock.getCell(driverKey, ALLELE, alleleKey, ancestorKey);
-						updateCell(ancestorCell, isExpressed);
+						updateCell(ancestorCell, isDetected);
 					}
 				}
 			}
