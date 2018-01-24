@@ -6,7 +6,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -165,12 +164,10 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 	public static final String MARKER = "marker";	// object type for markers
 	public static final String ALLELE = "allele";	// object type for alleles
   	private static SmartAlphaComparator smartAlphaComparator = new SmartAlphaComparator();
- 
-		
 	
 	/***--- instance variables ---***/
 	
-	public int batchSize = 10000;			// how many markers to process in each batch
+	public int batchSize = 25000;			// how many markers to process in each batch
 	public int documentCacheSize = 10000;	// how many Solr docs to cache in memory
 	
 	// caches across all batches of markers (retrieve once and hold them)
@@ -316,7 +313,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		
 		if (alleleColumns.size() > 0) {
 			Collections.sort(alleleColumns, alleleColumns.get(0).getComparator());
-			int seqNum = 0;
+			int seqNum = 1;
 			for (SortableColumnHeader sgc : alleleColumns) {
 				this.alleleSeqNum.put(sgc.objectKey, seqNum++);
 			}
