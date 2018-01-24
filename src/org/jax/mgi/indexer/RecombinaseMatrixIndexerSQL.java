@@ -293,7 +293,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		// get the allele pairs for each genocluster, but strip out all the markup and just leave
 		// the allele symbols
 		
-		String cmd = "select distinct a.allele_key, a.symbol, a.primary_id, a.allele_type, m.organism "
+		String cmd = "select distinct a.allele_key, a.only_allele_symbol as symbol, a.primary_id, a.allele_type, m.organism "
 			+ "from allele a, recombinase_expression e, marker m "
 			+ "where a.allele_key = e.allele_key "
 			+ " and e.driver_key = m.marker_key"
