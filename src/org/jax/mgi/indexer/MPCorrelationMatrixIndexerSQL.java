@@ -60,6 +60,11 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		public int abnormals = 0;				// count of non-normal annotations
 		public int normals = 0;					// count of normal annotations
 		public int backgroundSensitive = 0;		// background sensitive (1) or not (0)?
+		public int children = 0;				// count of non-normal annotations in children
+		
+		public void addChildren() {
+			this.children++;
+		}
 		
 		public void addAbnormal() {
 			this.abnormals++;
@@ -309,11 +314,14 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		logger.info(" - cached alleles for " + allelePairs.size() + " genoclusters");
 	}
 	
-	private void updateCell (Cell cell, String qualifier, Integer backgroundSensitive) {
+	private void updateCell (Cell cell, String qualifier, Integer backgroundSensitive, boolean isAncestor) {
 		if (NORMAL.equals(qualifier)) {
 			cell.addNormal();
 		} else {
 			cell.addAbnormal();
+			if (isAncestor) {
+				cell.addChildren();
+			}
 		}
 		cell.applySensitivity(backgroundSensitive);
 	}
@@ -408,14 +416,14 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 
 				// Otherwise, update data for the corresponding cell.
 				Cell cell = cellBlock.getCell(markerKey, genoclusterKey, structureKey);
-				updateCell(cell, qualifier, backgroundSensitive);
+				updateCell(cell, qualifier, backgroundSensitive, false);
 				
 				// And also add the annotation to any of its ancestor cells.  Each annotation is only
 				// counted once in each ancestor cell, regardless of how many paths there are to the root.
 				if (this.anatomyAncestors.containsKey(structureKey)) {
 					for (Integer ancestorKey : this.anatomyAncestors.get(structureKey)) {
 						Cell ancestorCell = cellBlock.getCell(markerKey, genoclusterKey, ancestorKey);
-						updateCell(ancestorCell, qualifier, backgroundSensitive);
+						updateCell(ancestorCell, qualifier, backgroundSensitive, true);
 					}
 				}
 			}
@@ -452,6 +460,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 						doc.addField(IndexConstants.ALLELE_PAIRS, alleles);
 						doc.addField(IndexConstants.ANNOTATION_COUNT, cell.normals + cell.abnormals);
 						doc.addField(IndexConstants.IS_NORMAL, cell.isOnlyNormal());
+						doc.addField(IndexConstants.CHILDREN, cell.children);
 						doc.addField(IndexConstants.HAS_BACKGROUND_SENSITIVITY, cell.backgroundSensitive);
 						if (this.genoclusterSeqNum.containsKey(genoclusterKey)) {
 							doc.addField(IndexConstants.BY_GENOCLUSTER, genoclusterSeqNum.get(genoclusterKey));
