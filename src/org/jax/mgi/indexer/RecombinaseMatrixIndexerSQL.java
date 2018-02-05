@@ -31,6 +31,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		public int notDetected = 0;				// count of not detected results
 		public int ambiguous = 0;				// count of ambiguous results
 		public int children = 0;				// results from children cells
+		public int questionableDescendants = 0;	// flag (0/1) for descendants with ambiguous or not detected results
 		
 		public void addDetected() {
 			this.detected++;
@@ -55,6 +56,10 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		
 		public void addChildren() {
 			this.children++;
+		}
+		
+		public void flagQuestionableDescendants() {
+			this.questionableDescendants = 1;
 		}
 	}
 
@@ -328,14 +333,31 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 
 	// only would want to expand a cell to see children if there are non-absent expression results
 	private void updateCell (Cell cell, String isExpressed, boolean isAncestor) {
+		// rules:
+		// 1. Yes : always add to detected count; also add to count of children, if this is an ancestor cell
+		// 2. No :
+		//		a. If this is an ancestor term, just flag that it has an ambiguous/No descendant.
+		//		b. If not an ancestor term, add to the No count.
+		// 3. Ambiguous : 
+		//		a. If this is an ancestor term, just flag that it has an ambiguous/No descendant.
+		//			Also add to count of children.
+		//		b. If not an ancestor term, add to the Ambiguous count.
+
 		if ("Yes".equals(isExpressed)) {
 			cell.addDetected();
-			if (isAncestor) { cell.addChildren(); }
-		} else if ("No".equals(isExpressed)) {
-			cell.addNotDetected();
-		} else {
+			if (isAncestor) {
+				cell.addChildren();
+			}
+		} else if (isAncestor) {
+			// do not propagate "not detected" or "ambiguous" up to ancestors, but flag their presence
+			cell.flagQuestionableDescendants();
+			if ("Ambiguous".equals(isExpressed)) {
+				cell.addChildren(); 
+			}
+		} else if ("Ambiguous".equals(isExpressed)) {
 			cell.addAmbiguous();
-			if (isAncestor) { cell.addChildren(); }
+		} else {
+			cell.addNotDetected();
 		}
 	}
 	
@@ -449,6 +471,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 						doc.addField(IndexConstants.NOT_DETECTED_RESULTS, cell.notDetected);
 						doc.addField(IndexConstants.ANY_AMBIGUOUS, cell.anyAmbiguous());
 						doc.addField(IndexConstants.CHILDREN, cell.children);
+						doc.addField(IndexConstants.AMBIGUOUS_OR_NOT_DETECTED_DESCENDANTS, cell.questionableDescendants);
 						doc.addField(IndexConstants.BY_COLUMN, this.alleleSeqNum.get(alleleKey));
 
 						docs.add(doc);
