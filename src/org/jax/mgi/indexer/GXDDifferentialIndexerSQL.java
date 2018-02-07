@@ -88,14 +88,16 @@ public class GXDDifferentialIndexerSQL extends Indexer
 			Set<String> commonStructures = null;
 
 			for (Result result : markerResults.get(markerKey)) {
-				Set<String> resultStructures = new HashSet<String>();
-				resultStructures.add(result.structureKey);
-				resultStructures.addAll(getEmapsAncestors(result.structureKey));
+				if (result.expressed) {
+					Set<String> resultStructures = new HashSet<String>();
+					resultStructures.add(result.structureKey);
+					resultStructures.addAll(getEmapsAncestors(result.structureKey));
 
-				if (commonStructures == null) {
-					commonStructures = resultStructures;
-				} else {
-					commonStructures.retainAll(resultStructures);
+					if (commonStructures == null) {
+						commonStructures = resultStructures;
+					} else {
+						commonStructures.retainAll(resultStructures);
+					}
 				}
 			}
 			exStructures.put(markerKey + "", commonStructures);
@@ -118,7 +120,9 @@ public class GXDDifferentialIndexerSQL extends Indexer
 			exStages.put(stringKey, new HashSet<String>());
 
 			for (Result result : markerResults.get(markerKey)) {
-				exStages.get(stringKey).add(result.stage);
+				if (result.expressed) {
+					exStages.get(stringKey).add(result.stage);
+				}
 			}
 		}
 		return exStages;
