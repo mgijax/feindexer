@@ -30,7 +30,7 @@ public class GXDDifferentialIndexerSQL extends Indexer
 	private Set<String> emptySet = new HashSet<String>();
 	
 	// maps from EMAPS structure key to all of its EMAPS ancestor keys (not just parents)
-	private Map<String,Set<String>> emapsAncestors = null;
+	private Map<String,Set<String>> emapaAncestors = null;
 	
 	//--- constructors ---//
 	
@@ -39,35 +39,38 @@ public class GXDDifferentialIndexerSQL extends Indexer
 
 	//--- methods ---//
 	
-	// get the mapping from each EMAPS term key to its EMAPS ancestor keys
-	public void fillEmapsAncestors() throws Exception {
-		emapsAncestors = new HashMap<String,Set<String>>();
+	// get the mapping from each EMAPS term key to its EMAPA ancestor keys
+	public void fillEmapaAncestors() throws Exception {
+		emapaAncestors = new HashMap<String,Set<String>>();
 		
-		String cmd = "select distinct a.term_key, e.emapa_term_key as ancestor_term_key "
-			+ "from term_ancestor a, term t, term_emap e "
+		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key "
+			+ "from term_ancestor a, term t, term_emap e, term_emap te "
 			+ "where a.term_key = t.term_key "
 			+ " and a.ancestor_term_key = e.term_key "
+			+ " and t.term_key = te.term_key "
 			+ " and t.vocab_name = 'EMAPS'";
 		
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
 			String termKey = rs.getString("term_key");
-			if (!emapsAncestors.containsKey(termKey)) {
-				emapsAncestors.put(termKey, new HashSet<String>());
+			if (!emapaAncestors.containsKey(termKey)) {
+				emapaAncestors.put(termKey, new HashSet<String>());
+				emapaAncestors.get(termKey).add(rs.getString("emapa_term_key"));
 			}
-			emapsAncestors.get(termKey).add(rs.getString("ancestor_term_key"));
+			emapaAncestors.get(termKey).add(rs.getString("ancestor_term_key"));
 		}
 		rs.close();
-		logger.info("Got EMAPA ancestors for " + emapsAncestors.size() + " EMAPS terms");
+		logger.info("Got EMAPA ancestors for " + emapaAncestors.size() + " EMAPS terms");
 	}
 	
-	// get the set of EMAPS structure keys that are ancestors of the given EMAPS structure key
-	public Set<String> getEmapsAncestors(String emapsKey) throws Exception {
-		if (emapsAncestors == null) {
-			fillEmapsAncestors();
+	// get the set of EMAPA structure keys that are ancestors of the given EMAPS structure key,
+	// including EMAPA key for 'emapsKey' itself
+	public Set<String> getEmapaAncestors(String emapsKey) throws Exception {
+		if (emapaAncestors == null) {
+			fillEmapaAncestors();
 		}
-		if (emapsAncestors.containsKey(emapsKey)) {
-			return emapsAncestors.get(emapsKey);
+		if (emapaAncestors.containsKey(emapsKey)) {
+			return emapaAncestors.get(emapsKey);
 		}
 		return emptySet;
 	}
@@ -90,8 +93,7 @@ public class GXDDifferentialIndexerSQL extends Indexer
 			for (Result result : markerResults.get(markerKey)) {
 				if (result.expressed) {
 					Set<String> resultStructures = new HashSet<String>();
-					resultStructures.add(result.structureKey);
-					resultStructures.addAll(getEmapsAncestors(result.structureKey));
+					resultStructures.addAll(getEmapaAncestors(result.structureKey));
 
 					if (commonStructures == null) {
 						commonStructures = resultStructures;
@@ -330,8 +332,8 @@ public class GXDDifferentialIndexerSQL extends Indexer
 				}
 			}
 			writeDocs(docs);
-			commit();
 		}
+		commit();
 	}
 
 	/*
