@@ -31,24 +31,24 @@ public class DagEdgeIndexerSQL extends Indexer
 				"term_child tc on tc.term_key=t.term_key where t.vocab_name='EMAPA'");
 		rs.next();
 
-		Integer start = rs.getInt("min_term_key") - 1 ;
-		Integer stop = rs.getInt("max_term_key");
-		logger.info("min term key = "+start+", max term key = "+stop);
+		Integer minKey = rs.getInt("min_term_key");
+		Integer maxKey = rs.getInt("max_term_key");
+		logger.info("min term key = " + minKey + ", max term key = " + maxKey);
 		int chunkSize = 150000;
 
-		int modValue = (stop-start) / chunkSize;
-		// Perform the chunking
-		for (int i = 0; i <= modValue; i++) 
-		{
-			start = start + (i * chunkSize);
-			stop = start + chunkSize;
+		int start = minKey - 1;
+		while (start < maxKey) {
+			int stop = start + chunkSize;
 
 			logger.info("Loading direct edges for terms "+start+" to "+stop);
 			processDirectEdges(start,stop);
 
 			logger.info("Loading descendent edges for terms "+start+" to "+stop);
 			processDescendentEdges(start,stop);
+			
+			start = stop;
 		}
+		commit();
 		logger.info("load completed");
 	}
 
@@ -112,7 +112,6 @@ public class DagEdgeIndexerSQL extends Indexer
 			docs.add(doc);
 		}
 		writeDocs(docs);
-		commit();
 	}
 
 	private void processDescendentEdges(int start,int stop) throws Exception
@@ -151,7 +150,6 @@ public class DagEdgeIndexerSQL extends Indexer
 			docs.add(doc);
 		}
 		writeDocs(docs);
-		commit();
 	}
 
 	/*
