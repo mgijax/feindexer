@@ -90,10 +90,6 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			return cells.keySet();
 		}
 		
-		public Set<String> getObjectTypes(int markerKey) {
-			return cells.get(markerKey).keySet();
-		}
-
 		public Set<Integer> getObjectKeys(int markerKey, String objectType) {
 			return cells.get(markerKey).get(objectType).keySet();
 		}
@@ -186,6 +182,10 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 	public Map<Integer,String> anatomyID;				// maps from anatomical structure key to structure term
 	public Map<Integer,List<Integer>> anatomyAncestors;	// maps from anatomical structure key to ancestor term IDs
 	public Map<Integer,List<String>> anatomyParents;	// maps from anatomical structure key to ancestor structure keys
+	
+	public Map<Integer,Integer> emapsToEmapa;			// maps from EMAPS term key to EMAPA term key
+	public Map<Integer,List<Integer>> emapsParents;		// maps from EMAPS term key to its parent EMAPS term keys
+	public Map<Integer,List<Integer>> emapsAncestors;	// maps from EMAPS term key to all of its ancestor EMAPS term keys
 
 	// caches of data for this batch of markers
 
@@ -211,8 +211,11 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		this.anatomyID = new HashMap<Integer,String>(); 
 		this.anatomyAncestors = new HashMap<Integer,List<Integer>>(); 
 		this.anatomyParents = new HashMap<Integer,List<String>>(); 
+		this.emapsToEmapa = new HashMap<Integer,Integer>();
+		this.emapsParents = new HashMap<Integer,List<Integer>>();
+		this.emapsAncestors = new HashMap<Integer,List<Integer>>();
 		
-		// cache terms and IDs for anatomy terms
+		// cache terms and IDs for EMAPA anatomy terms
 		
 		String cmd = "select term_key, primary_id, term "
 			+ "from term "
@@ -226,6 +229,55 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
+		// cache EMAPS to EMAPA mapping
+		
+		String cmd1 = "select term_key, emapa_term_key "
+			+ "from term_emap "
+			+ "where emapa_term_key is not null";
+		
+		ResultSet rs1 = ex.executeProto(cmd1);
+		while (rs1.next()) {
+			emapsToEmapa.put(rs1.getInt("term_key"), rs1.getInt("emapa_term_key"));
+		}
+		rs1.close();
+		logger.info(" - mapped " + emapsToEmapa.size() + " EMAPS terms to EMAPA");
+		
+		// cache EMAPS to EMAPS ancestors
+		
+		String cmdB = "select a.term_key, a.ancestor_term_key "
+			+ "from term t, term_ancestor a "
+			+ "where t.vocab_name = 'EMAPS' "
+			+ "and t.term_key = a.term_key";
+		
+		ResultSet rsB = ex.executeProto(cmdB);
+		while (rsB.next()) {
+			int childKey = rsB.getInt("term_key");
+			if (!emapsAncestors.containsKey(childKey)) {
+				emapsAncestors.put(childKey, new ArrayList<Integer>());
+			}
+			emapsAncestors.get(childKey).add(rsB.getInt("ancestor_term_key"));
+		}
+		rsB.close();
+		logger.info(" - mapped " + emapsAncestors.size() + " EMAPS terms to ancestors");
+
+		// cache EMAPS to EMAPS parents
+		
+		String cmdA = "select c.child_term_key, c.term_key as parent_term_key "
+			+ "from term_child c, term t "
+			+ "where c.child_term_key = t.term_key "
+			+ "and t.vocab_name = 'EMAPS'";
+
+		ResultSet rsA = ex.executeProto(cmdA);
+		while (rsA.next()) {
+			int childKey = rsA.getInt("child_term_key");
+			if (!emapsParents.containsKey(childKey)) {
+				emapsParents.put(childKey, new ArrayList<Integer>());
+			}
+			emapsParents.get(childKey).add(rsA.getInt("parent_term_key"));
+		}
+		rsA.close();
+		logger.info(" - mapped " + emapsParents.size() + " EMAPS terms to parents");
+
 		// cache IDs for parents of anatomy terms
 		
 		String cmd2 = "select tc.child_term_key, p.primary_id as parent_id " + 
@@ -361,6 +413,17 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		}
 	}
 	
+	// translate list of EMAPS keys to their EMAPA equivalents (assumes term data has already been cached
+	private List<Integer> translateEmapsToEmapa(List<Integer> emapsKeys) {
+		List<Integer> emapaKeys = new ArrayList<Integer>();
+		if ((emapsKeys != null) && (emapsKeys.size() > 0)) {
+			for (Integer emapsKey : emapsKeys) {
+				emapaKeys.add(this.emapsToEmapa.get(emapsKey));
+			}
+		}
+		return emapaKeys;
+	}
+	
 	// main method for the indexer
 	public void index() throws Exception
 	{
@@ -400,6 +463,12 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			}
 			buildAlleleCaches(startMarker, endMarker);
 			
+			/* The structure_key field from recombinase_expression is a stage-specific EMAPS term key.  In order
+			 * to ensure that we don't count annotations for EMAPA ancestors unreachable within the particular
+			 * stage, we'll need to do our upward DAG traversal using EMAPS terms, converting each to its EMAPA
+			 * equivalent as needed.
+			 */
+
 			/* Initially we are just populating this index with data for the recombinase alleles. A similar
 			 * process, however, could be used to also add the wild-type expression data for markers.
 			 */
@@ -416,18 +485,19 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			while (rs.next()) {
 				int alleleKey = rs.getInt("allele_key");
 				int driverKey = rs.getInt("driver_key");
-				int structureKey = rs.getInt("structure_key");
+				int emapsKey = rs.getInt("structure_key");
+				int emapaKey = this.emapsToEmapa.get(emapsKey);
 				String isDetected = rs.getString("is_detected");
 				
-				// Otherwise, update data for the corresponding cell.
-				Cell cell = cellBlock.getCell(driverKey, ALLELE, alleleKey, structureKey);
+				// Otherwise, update data for the corresponding EMAPA cell.
+				Cell cell = cellBlock.getCell(driverKey, ALLELE, alleleKey, emapaKey);
 				updateCell(cell, isDetected, false);
 				
 				// And also add the annotation to any of its ancestor cells.  Each annotation is only
 				// counted once in each ancestor cell, regardless of how many paths there are to the root.
-				if (this.anatomyAncestors.containsKey(structureKey)) {
-					for (Integer ancestorKey : this.anatomyAncestors.get(structureKey)) {
-						Cell ancestorCell = cellBlock.getCell(driverKey, ALLELE, alleleKey, ancestorKey);
+				if (this.emapsAncestors.containsKey(emapsKey)) {
+					for (Integer ancestorEmapaKey : translateEmapsToEmapa(emapsAncestors.get(emapsKey))) {
+						Cell ancestorCell = cellBlock.getCell(driverKey, ALLELE, alleleKey, ancestorEmapaKey);
 						updateCell(ancestorCell, isDetected, true);
 					}
 				}
