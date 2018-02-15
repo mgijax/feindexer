@@ -104,8 +104,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ "rar.result_key, "
 					+ "rar.structure, "
 					+ "rar.level, "
-					+ "struct.term_key as structure_key, "
-					+ "struct.primary_id as structure_id, "
+					+ "rar.structure_key, "
+					+ "emapa.primary_id as structure_id, "
 					+ "ras.allele_id, "
 					+ "ras.allele_key, "
 					+ "a.driver, "
@@ -130,9 +130,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ 	"rar.result_key = rarsn.result_key "
 					+ "join allele a on "
 					+ 	"a.allele_key = ras.allele_key "
-					+ "join term struct on "
-					+ 	"struct.vocab_name='EMAPA' "
-					+ 	"and struct.term=rar.structure "
+					+ "join term_emap e on rar.structure_key = e.term_key "
+					+ "join term emapa on "
+					+ 	"e.emapa_term_key = emapa.term_key "
 					+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
 					+ " order by rar.result_key ";
 
@@ -235,8 +235,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 				String resultKey = rs.getString("result_key");
 				String structure = rs.getString("structure");
-				String structureKey = rs.getString("structure_key");
-				String structureId = rs.getString("structure_id");
+				String structureKey = rs.getString("structure_key");	// EMAPS key
+				String structureId = rs.getString("structure_id");		// EMAPA ID
 
 				boolean detected = this.isDetected(rs.getString("level"));
 
