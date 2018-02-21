@@ -470,12 +470,16 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			 */
 
 			/* Initially we are just populating this index with data for the recombinase alleles. A similar
-			 * process, however, could be used to also add the wild-type expression data for markers.
+			 * process, however, could be used to also add the wild-type expression data for markers.  Note that
+			 * we restrict our index to including only data for mouse drivers.
 			 */
-			String cmd = "select allele_key, driver_key, result_key, structure_key, is_detected "
-				+ "from recombinase_expression "
-				+ "where driver_key >= " + startMarker
-				+ " and driver_key < " + endMarker;
+			String cmd = "select r.allele_key, r.driver_key, r.result_key, r.structure_key, r.is_detected "
+				+ "from recombinase_expression r, marker m "
+				+ "where r.driver_key >= " + startMarker
+				+ " and r.driver_key < " + endMarker
+				+ " and r.driver_key = m.marker_key "
+				+ " and m.organism = 'mouse'";
+			logger.info(cmd);
 
 			ResultSet rs = ex.executeProto(cmd);
 			
