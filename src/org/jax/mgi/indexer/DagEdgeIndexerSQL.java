@@ -3,6 +3,7 @@ package org.jax.mgi.indexer;
 import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -57,7 +58,6 @@ public class DagEdgeIndexerSQL extends Indexer
 		Map<String,EMAPAInfo> emapaInfoMap = getEmapaInfo(start,stop);
 
 		Map<String,Set<String>> edgeAncestorMap = getEdgeAncestors(start,stop);
-
 		Map<String,Set<String>> edgeDescendentMap = getEdgeDescendents(start,stop);
 
 		String query = "select tc.unique_key, p.term_key parent_term_key,\n" + 
@@ -108,7 +108,7 @@ public class DagEdgeIndexerSQL extends Indexer
 				doc.addField(DagEdgeFields.CHILD_START_STAGE,ei.startStage);
 				doc.addField(DagEdgeFields.CHILD_END_STAGE,ei.endStage);
 			}
-
+			
 			docs.add(doc);
 		}
 		writeDocs(docs);
@@ -116,6 +116,10 @@ public class DagEdgeIndexerSQL extends Indexer
 
 	private void processDescendentEdges(int start,int stop) throws Exception
 	{	
+		// mapping that tells us what EMAPS IDs are valid for looking up the given edge:
+		//    emapsIDs[EMAPA ancestor ID][EMAPA descendant ID] = set of EMAPS IDs
+		Map<String,Map<String,Set<String>>> emapsIDs = this.getEmapsMapping(start, stop);
+
 		String query = "select td.unique_key, p.term_key parent_term_key,\n" + 
 				"p.term parent_term,\n" + 
 				"p.primary_id parent_id,\n" + 
@@ -136,16 +140,24 @@ public class DagEdgeIndexerSQL extends Indexer
 			String uniqueKey = rs.getString("vocab")+"_descendent_"+rs.getString("unique_key");
 			Integer parentKey = rs.getInt("parent_term_key");
 			Integer childKey = rs.getInt("descendent_term_key");
+			String ancestorID = rs.getString("parent_id");
+			String descendantID = rs.getString("descendent_id");
 
 			doc.addField(IndexConstants.UNIQUE_KEY,uniqueKey);
 			doc.addField(DagEdgeFields.CHILD_TERM_KEY,childKey);
 			doc.addField(DagEdgeFields.CHILD_TERM,rs.getString("descendent_term"));
-			doc.addField(DagEdgeFields.CHILD_ID,rs.getString("descendent_id"));
+			doc.addField(DagEdgeFields.CHILD_ID, descendantID);
 			doc.addField(DagEdgeFields.VOCAB,rs.getString("vocab"));
 			doc.addField(DagEdgeFields.PARENT_TERM_KEY,parentKey);
 			doc.addField(DagEdgeFields.PARENT_TERM,rs.getString("parent_term"));
-			doc.addField(DagEdgeFields.PARENT_ID,rs.getString("parent_id"));
+			doc.addField(DagEdgeFields.PARENT_ID, ancestorID);
 			doc.addField(DagEdgeFields.EDGE_TYPE,DagEdgeFields.DESCENDENT_EDGE_TYPE);
+			
+			// add any EMAPS IDs that can be used to find this edge (This is from a stage-aware traversal
+			// of the DAG, so should only follow valid paths for any given stage.)
+			if (emapsIDs.containsKey(ancestorID) && emapsIDs.get(ancestorID).containsKey(descendantID)) {
+				doc.addField(DagEdgeFields.EMAPS_ID, emapsIDs.get(ancestorID).get(descendantID));
+			}
 
 			docs.add(doc);
 		}
@@ -213,6 +225,43 @@ public class DagEdgeIndexerSQL extends Indexer
 		return this.populateLookup(query,"child_key","descendent_id","child_term_key->descendent_id");
 	}
 
+	/* Look up a mapping to identify which EMAPS IDs can be used to retrieve each descendant DAG edge, as:
+	 *		map[EMAPA ancestor ID][EMAPA descendant ID] = set of EMAPS IDs
+	 * Mapping includes EMAPA ancestor terms with keys more than 'start' and less than or equal to 'stop'.
+	 */
+	private Map<String,Map<String,Set<String>>> getEmapsMapping(int start, int stop) throws Exception {
+		String cmd = "select a.primary_id as emapa_ancestor, ca.primary_id as emapa_descendant, "
+			+ " s.primary_id as emaps_id "
+			+ "from term s, term_emaps_child sc, term ca, "
+			+ " term_ancestor sa, term_emaps_child sac, term a "
+			+ "where s.vocab_name = 'EMAPS' "
+			+ " and s.term_key = sc.emaps_child_term_key "
+			+ " and sc.emapa_term_key = ca.term_key "
+			+ " and s.term_key = sa.term_key "
+			+ " and sa.ancestor_term_key = sac.emaps_child_term_key "
+			+ " and sac.emapa_term_key = a.term_key "
+			+ " and a.term_key > " + start
+			+ " and a.term_key <= " + stop;
+		
+		Map<String,Map<String,Set<String>>> map = new HashMap<String,Map<String,Set<String>>>();
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String emapaAncestor = rs.getString("emapa_ancestor");
+			String emapaDescendant = rs.getString("emapa_descendant");
+			
+			if (!map.containsKey(emapaAncestor)) {
+				map.put(emapaAncestor, new HashMap<String,Set<String>>());
+			}
+			if (!map.get(emapaAncestor).containsKey(emapaDescendant)) {
+				map.get(emapaAncestor).put(emapaDescendant, new HashSet<String>());
+			}
+			map.get(emapaAncestor).get(emapaDescendant).add(rs.getString("emaps_id"));
+		}
+		rs.close();
+		logger.debug("Got EMAPS IDs for " + map.size() + " EMAPA ancestors");
+		return map;
+	}
+	
 	private class EMAPAInfo {
 		public int startStage;
 		public int endStage;

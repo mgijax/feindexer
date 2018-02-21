@@ -709,7 +709,7 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  ers.marker_key, ers.assay_key, ers.assay_type, "
 					+ "  ers.structure_key, ers.theiler_stage, ers.is_expressed, ers.has_image, " 
 					+ "  ers.age_abbreviation,  ers.jnum_id, ers.detection_level, "
-					+ "  ers.age_min, ers.age_max, ers.pattern, "
+					+ "  ers.age_min, ers.age_max, ers.pattern, emaps.primary_id as emaps_id, "
 					+ "  ers.is_wild_type, ers.genotype_key, ers.reference_key, " 
 					+ "  ersn.by_assay_type r_by_assay_type, "
 					+ "  ersn.by_gene_symbol r_by_gene_symbol, "
@@ -719,10 +719,11 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  ersn.by_mutant_alleles r_by_mutant_alleles, "
 					+ "  ersn.by_reference r_by_reference "
 					+ "from expression_result_summary ers, "
-					+ "  marker_counts mc, "
+					+ "  marker_counts mc, term emaps, "
 					+ "  expression_result_sequence_num ersn "
 					+ "where ers.marker_key=mc.marker_key "
 					+ "  and ersn.result_key=ers.result_key "
+					+ "  and ers.structure_key = emaps.term_key "
 					+ "  and ers.assay_type != 'Recombinase reporter'"
 					+ "  and ers.assay_type != 'In situ reporter (transgenic)'"
 					+ "  and mc.gxd_literature_count>0 "
@@ -785,6 +786,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.RESULT_TYPE, assay_type);
 				doc.addField(GxdResultFields.ASSAY_TYPE, assay_type);
 				doc.addField(GxdResultFields.THEILER_STAGE, theilerStage);
+				doc.addField(GxdResultFields.EMAPS_ID, rs.getString("emaps_id"));
 				doc.addField(GxdResultFields.IS_EXPRESSED, isExpressed);
 				doc.addField(GxdResultFields.AGE_MIN, roundAge(rs.getString("age_min")));
 				doc.addField(GxdResultFields.AGE_MAX, roundAge(rs.getString("age_max")));
