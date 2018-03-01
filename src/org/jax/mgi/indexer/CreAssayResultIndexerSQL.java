@@ -45,11 +45,146 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	Map<String, AlleleSystems> alleleSystemsMap;
 	// map of systems for a specific assay result
 	Map<String, List<CreAlleleSystem>> systemMap;
+	
+	// mapping from EMAPA structure keys to their respective terms
+	private Map<String,String> emapaTerms;
+	
+	// mapping from each allele key to the EMAPA structure keys of its ancestors
+	private Map<String, Set<String>> exclusiveStructures;
+	
+	// shared empty set object to make code simpler later on
+	private Set<String> emptySet = new HashSet<String>();
+
+	// map from EMAPS term key to its EMAPA ancestor keys (stage-aware)
+	Map<String, Set<String>> emapaAncestors;
+	
+	/***--- methods ---***/
 
 	public CreAssayResultIndexerSQL () {
 		super("creAssayResult");
 	}
 
+	// populate the mapping from EMAPA keys to terms
+	public void fillEmapaTerms() throws Exception {
+		emapaTerms = new HashMap<String,String>();
+		
+		String cmd = "select term_key, term from term where vocab_name = 'EMAPA'";
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			emapaTerms.put(rs.getString("term_key"), rs.getString("term"));
+		}
+		rs.close();
+		logger.info("Got " + emapaTerms.size() + " EMAPA terms");
+	}
+	
+	// get the mapping from each EMAPS term key to its EMAPA ancestor terms
+	public void fillEmapaAncestors() throws Exception {
+		emapaAncestors = new HashMap<String,Set<String>>();
+		
+		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key "
+			+ "from term_ancestor a, term t, term_emap e, term_emap te "
+			+ "where a.term_key = t.term_key "
+			+ " and a.ancestor_term_key = e.term_key "
+			+ " and t.term_key = te.term_key "
+			+ " and t.vocab_name = 'EMAPS'";
+		
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String termKey = rs.getString("term_key");
+			if (!emapaAncestors.containsKey(termKey)) {
+				emapaAncestors.put(termKey, new HashSet<String>());
+				emapaAncestors.get(termKey).add(emapaTerms.get(rs.getString("emapa_term_key")));
+			}
+			emapaAncestors.get(termKey).add(emapaTerms.get(rs.getString("ancestor_term_key")));
+		}
+		rs.close();
+		logger.info("Got EMAPA ancestors for " + emapaAncestors.size() + " EMAPS terms");
+	}
+	
+	// get the set of EMAPA structure keys that are ancestors of the given EMAPS structure key,
+	// including EMAPA key for 'emapsKey' itself
+	public Set<String> getEmapaAncestors(String emapsKey) throws Exception {
+		if (emapaAncestors == null) {
+			fillEmapaAncestors();
+		}
+		if (emapaAncestors.containsKey(emapsKey)) {
+			return emapaAncestors.get(emapsKey);
+		}
+		return emptySet;
+	}
+
+	// identify the exclusive structures for each allele (the set of structures outside which there is
+	// no recombinase activity detected for that allele), returning a mapping from:
+	//		allele key (String) : set of structure terms (Strings)
+	// Because everything traces up the DAG to 'mouse', everything should at least have one exclusive
+	// structure returned.
+	// Use:  This field is used when the user specifies a structure and checks the "nowhere else" checkbox.
+	private void findExclusiveStructures() throws Exception {
+		exclusiveStructures = new HashMap<String, Set<String>>();
+		
+		int minAlleleKey = 0;	// lowest allele key with recombinase data
+		int maxAlleleKey = 0;	// highest allele key with recombinase data
+		int chunkSize = 50000;	// number of allele keys to process in a chunk
+		
+		// identify the lowest and highest allele keys, so we can iterate over them
+		String minMaxCmd = "select min(allele_key) as min_key, max(allele_key) as max_key "
+			+ "from recombinase_allele_system";
+		ResultSet rs = ex.executeProto(minMaxCmd);
+		if (rs.next()) {
+			minAlleleKey = rs.getInt("min_key");
+			maxAlleleKey = rs.getInt("max_key");
+		}
+		rs.close();
+		
+		// now walk through the alleles in chunks
+		int startAllele = minAlleleKey - 1;
+		int endAllele = startAllele + chunkSize;
+		
+		while (startAllele < maxAlleleKey) {
+			// gather the EMAPS structures where recombinase activity was detected
+			Map<String,Set<String>> structuresPerAllele = new HashMap<String,Set<String>>();
+
+			String cmd = "select ras.allele_key, rar.structure_key "
+				+ "from recombinase_allele_system ras, recombinase_assay_result rar "
+				+ "where ras.allele_system_key = rar.allele_system_key "
+				+ " and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') "
+				+ " and ras.allele_key > " + startAllele
+				+ " and ras.allele_key <= " + endAllele
+				+ " order by ras.allele_key";
+			
+			ResultSet rs1 = ex.executeProto(cmd);
+			while (rs1.next()) {
+				String alleleKey = rs1.getString("allele_key");
+				if (!structuresPerAllele.containsKey(alleleKey)) {
+					structuresPerAllele.put(alleleKey, new HashSet<String>());
+				}
+				structuresPerAllele.get(alleleKey).add(rs1.getString("structure_key"));
+			}
+			rs1.close();
+			
+			// Now we can compute the set of 'exclusive structures' for each allele by taking the
+			// intersection of the EMAPA ancestors for each EMAPS structure with recombinase
+			// activity detected.
+			
+			for (String alleleKey : structuresPerAllele.keySet()) {
+				Set<String> commonAncestors = null;
+				for (String emapsKey : structuresPerAllele.get(alleleKey)) {
+					Set<String> resultAncestors = new HashSet<String>();
+					resultAncestors.addAll(this.getEmapaAncestors(emapsKey));
+					
+					if (commonAncestors == null) {
+						commonAncestors = resultAncestors;
+					} else {
+						commonAncestors.retainAll(resultAncestors);
+					}
+				}
+				exclusiveStructures.put(alleleKey, commonAncestors);
+			}
+			startAllele = endAllele;
+			endAllele = startAllele + chunkSize;
+		}
+		logger.info("Got exclusive structures for " + exclusiveStructures.size() + " alleles");
+	}
 
 	/*
 	 * Indexes both assay result documents 
@@ -57,7 +192,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	 */
 	public void index() throws Exception
 	{   
-
+		fillEmapaTerms();
+		findExclusiveStructures();
 		loadAssayResults();
 
 		loadAllelesWithNoData();
@@ -299,6 +435,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					this.resetDupTracking();
 				}              
 
+				if (exclusiveStructures.containsKey(alleleKey)) {
+					doc.addField(CreFields.ALL_EXCLUSIVE_STRUCTURES, exclusiveStructures.get(alleleKey));
+				}
 
 				// Add in the result sorting columns
 
