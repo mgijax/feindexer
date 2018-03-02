@@ -49,6 +49,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// mapping from EMAPA structure keys to their respective terms
 	private Map<String,String> emapaTerms;
 	
+	// mapping from EMAPA structure keys to their respective synonyms
+	private Map<String,Set<String>> emapaSynonyms;
+	
 	// mapping from each allele key to the EMAPA structure keys of its ancestors
 	private Map<String, Set<String>> exclusiveStructures;
 	
@@ -76,6 +79,26 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("Got " + emapaTerms.size() + " EMAPA terms");
 	}
+
+	// populate the mapping from EMAPA keys to synonyms
+	public void fillEmapaSynonyms() throws Exception {
+		emapaSynonyms = new HashMap<String,Set<String>>();
+		
+		String cmd = "select s.term_key, s.synonym "
+			+ "from term t, term_synonym s "
+			+ "where t.vocab_name = 'EMAPA' "
+			+ " and t.term_key = s.term_key";
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String termKey = rs.getString("term_key");
+			if (!emapaSynonyms.containsKey(termKey)) {
+				emapaSynonyms.put(termKey, new HashSet<String>());
+			}
+			emapaSynonyms.get(termKey).add(rs.getString("synonym"));
+		}
+		rs.close();
+		logger.info("Got " + emapaSynonyms.size() + " EMAPA synonyms");
+	}
 	
 	// get the mapping from each EMAPS term key to its EMAPA ancestor terms
 	public void fillEmapaAncestors() throws Exception {
@@ -90,12 +113,23 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
-			String termKey = rs.getString("term_key");
-			if (!emapaAncestors.containsKey(termKey)) {
-				emapaAncestors.put(termKey, new HashSet<String>());
-				emapaAncestors.get(termKey).add(emapaTerms.get(rs.getString("emapa_term_key")));
+			String emapsTermKey = rs.getString("term_key");
+			String emapaTermKey = rs.getString("emapa_term_key");
+			String ancestorTermKey = rs.getString("ancestor_term_key");
+
+			if (!emapaAncestors.containsKey(emapsTermKey)) {
+				// add the initial set for this term, populated by the corresponding EMAPA term and its synonyms
+				emapaAncestors.put(emapsTermKey, new HashSet<String>());
+				emapaAncestors.get(emapsTermKey).add(emapaTerms.get(emapaTermKey));
+				if (emapaSynonyms.containsKey(emapaTermKey)) {
+					emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(emapaTermKey));
+				}
 			}
-			emapaAncestors.get(termKey).add(emapaTerms.get(rs.getString("ancestor_term_key")));
+			// then add the term and its synonyms for the EMAPA ancestor term
+			emapaAncestors.get(emapsTermKey).add(emapaTerms.get(ancestorTermKey));
+			if (emapaSynonyms.containsKey(ancestorTermKey)) {
+				emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(ancestorTermKey));
+			}
 		}
 		rs.close();
 		logger.info("Got EMAPA ancestors for " + emapaAncestors.size() + " EMAPS terms");
@@ -193,6 +227,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	public void index() throws Exception
 	{   
 		fillEmapaTerms();
+		fillEmapaSynonyms();
 		findExclusiveStructures();
 		loadAssayResults();
 
