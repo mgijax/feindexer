@@ -752,6 +752,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 		if ("absent".equalsIgnoreCase(level)) {
 			detected = false;
+		} else if ("ambiguous".equalsIgnoreCase(level)) {
+			detected = false;
 		}
 		return detected;
 
