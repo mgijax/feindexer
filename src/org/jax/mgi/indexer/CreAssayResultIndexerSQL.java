@@ -5,6 +5,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +43,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	Map<String,List<String>> structureAncestorIdMap;
 	Map<String,List<String>> structureSynonymMap;
 	Map<String, AlleleSorts> alleleSortsMap;
+	Map<String,Integer> byDetected;
+	Map<String,Integer> byNotDetected;
+	
 	// map of *all* systems for the allele
 	Map<String, AlleleSystems> alleleSystemsMap;
 	// map of systems for a specific assay result
@@ -316,7 +321,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			this.alleleSystemsMap = queryAlleleSystemsMap(startResultKey, endResultKey);
 			this.systemMap = querySystemMap(startResultKey, endResultKey);
 
-
+			this.byDetected = this.getDetectedBySortValues(this.alleleSortsMap, this.alleleSystemsMap);
+			this.byNotDetected = this.getNotDetectedBySortValues(this.alleleSortsMap, this.alleleSystemsMap);
+			
 			logger.info("Parsing Assay Results");
 			processResults(rs, ResultType.ASSAY_RESULT);
 
@@ -489,8 +496,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.BY_SEX, rs.getString("by_sex"));
 				doc.addField(CreFields.BY_SPECIMEN_NOTE, rs.getString("by_specimen_note"));
 				doc.addField(CreFields.BY_RESULT_NOTE, rs.getString("by_result_note"));
-
 			} // end ASSAY_RESULT fields
+
+			// add allele-level fields computed to sort by Detected and Not Detected systems (where
+			// available) and falling back on smart-alpha symbol sort otherwise
+			
+			if (this.byDetected.containsKey(alleleKey)) {
+				doc.addField(CreFields.BY_DETECTED, this.byDetected.get(alleleKey));
+			}
+			if (this.byNotDetected.containsKey(alleleKey)) {
+				doc.addField(CreFields.BY_NOT_DETECTED, this.byNotDetected.get(alleleKey));
+			}
 
 			docs.add(doc);
 
@@ -773,10 +789,92 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return StringUtils.join(keys, "-");
 	}
 
+	/*
+	 * Compute and return the sort values for alleles by Detected systems.
+	 * Returns a map from (String) allele key to sort value (Integer).
+	 */
+	public Map<String,Integer> getDetectedBySortValues(Map<String,AlleleSorts> sorts, Map<String,AlleleSystems> systems) {
+		return this.getSortValues(true, sorts, systems);
+	}
+
+	/*
+	 * Compute and return the sort values for alleles by Not Detected systems.
+	 * Returns a map from (String) allele key to sort value (Integer).
+	 */
+	public Map<String,Integer> getNotDetectedBySortValues(Map<String,AlleleSorts> sorts, Map<String,AlleleSystems> systems) {
+		return this.getSortValues(false, sorts, systems);
+	}
+
+	// helper method for getDetectedBySortValues() and getNotDetectedBySortValues() --
+	// byDetected = true means sort by Detected, while byDetected = false meanas sort by Not Detected
+	public Map<String,Integer> getSortValues(boolean byDetected, Map<String,AlleleSorts> sorts, Map<String,AlleleSystems> systems) {
+		// compile a list of allele data that we can sort
+		List<SortableAllele> sortableAlleles = new ArrayList<SortableAllele>();
+		for (String alleleKey : sorts.keySet()) {
+			SortableAllele allele = new SortableAllele();
+			allele.alleleKey = alleleKey;
+			allele.bySymbol = sorts.get(alleleKey).bySymbol;
+			if (systems.containsKey(alleleKey)) {
+				if (byDetected) {
+					allele.systems = systems.get(alleleKey).getDetectedString();
+				} else {
+					allele.systems = systems.get(alleleKey).getNotDetectedString();
+				}
+			}
+			sortableAlleles.add(allele);
+		}
+
+		// sort them
+		if (sortableAlleles.size() > 0) {
+			Collections.sort(sortableAlleles, sortableAlleles.get(0).getComparator());
+		}
+		
+		// assign a sequence number to each
+		Map<String,Integer> detectedSorts = new HashMap<String,Integer>();
+		int i = 0;
+		for (SortableAllele allele : sortableAlleles) {
+			detectedSorts.put(allele.alleleKey, i++);
+		}
+		return detectedSorts;
+	}
+
 	/**
 	 * Helper classes
 	 */
 
+	private class SortableAllele {
+		public String alleleKey;
+		public int bySymbol = -1;
+		public String systems;
+		
+		public SortableAlleleComparator getComparator() {
+			return new SortableAlleleComparator();
+		}
+		
+		private class SortableAlleleComparator implements Comparator<SortableAllele> {
+			@Override
+			public int compare(SortableAllele a, SortableAllele b) {
+				boolean aEmpty = (a.systems == null) || (a.systems.trim().length() == 0);
+				boolean bEmpty = (b.systems == null) || (b.systems.trim().length() == 0);
+
+				// if both have systems, compare them
+				if (!aEmpty && !bEmpty) {
+					int bySystems = a.systems.compareTo(b.systems);
+					if (bySystems != 0) {
+						return bySystems;
+					} 
+				} else if (aEmpty && !bEmpty) {
+					return 1;	
+				} else if (!aEmpty && bEmpty) {
+					return -1;	
+				} 
+
+				// if both are missing systems or if the systems match, fall back on symbol comparison
+				return Integer.compare(a.bySymbol, b.bySymbol);
+			}
+		}
+	}
+	
 	private class AlleleSorts {
 		public  int strainCount;
 		public int referenceCount;
@@ -791,6 +889,30 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	private class AlleleSystems {
 		Set<String> detectedSystems = new HashSet<String>();
 		Set<String> notDetectedSystems = new HashSet<String>();
+		
+		// convert 'systems' to a comma-separated string, where the sysetms are alphabetized.
+		// note: has a trailing comma
+		private String setToString(Set<String> systems) {
+			List<String> systemList = new ArrayList<String>();
+			for (String system : systems) {
+				systemList.add(system);
+			}
+			Collections.sort(systemList);
+			StringBuffer sb = new StringBuffer();
+			for (String system : systemList) {
+				sb.append(system);
+				sb.append(",");
+			}
+			return sb.toString();
+		}
+
+		public String getDetectedString() {
+			return setToString(this.detectedSystems);
+		}
+
+		public String getNotDetectedString() {
+			return setToString(this.notDetectedSystems);
+		}
 	}
 
 	private class CreAlleleSystem {
