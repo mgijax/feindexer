@@ -233,6 +233,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	{   
 		fillEmapaTerms();
 		fillEmapaSynonyms();
+		fillSystemSorts();
 		findExclusiveStructures();
 		loadAssayResults();
 
@@ -312,18 +313,13 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
 					+ " order by rar.result_key ";
 
-			logger.info(assayResultQuery);
 			rs = ex.executeProto(assayResultQuery);
-
 
 			// Retrieve any lookups needed for this batch
 			this.alleleSortsMap = queryAlleleSortsMap(startResultKey, endResultKey);
 			this.alleleSystemsMap = queryAlleleSystemsMap(startResultKey, endResultKey);
 			this.systemMap = querySystemMap(startResultKey, endResultKey);
 
-			this.byDetected = this.getDetectedBySortValues(this.alleleSortsMap, this.alleleSystemsMap);
-			this.byNotDetected = this.getNotDetectedBySortValues(this.alleleSortsMap, this.alleleSystemsMap);
-			
 			logger.info("Parsing Assay Results");
 			processResults(rs, ResultType.ASSAY_RESULT);
 
@@ -789,37 +785,84 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return StringUtils.join(keys, "-");
 	}
 
-	/*
-	 * Compute and return the sort values for alleles by Detected systems.
-	 * Returns a map from (String) allele key to sort value (Integer).
+	/* Populate the maps for sorting by Detected and Not Detected systems.  Each map is from
+	 * a (String) allele key to a sort value (Integer).
 	 */
-	public Map<String,Integer> getDetectedBySortValues(Map<String,AlleleSorts> sorts, Map<String,AlleleSystems> systems) {
-		return this.getSortValues(true, sorts, systems);
-	}
+	public void fillSystemSorts() throws SQLException {
+		// first, we need to collect systems for all the recombinase alleles
+		
+		// ordered to group rows by allele, then system, then detected before not detected
+		String cmd = "select distinct a.allele_key, s.system, n.by_symbol, "
+			+ " case when r.level in ('Ambiguous', 'Absent', 'Not Specified') then 0 "
+			+ "   else 1 end detected "
+			+ "from allele a "
+			+ "inner join allele_sequence_num n on (a.allele_key = n.allele_key) "
+			+ "left outer join recombinase_allele_system s on (s.allele_key = a.allele_key) "
+			+ "left outer join recombinase_assay_result r on (r.allele_system_key = s.allele_system_key) "
+			+ "where driver_key is not null "
+			+ "order by 3, 2, 4 desc";
 
-	/*
-	 * Compute and return the sort values for alleles by Not Detected systems.
-	 * Returns a map from (String) allele key to sort value (Integer).
-	 */
-	public Map<String,Integer> getNotDetectedBySortValues(Map<String,AlleleSorts> sorts, Map<String,AlleleSystems> systems) {
-		return this.getSortValues(false, sorts, systems);
-	}
+		Map<String,Integer> bySymbol = new HashMap<String,Integer>();				// allele key : sort value
+		Map<String,StringBuffer> detecteds = new HashMap<String,StringBuffer>();	// allele key : detected systems
+		Map<String,StringBuffer> notDetecteds = new HashMap<String,StringBuffer>();	// allele key : not detected systems
+		
+		String lastAlleleKey = "default";
+		String lastSystem = "default";
 
-	// helper method for getDetectedBySortValues() and getNotDetectedBySortValues() --
-	// byDetected = true means sort by Detected, while byDetected = false meanas sort by Not Detected
-	public Map<String,Integer> getSortValues(boolean byDetected, Map<String,AlleleSorts> sorts, Map<String,AlleleSystems> systems) {
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String alleleKey = rs.getString("allele_key");
+			String system = rs.getString("system");
+			Integer detected = rs.getInt("detected");
+			Map<String,StringBuffer> map = null;
+
+			if (!bySymbol.containsKey(alleleKey)) {
+				bySymbol.put(alleleKey, rs.getInt("by_symbol"));
+			}
+			
+			// if there's no system, no other data to collect
+			if ((system != null) && (system.trim().length() > 0)) {
+
+				// if the allele & system match the previous, then this 'not detected' annotation is
+				// overridden by the previous 'detected' annotation, so skip it
+				if (!lastAlleleKey.equals(alleleKey) || !lastSystem.equals(system)) {
+
+					// this is a new annotation, so pick the correct map & run with it
+					if (detected == 0) {
+						map = notDetecteds;
+					} else {
+						map = detecteds;
+					}
+			
+					if (map.containsKey(alleleKey)) {
+						map.get(alleleKey).append(",");
+						map.get(alleleKey).append(rs.getString("system"));
+					} else {
+						map.put(alleleKey, new StringBuffer(rs.getString("system")));
+					}
+				}
+			}
+			lastAlleleKey = alleleKey;
+			lastSystem = system;
+		}
+		rs.close();
+		logger.info("Collected systems for " + bySymbol.size() + " alleles");
+		
+		this.byDetected = buildSortMap(bySymbol, detecteds);
+		this.byNotDetected = buildSortMap(bySymbol, notDetecteds);
+		logger.info("Sorted " + bySymbol.size() + " alleles by systems");
+	}
+	
+	// helper method for fillSystemSorts()
+	public Map<String,Integer> buildSortMap(Map<String,Integer> bySymbol, Map<String,StringBuffer> systems) {
 		// compile a list of allele data that we can sort
 		List<SortableAllele> sortableAlleles = new ArrayList<SortableAllele>();
-		for (String alleleKey : sorts.keySet()) {
+		for (String alleleKey : bySymbol.keySet()) {
 			SortableAllele allele = new SortableAllele();
 			allele.alleleKey = alleleKey;
-			allele.bySymbol = sorts.get(alleleKey).bySymbol;
+			allele.bySymbol = bySymbol.get(alleleKey);
 			if (systems.containsKey(alleleKey)) {
-				if (byDetected) {
-					allele.systems = systems.get(alleleKey).getDetectedString();
-				} else {
-					allele.systems = systems.get(alleleKey).getNotDetectedString();
-				}
+				allele.systems = systems.get(alleleKey).toString();
 			}
 			sortableAlleles.add(allele);
 		}
@@ -889,30 +932,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	private class AlleleSystems {
 		Set<String> detectedSystems = new HashSet<String>();
 		Set<String> notDetectedSystems = new HashSet<String>();
-		
-		// convert 'systems' to a comma-separated string, where the sysetms are alphabetized.
-		// note: has a trailing comma
-		private String setToString(Set<String> systems) {
-			List<String> systemList = new ArrayList<String>();
-			for (String system : systems) {
-				systemList.add(system);
-			}
-			Collections.sort(systemList);
-			StringBuffer sb = new StringBuffer();
-			for (String system : systemList) {
-				sb.append(system);
-				sb.append(",");
-			}
-			return sb.toString();
-		}
-
-		public String getDetectedString() {
-			return setToString(this.detectedSystems);
-		}
-
-		public String getNotDetectedString() {
-			return setToString(this.notDetectedSystems);
-		}
 	}
 
 	private class CreAlleleSystem {
