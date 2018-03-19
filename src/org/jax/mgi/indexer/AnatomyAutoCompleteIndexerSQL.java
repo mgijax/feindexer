@@ -7,6 +7,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
  * This indexer populates the anatomyAC index, which drives the search box on
@@ -18,6 +19,7 @@ import org.apache.solr.common.SolrInputDocument;
  * 	synonym (multi-valued)
  * 	start stage
  * 	end stage
+ *  crossRef (cross-referenced IDs, currently from MP)
  * @author jsb
  */
 
@@ -45,6 +47,59 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 		HashMap <String, HashSet <String>> structureToSynonyms =
 				makeHash(synonymSQL, "term_key", "synonym");
 
+		// get a mapping from each EMAPA structure key to its cross-reference IDs (if any).
+		// Top of union is MP IDs mapped to EMAPA keys.  Middle of union is allele IDs for
+		// each EMAPA key.  We find allele IDs via:
+		// 1. EMAPA mapped to MP annotated to genotypes which have alleles,
+		// 2. and require the MP/genotype annotation to be:
+		//   a. the source annotation for a derived MP/marker annotation where...
+		//   b. that derived annotation is for the marker of the allele which means...
+		//   c. that the annotation was traceable enough to survive the rollup rules.
+		// The third query in the union is like #2, but it ensures that the rolled-up marker
+		// matches the allele's expressed component.
+		
+		logger.info("Getting cross-references");
+		String crossRefSQL = "select tt.term_key_2 as term_key, e.primary_id as crossRef " + 
+				"from term_to_term tt, term e " + 
+				"where tt.relationship_type = 'MP to EMAPA' " + 
+				"and tt.term_key_1 = e.term_key " +
+				"union " +
+				"select distinct ttt.term_key_2 as emapa_key, a.primary_id as allele_id " + 
+				"from term_to_term ttt " + 
+				"inner join annotation mpgeno on (ttt.term_key_1 = mpgeno.term_key " + 
+				"  and mpgeno.annotation_type = 'Mammalian Phenotype/Genotype' " + 
+				"  and mpgeno.qualifier is null) " + 
+				"inner join genotype_to_annotation gta on (mpgeno.annotation_key = gta.annotation_key) " + 
+				"inner join allele_to_genotype atg on (gta.genotype_key = atg.genotype_key) " + 
+				"inner join allele a on (atg.allele_key = a.allele_key) " + 
+				"inner join annotation_source src on (mpgeno.annotation_key = src.source_annotation_key) " + 
+				"inner join annotation mpgene on (src.annotation_key = mpgene.annotation_key) " + 
+				"inner join marker_to_annotation mtanno on (mpgene.annotation_key = mtanno.annotation_key) " + 
+				"inner join marker_to_allele mta on (mtanno.marker_key = mta.marker_key " +
+				"  and mta.allele_key = a.allele_key) " + 
+				"where ttt.relationship_type = 'MP to EMAPA' " +
+				"  and not exists (select 1 from allele_related_marker arm " +
+				"    where arm.relationship_category = 'expresses_component' " +
+				"      and arm.allele_key = a.allele_key)" +
+				"union " +
+				"select distinct ttt.term_key_2 as emapa_key, a.primary_id as allele_id " + 
+				"from term_to_term ttt " + 
+				"inner join annotation mpgeno on (ttt.term_key_1 = mpgeno.term_key " + 
+				"  and mpgeno.annotation_type = 'Mammalian Phenotype/Genotype' " + 
+				"  and mpgeno.qualifier is null) " + 
+				"inner join genotype_to_annotation gta on (mpgeno.annotation_key = gta.annotation_key) " + 
+				"inner join allele_to_genotype atg on (gta.genotype_key = atg.genotype_key) " + 
+				"inner join allele a on (atg.allele_key = a.allele_key) " + 
+				"inner join annotation_source src on (mpgeno.annotation_key = src.source_annotation_key) " + 
+				"inner join annotation mpgene on (src.annotation_key = mpgene.annotation_key) " + 
+				"inner join marker_to_annotation mtanno on (mpgene.annotation_key = mtanno.annotation_key) " + 
+				"inner join allele_related_marker arm on (mtanno.marker_key = arm.related_marker_key " +
+				"  and arm.relationship_category = 'expresses_component' " +
+				"  and arm.allele_key = a.allele_key) " + 
+				"where ttt.relationship_type = 'MP to EMAPA'";
+		
+		HashMap <String, HashSet <String>> structureToCrossRefs = makeHash(crossRefSQL, "term_key", "crossRef");
+		
 		// get the main EMAPA term data
 
 		logger.info("Getting all EMAPA structures");
@@ -68,15 +123,21 @@ public class AnatomyAutoCompleteIndexerSQL extends Indexer {
 			termKey = rs_overall.getString("term_key");
 
 			SolrInputDocument doc = new SolrInputDocument();
-			doc.addField("structureKey", termKey);
-			doc.addField("accID", rs_overall.getString("primary_id"));
-			doc.addField("structure", rs_overall.getString("term"));
-			doc.addField("startStage", rs_overall.getString("start_stage"));
-			doc.addField("endStage", rs_overall.getString("end_stage"));
+			doc.addField(IndexConstants.STRUCTUREAC_KEY, termKey);
+			doc.addField(IndexConstants.ACC_ID, rs_overall.getString("primary_id"));
+			doc.addField(IndexConstants.STRUCTUREAC_STRUCTURE, rs_overall.getString("term"));
+			doc.addField(IndexConstants.STRUCTUREAC_START_STAGE, rs_overall.getString("start_stage"));
+			doc.addField(IndexConstants.STRUCTUREAC_END_STAGE, rs_overall.getString("end_stage"));
 
 			if (structureToSynonyms.containsKey(termKey)) {
 				for (String synonym: structureToSynonyms.get(termKey)) {
-					doc.addField("synonym", synonym);
+					doc.addField(IndexConstants.STRUCTUREAC_SYNONYM, synonym);
+				}
+			}
+			
+			if (structureToCrossRefs.containsKey(termKey)) {
+				for (String crossRef: structureToCrossRefs.get(termKey)) {
+					doc.addField(IndexConstants.STRUCTUREAC_CROSSREF, crossRef);
 				}
 			}
 

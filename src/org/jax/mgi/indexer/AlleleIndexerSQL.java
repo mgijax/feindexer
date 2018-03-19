@@ -288,7 +288,7 @@ public class AlleleIndexerSQL extends Indexer {
 		String mpAncIdsSQL="select mpt.allele_key, tas.ancestor_primary_id " + 
 				"from tmp_allele_mp_term mpt join " +
 				"	term t on t.primary_id=mpt.term_id join " + 
-				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
+				"	term_ancestor tas on tas.term_key=t.term_key "+
 				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoIdMap = populateLookup(mpAncIdsSQL,"allele_key","ancestor_primary_id","allele_key->ancestor IDs",allelePhenoIdMap);
 
@@ -296,14 +296,14 @@ public class AlleleIndexerSQL extends Indexer {
 		String doIdSql="select aot.allele_key,tas.ancestor_primary_id "
 				+ "from tmp_allele_do_term aot "
 				+ "join term t on t.primary_id=aot.term_id "
-				+ "join term_ancestor_simple tas on tas.term_key=t.term_key "
+				+ "join term_ancestor tas on tas.term_key=t.term_key "
 				+ "where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
 		allelePhenoIdMap = populateLookup(doIdSql,"allele_key","ancestor_primary_id","allele_key->DO IDs",allelePhenoIdMap);
 
 		// add the alt IDs for all parents and MP and DO terms
 		String altIdSQL="select at.allele_key, ti.acc_id " + 
 				"from tmp_allele_term at join " + 
-				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
+				"	term_ancestor tas on tas.term_key=at.term_key join " + 
 				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join " + 
 				"	term_id ti on ti.term_key=anc_t.term_key " + 
 				"where at.allele_key > "+start+" and at.allele_key <= "+end+" "+
@@ -326,7 +326,7 @@ public class AlleleIndexerSQL extends Indexer {
 		String doIdSql="select aot.allele_key, tas.ancestor_term as term "
 				+ "from tmp_allele_do_term aot "
 				+ "join term t on t.primary_id=aot.term_id "
-				+ "join term_ancestor_simple tas on tas.term_key=t.term_key "
+				+ "join term_ancestor tas on tas.term_key=t.term_key "
 				+ "where aot.allele_key > "+start+" and aot.allele_key <= "+end+" " +
 				"UNION " + 
 				"select aot.allele_key,aot.term from tmp_allele_do_term aot where aot.allele_key > "+start+" and aot.allele_key <= "+end+" ";
@@ -336,14 +336,14 @@ public class AlleleIndexerSQL extends Indexer {
 		String mpAncTermsSQL="select mpt.allele_key, tas.ancestor_term\r\n" + 
 				"from tmp_allele_mp_term mpt join "+
 				"	term t on t.primary_id=mpt.term_id join " + 
-				"	term_ancestor_simple tas on tas.term_key=t.term_key "+
+				"	term_ancestor tas on tas.term_key=t.term_key "+
 				"where mpt.allele_key > "+start+" and mpt.allele_key <= "+end+" ";
 		allelePhenoTermMap = populateLookup(mpAncTermsSQL,"allele_key","ancestor_term","allele_key->ancestor IDs",allelePhenoTermMap);
 
 		// add the synonyms for all parents and MP and DO terms
 		String mpSynonymSQL="select at.allele_key, ti.synonym " + 
 				"from tmp_allele_term at join " + 
-				"	term_ancestor_simple tas on tas.term_key=at.term_key join " + 
+				"	term_ancestor tas on tas.term_key=at.term_key join " + 
 				"	term anc_t on anc_t.primary_id=tas.ancestor_primary_id join " + 
 				"	term_synonym ti on ti.term_key=anc_t.term_key " + 
 				"where at.allele_key > "+start+" and at.allele_key <= "+end+" "+

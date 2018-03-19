@@ -5,6 +5,8 @@ import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -41,15 +43,187 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	Map<String,List<String>> structureAncestorIdMap;
 	Map<String,List<String>> structureSynonymMap;
 	Map<String, AlleleSorts> alleleSortsMap;
+	Map<String,Integer> byDetected;
+	Map<String,Integer> byNotDetected;
+	
 	// map of *all* systems for the allele
 	Map<String, AlleleSystems> alleleSystemsMap;
 	// map of systems for a specific assay result
 	Map<String, List<CreAlleleSystem>> systemMap;
+	
+	// mapping from EMAPA structure keys to their respective terms
+	private Map<String,String> emapaTerms;
+	
+	// mapping from EMAPA structure keys to their respective synonyms
+	private Map<String,Set<String>> emapaSynonyms;
+	
+	// mapping from each allele key to the EMAPA structure keys of its ancestors
+	private Map<String, Set<String>> exclusiveStructures;
+	
+	// shared empty set object to make code simpler later on
+	private Set<String> emptySet = new HashSet<String>();
+
+	// map from EMAPS term key to its EMAPA ancestor keys (stage-aware)
+	Map<String, Set<String>> emapaAncestors;
+	
+	/***--- methods ---***/
 
 	public CreAssayResultIndexerSQL () {
 		super("creAssayResult");
 	}
 
+	// populate the mapping from EMAPA keys to terms
+	public void fillEmapaTerms() throws Exception {
+		emapaTerms = new HashMap<String,String>();
+		
+		String cmd = "select term_key, term from term where vocab_name = 'EMAPA'";
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			emapaTerms.put(rs.getString("term_key"), rs.getString("term"));
+		}
+		rs.close();
+		logger.info("Got " + emapaTerms.size() + " EMAPA terms");
+	}
+
+	// populate the mapping from EMAPA keys to synonyms
+	public void fillEmapaSynonyms() throws Exception {
+		emapaSynonyms = new HashMap<String,Set<String>>();
+		
+		String cmd = "select s.term_key, s.synonym "
+			+ "from term t, term_synonym s "
+			+ "where t.vocab_name = 'EMAPA' "
+			+ " and t.term_key = s.term_key";
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String termKey = rs.getString("term_key");
+			if (!emapaSynonyms.containsKey(termKey)) {
+				emapaSynonyms.put(termKey, new HashSet<String>());
+			}
+			emapaSynonyms.get(termKey).add(rs.getString("synonym"));
+		}
+		rs.close();
+		logger.info("Got " + emapaSynonyms.size() + " EMAPA synonyms");
+	}
+	
+	// get the mapping from each EMAPS term key to its EMAPA ancestor terms
+	public void fillEmapaAncestors() throws Exception {
+		emapaAncestors = new HashMap<String,Set<String>>();
+		
+		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key "
+			+ "from term_ancestor a, term t, term_emap e, term_emap te "
+			+ "where a.term_key = t.term_key "
+			+ " and a.ancestor_term_key = e.term_key "
+			+ " and t.term_key = te.term_key "
+			+ " and t.vocab_name = 'EMAPS'";
+		
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String emapsTermKey = rs.getString("term_key");
+			String emapaTermKey = rs.getString("emapa_term_key");
+			String ancestorTermKey = rs.getString("ancestor_term_key");
+
+			if (!emapaAncestors.containsKey(emapsTermKey)) {
+				// add the initial set for this term, populated by the corresponding EMAPA term and its synonyms
+				emapaAncestors.put(emapsTermKey, new HashSet<String>());
+				emapaAncestors.get(emapsTermKey).add(emapaTerms.get(emapaTermKey));
+				if (emapaSynonyms.containsKey(emapaTermKey)) {
+					emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(emapaTermKey));
+				}
+			}
+			// then add the term and its synonyms for the EMAPA ancestor term
+			emapaAncestors.get(emapsTermKey).add(emapaTerms.get(ancestorTermKey));
+			if (emapaSynonyms.containsKey(ancestorTermKey)) {
+				emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(ancestorTermKey));
+			}
+		}
+		rs.close();
+		logger.info("Got EMAPA ancestors for " + emapaAncestors.size() + " EMAPS terms");
+	}
+	
+	// get the set of EMAPA structure keys that are ancestors of the given EMAPS structure key,
+	// including EMAPA key for 'emapsKey' itself
+	public Set<String> getEmapaAncestors(String emapsKey) throws Exception {
+		if (emapaAncestors == null) {
+			fillEmapaAncestors();
+		}
+		if (emapaAncestors.containsKey(emapsKey)) {
+			return emapaAncestors.get(emapsKey);
+		}
+		return emptySet;
+	}
+
+	// identify the exclusive structures for each allele (the set of structures outside which there is
+	// no recombinase activity detected for that allele), returning a mapping from:
+	//		allele key (String) : set of structure terms (Strings)
+	// Because everything traces up the DAG to 'mouse', everything should at least have one exclusive
+	// structure returned.
+	// Use:  This field is used when the user specifies a structure and checks the "nowhere else" checkbox.
+	private void findExclusiveStructures() throws Exception {
+		exclusiveStructures = new HashMap<String, Set<String>>();
+		
+		int minAlleleKey = 0;	// lowest allele key with recombinase data
+		int maxAlleleKey = 0;	// highest allele key with recombinase data
+		int chunkSize = 50000;	// number of allele keys to process in a chunk
+		
+		// identify the lowest and highest allele keys, so we can iterate over them
+		String minMaxCmd = "select min(allele_key) as min_key, max(allele_key) as max_key "
+			+ "from recombinase_allele_system";
+		ResultSet rs = ex.executeProto(minMaxCmd);
+		if (rs.next()) {
+			minAlleleKey = rs.getInt("min_key");
+			maxAlleleKey = rs.getInt("max_key");
+		}
+		rs.close();
+		
+		// now walk through the alleles in chunks
+		int startAllele = minAlleleKey - 1;
+		int endAllele = startAllele + chunkSize;
+		
+		while (startAllele < maxAlleleKey) {
+			// gather the EMAPS structures where recombinase activity was detected
+			Map<String,Set<String>> structuresPerAllele = new HashMap<String,Set<String>>();
+
+			String cmd = "select ras.allele_key, rar.structure_key "
+				+ "from recombinase_allele_system ras, recombinase_assay_result rar "
+				+ "where ras.allele_system_key = rar.allele_system_key "
+				+ " and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') "
+				+ " and ras.allele_key > " + startAllele
+				+ " and ras.allele_key <= " + endAllele
+				+ " order by ras.allele_key";
+			
+			ResultSet rs1 = ex.executeProto(cmd);
+			while (rs1.next()) {
+				String alleleKey = rs1.getString("allele_key");
+				if (!structuresPerAllele.containsKey(alleleKey)) {
+					structuresPerAllele.put(alleleKey, new HashSet<String>());
+				}
+				structuresPerAllele.get(alleleKey).add(rs1.getString("structure_key"));
+			}
+			rs1.close();
+			
+			// Now we can compute the set of 'exclusive structures' for each allele by taking the
+			// intersection of the EMAPA ancestors for each EMAPS structure with recombinase
+			// activity detected.
+			
+			for (String alleleKey : structuresPerAllele.keySet()) {
+				Set<String> commonAncestors = null;
+				for (String emapsKey : structuresPerAllele.get(alleleKey)) {
+					Set<String> resultAncestors = new HashSet<String>();
+					resultAncestors.addAll(this.getEmapaAncestors(emapsKey));
+					
+					if (commonAncestors == null) {
+						commonAncestors = resultAncestors;
+					} else {
+						commonAncestors.retainAll(resultAncestors);
+					}
+				}
+				exclusiveStructures.put(alleleKey, commonAncestors);
+			}
+			startAllele = endAllele;
+			endAllele = startAllele + chunkSize;
+		}
+		logger.info("Got exclusive structures for " + exclusiveStructures.size() + " alleles");
+	}
 
 	/*
 	 * Indexes both assay result documents 
@@ -57,7 +231,10 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	 */
 	public void index() throws Exception
 	{   
-
+		fillEmapaTerms();
+		fillEmapaSynonyms();
+		fillSystemSorts();
+		findExclusiveStructures();
 		loadAssayResults();
 
 		loadAllelesWithNoData();
@@ -104,8 +281,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ "rar.result_key, "
 					+ "rar.structure, "
 					+ "rar.level, "
-					+ "struct.term_key as structure_key, "
-					+ "struct.primary_id as structure_id, "
+					+ "rar.structure_key, "
+					+ "emapa.primary_id as structure_id, "
 					+ "ras.allele_id, "
 					+ "ras.allele_key, "
 					+ "a.driver, "
@@ -130,21 +307,18 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ 	"rar.result_key = rarsn.result_key "
 					+ "join allele a on "
 					+ 	"a.allele_key = ras.allele_key "
-					+ "join term struct on "
-					+ 	"struct.vocab_name='EMAPA' "
-					+ 	"and struct.term=rar.structure "
+					+ "join term_emap e on rar.structure_key = e.term_key "
+					+ "join term emapa on "
+					+ 	"e.emapa_term_key = emapa.term_key "
 					+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
 					+ " order by rar.result_key ";
 
-			logger.info(assayResultQuery);
 			rs = ex.executeProto(assayResultQuery);
-
 
 			// Retrieve any lookups needed for this batch
 			this.alleleSortsMap = queryAlleleSortsMap(startResultKey, endResultKey);
 			this.alleleSystemsMap = queryAlleleSystemsMap(startResultKey, endResultKey);
 			this.systemMap = querySystemMap(startResultKey, endResultKey);
-
 
 			logger.info("Parsing Assay Results");
 			processResults(rs, ResultType.ASSAY_RESULT);
@@ -235,8 +409,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 				String resultKey = rs.getString("result_key");
 				String structure = rs.getString("structure");
-				String structureKey = rs.getString("structure_key");
-				String structureId = rs.getString("structure_id");
+				String structureKey = rs.getString("structure_key");	// EMAPS key
+				String structureId = rs.getString("structure_id");		// EMAPA ID
 
 				boolean detected = this.isDetected(rs.getString("level"));
 
@@ -299,6 +473,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					this.resetDupTracking();
 				}              
 
+				if (exclusiveStructures.containsKey(alleleKey)) {
+					doc.addField(CreFields.ALL_EXCLUSIVE_STRUCTURES, exclusiveStructures.get(alleleKey));
+				}
 
 				// Add in the result sorting columns
 
@@ -315,8 +492,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.BY_SEX, rs.getString("by_sex"));
 				doc.addField(CreFields.BY_SPECIMEN_NOTE, rs.getString("by_specimen_note"));
 				doc.addField(CreFields.BY_RESULT_NOTE, rs.getString("by_result_note"));
-
 			} // end ASSAY_RESULT fields
+
+			// add allele-level fields computed to sort by Detected and Not Detected systems (where
+			// available) and falling back on smart-alpha symbol sort otherwise
+			
+			if (this.byDetected.containsKey(alleleKey)) {
+				doc.addField(CreFields.BY_DETECTED, this.byDetected.get(alleleKey));
+			}
+			if (this.byNotDetected.containsKey(alleleKey)) {
+				doc.addField(CreFields.BY_NOT_DETECTED, this.byNotDetected.get(alleleKey));
+			}
 
 			docs.add(doc);
 
@@ -578,6 +764,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 		if ("absent".equalsIgnoreCase(level)) {
 			detected = false;
+		} else if ("ambiguous".equalsIgnoreCase(level)) {
+			detected = false;
 		}
 		return detected;
 
@@ -597,10 +785,139 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return StringUtils.join(keys, "-");
 	}
 
+	/* Populate the maps for sorting by Detected and Not Detected systems.  Each map is from
+	 * a (String) allele key to a sort value (Integer).
+	 */
+	public void fillSystemSorts() throws SQLException {
+		// first, we need to collect systems for all the recombinase alleles
+		
+		// ordered to group rows by allele, then system, then detected before not detected
+		String cmd = "select distinct a.allele_key, s.system, n.by_symbol, "
+			+ " case when r.level in ('Ambiguous', 'Absent', 'Not Specified') then 0 "
+			+ "   else 1 end detected "
+			+ "from allele a "
+			+ "inner join allele_sequence_num n on (a.allele_key = n.allele_key) "
+			+ "left outer join recombinase_allele_system s on (s.allele_key = a.allele_key) "
+			+ "left outer join recombinase_assay_result r on (r.allele_system_key = s.allele_system_key) "
+			+ "where driver_key is not null "
+			+ "order by 3, 2, 4 desc";
+
+		Map<String,Integer> bySymbol = new HashMap<String,Integer>();				// allele key : sort value
+		Map<String,StringBuffer> detecteds = new HashMap<String,StringBuffer>();	// allele key : detected systems
+		Map<String,StringBuffer> notDetecteds = new HashMap<String,StringBuffer>();	// allele key : not detected systems
+		
+		String lastAlleleKey = "default";
+		String lastSystem = "default";
+
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String alleleKey = rs.getString("allele_key");
+			String system = rs.getString("system");
+			Integer detected = rs.getInt("detected");
+			Map<String,StringBuffer> map = null;
+
+			if (!bySymbol.containsKey(alleleKey)) {
+				bySymbol.put(alleleKey, rs.getInt("by_symbol"));
+			}
+			
+			// if there's no system, no other data to collect
+			if ((system != null) && (system.trim().length() > 0)) {
+
+				// if the allele & system match the previous, then this 'not detected' annotation is
+				// overridden by the previous 'detected' annotation, so skip it
+				if (!lastAlleleKey.equals(alleleKey) || !lastSystem.equals(system)) {
+
+					// this is a new annotation, so pick the correct map & run with it
+					if (detected == 0) {
+						map = notDetecteds;
+					} else {
+						map = detecteds;
+					}
+			
+					if (map.containsKey(alleleKey)) {
+						map.get(alleleKey).append(",");
+						map.get(alleleKey).append(rs.getString("system"));
+					} else {
+						map.put(alleleKey, new StringBuffer(rs.getString("system")));
+					}
+				}
+			}
+			lastAlleleKey = alleleKey;
+			lastSystem = system;
+		}
+		rs.close();
+		logger.info("Collected systems for " + bySymbol.size() + " alleles");
+		
+		this.byDetected = buildSortMap(bySymbol, detecteds);
+		this.byNotDetected = buildSortMap(bySymbol, notDetecteds);
+		logger.info("Sorted " + bySymbol.size() + " alleles by systems");
+	}
+	
+	// helper method for fillSystemSorts()
+	public Map<String,Integer> buildSortMap(Map<String,Integer> bySymbol, Map<String,StringBuffer> systems) {
+		// compile a list of allele data that we can sort
+		List<SortableAllele> sortableAlleles = new ArrayList<SortableAllele>();
+		for (String alleleKey : bySymbol.keySet()) {
+			SortableAllele allele = new SortableAllele();
+			allele.alleleKey = alleleKey;
+			allele.bySymbol = bySymbol.get(alleleKey);
+			if (systems.containsKey(alleleKey)) {
+				allele.systems = systems.get(alleleKey).toString();
+			}
+			sortableAlleles.add(allele);
+		}
+
+		// sort them
+		if (sortableAlleles.size() > 0) {
+			Collections.sort(sortableAlleles, sortableAlleles.get(0).getComparator());
+		}
+		
+		// assign a sequence number to each
+		Map<String,Integer> detectedSorts = new HashMap<String,Integer>();
+		int i = 0;
+		for (SortableAllele allele : sortableAlleles) {
+			detectedSorts.put(allele.alleleKey, i++);
+		}
+		return detectedSorts;
+	}
+
 	/**
 	 * Helper classes
 	 */
 
+	private class SortableAllele {
+		public String alleleKey;
+		public int bySymbol = -1;
+		public String systems;
+		
+		public SortableAlleleComparator getComparator() {
+			return new SortableAlleleComparator();
+		}
+		
+		private class SortableAlleleComparator implements Comparator<SortableAllele> {
+			@Override
+			public int compare(SortableAllele a, SortableAllele b) {
+				boolean aEmpty = (a.systems == null) || (a.systems.trim().length() == 0);
+				boolean bEmpty = (b.systems == null) || (b.systems.trim().length() == 0);
+
+				// if both have systems, compare them
+				if (!aEmpty && !bEmpty) {
+					int bySystems = a.systems.compareTo(b.systems);
+					if (bySystems != 0) {
+						return bySystems;
+					} 
+				} else if (aEmpty && !bEmpty) {
+					return 1;	
+				} else if (!aEmpty && bEmpty) {
+					return -1;	
+				} 
+
+				// if both are missing systems or if the systems match, fall back on symbol comparison
+				return Integer.compare(a.bySymbol, b.bySymbol);
+			}
+		}
+	}
+	
 	private class AlleleSorts {
 		public  int strainCount;
 		public int referenceCount;

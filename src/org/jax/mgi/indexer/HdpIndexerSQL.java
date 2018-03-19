@@ -376,6 +376,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 		List<String> doIds = new ArrayList<String>();
 		
 		Set<String> altIds = getAlternateTermIds(termId);
+		if (altIds == null) { return doIds; }
+		
 		for (String altId : altIds) {
 			if (altId.startsWith("DOID:")) {
 				doIds.add(altId);
@@ -391,6 +393,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 		List<String> omimIds = new ArrayList<String>();
 		
 		Set<String> altIds = getAlternateTermIds(termId);
+		if (altIds == null) { return omimIds; }
+		
 		for (String altId : altIds) {
 			if (altId.startsWith("OMIM:")) {
 				omimIds.add(altId);
@@ -887,7 +891,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		String markerQuery = 
 				"with closure as ( "
 					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "from hdp_annotation ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ "  and ha.vocab_name = 'Disease Ontology' "
 					+ "union " 
@@ -970,7 +974,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String diseaseRefCountQuery = 
 				"with closure as ( "
 					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "from hdp_annotation ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ "  and ha.vocab_name = 'Disease Ontology' "
 					+ "union " 
@@ -1062,7 +1066,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String diseaseModelQuery=
 				"with closure as ( "
 					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s "
+					+ "from hdp_annotation ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ " and ha.vocab_name = 'Disease Ontology' "
 					+ "union "

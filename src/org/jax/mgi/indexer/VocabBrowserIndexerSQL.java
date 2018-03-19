@@ -1,25 +1,22 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import java.text.DecimalFormat;
-import java.text.DecimalFormatSymbols;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
-import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.BrowserChild;
 import org.jax.mgi.shr.jsonmodel.BrowserID;
 import org.jax.mgi.shr.jsonmodel.BrowserParent;
 import org.jax.mgi.shr.jsonmodel.BrowserSynonym;
 import org.jax.mgi.shr.jsonmodel.BrowserTerm;
-import org.jax.mgi.shr.jsonmodel.MappingExperimentSummary;
 
 /* Is: an indexer that builds the index supporting the shared vocabulary browser (beginning with the 
  * 		[Adult] Mouse Anatomy vocabulary, now extended to the Mammalian Phenotype Ontology, and hopefully
@@ -56,6 +53,8 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private Map<Integer,String> annotationLabel;			// term key : label for annotation link
 	private Map<Integer,String> annotationUrl;				// term key : url for annotation link
 	private Map<Integer,String> comments;					// term key : comment field
+	private Map<Integer,List<String>> crossRefs;			// term key : list of IDs cited as cross-references
+	private Set<Integer> relatedToAnatomy;					// contains keys of terms with related anatomy terms
 	
 	private ObjectMapper mapper = new ObjectMapper();				// converts objects to JSON
 
@@ -71,6 +70,42 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	/*--- private methods ---*/
 	/*-----------------------*/
 
+	/* cache crossRefs for the given vocabulary name, populating the crossRefs object
+	 */
+	private void cacheCrossRefs(String vocabName) throws Exception {
+		crossRefs = new HashMap<Integer,List<String>>();
+
+		// only processing crossrefs for MP currently
+		if (!MP_VOCAB.equals(vocabName)) { return; }
+		
+		logger.info(" - caching crossRefs for " + vocabName);
+		
+		String cmd = "select tt.term_key_1 as term_key, e.primary_id as crossRef " + 
+				"from term_to_term tt, term e " + 
+				"where tt.relationship_type = 'MP to EMAPA' " + 
+				"and tt.term_key_2 = e.term_key";
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next()) {
+			int termKey = rs.getInt("term_key");
+			if (!crossRefs.containsKey(termKey)) {
+				crossRefs.put(termKey, new ArrayList<String>());
+			}
+			crossRefs.get(termKey).add(rs.getString("crossRef"));
+		}
+		rs.close();
+		logger.info(" - cached " + crossRefs.size() + " crossRefs");
+	}
+
+	/* Return the crossRef IDs for termKey, if there are any.  If not, return null.
+	 * Assumes cacheCrossRefs has been run for the current vocabulary.
+	 */
+	private List<String> getCrossRefs(Integer termKey) {
+		if (crossRefs.containsKey(termKey)) {
+			return crossRefs.get(termKey);
+		}
+		return null;
+	}
+	
 	/* cache comments for the given vocabulary name, populating the comments object
 	 */
 	private void cacheComments(String vocabName) throws Exception {
@@ -377,6 +412,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		t.setPrimaryID(id);
 		t.setTerm(term);
 		t.setDefinition(definition);
+		t.setRelatedToTissues(crossRefs.containsKey(termKey));
 		
 		if (defaultParent.containsKey(termKey)) {
 			t.setDefaultParent(defaultParent.get(termKey));
@@ -421,7 +457,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	}
 	
 	/* Process the terms for the give vocabulary name, generating documents and sending them to Solr.
-	 * Assumes cacheIDs, cacheSynonyms, cacheParents, and cacheChilren have been run for this vocabulary.
+	 * Assumes cacheIDs, cacheSynonyms, cacheParents, cacheCrossRefs, and cacheChildren have been run for this vocabulary.
 	 */
 	private void processTerms(String vocabName) throws Exception {
 		logger.info(" - loading terms for " + vocabName);
@@ -482,6 +518,12 @@ public class VocabBrowserIndexerSQL extends Indexer {
 				}
 			}
 			
+			if (crossRefs.containsKey(termKey)) {
+				for (String crossRef : this.getCrossRefs(termKey)) {
+					doc.addField(IndexConstants.VB_CROSSREF, crossRef);
+				}
+			}
+			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
 			docs.add(doc);
@@ -509,6 +551,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		cacheAnnotations(vocabName);
 		cacheChildren(vocabName);
 		cacheComments(vocabName);
+		cacheCrossRefs(vocabName);
 		processTerms(vocabName);
 		
 		logger.info("finished " + vocabName);

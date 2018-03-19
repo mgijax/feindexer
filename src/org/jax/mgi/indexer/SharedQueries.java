@@ -24,7 +24,7 @@ public class SharedQueries {
     		"where a.vocab_name in "+GXD_VOCABULARIES+" "+
     		"and a.annotation_key=mta.annotation_key "+
     		"and a.term_id != 'GO:0008150' and a.term_id != 'GO:0003674' and a.term_id != 'GO:0005575' "+
-    		"and (a.qualifier is null or a.qualifier not like 'NOT%') ";
+    		"and (a.qualifier is null or ((a.qualifier not like 'NOT%') and (a.qualifier != 'normal')) )";
 	
 	// excludes the above query to only markers with expression data
 	static String GXD_VOCAB_EXPRESSION_QUERY = GXD_VOCAB_QUERY+
@@ -56,7 +56,7 @@ public class SharedQueries {
 
 	// Gets all the ancestor IDs of each term. (To be combined with the above query)
 	static String GXD_VOCAB_ANCESTOR_QUERY = "select t.primary_id,ta.ancestor_primary_id "+
-    		"from term t,term_ancestor_simple ta "+
+    		"from term t,term_ancestor ta "+
     		"where t.vocab_name in "+GXD_VOCABULARIES+" "+
     		"and t.term_key = ta.term_key ";
 	
@@ -65,7 +65,7 @@ public class SharedQueries {
 			"t.primary_id structure_id, "+
 			"t.term_key structure_term_key, "+
 			"tae.mgd_structure_key ancestor_mgd_structure_key "+
-			"from term t, term_ancestor_simple ta, term_anatomy_extras tae, term ancestor_join "+
+			"from term t, term_ancestor ta, term_anatomy_extras tae, term ancestor_join "+
 			"where t.term_key=ta.term_key and t.vocab_name='Anatomical Dictionary' "+
 			"and ta.ancestor_primary_id=ancestor_join.primary_id "+
 			"and tae.term_key=ancestor_join.term_key ";
@@ -88,7 +88,7 @@ public class SharedQueries {
 		    "t.term_key structure_term_key, "+
 		    "tae.default_parent_key "+
 		"from term t, " +
-		    "term_ancestor_simple ta, " +
+		    "term_ancestor ta, " +
 		    "term_emap tae, " +
 		    "term ancestor_join "+
 		"where t.term_key = ta.term_key " +

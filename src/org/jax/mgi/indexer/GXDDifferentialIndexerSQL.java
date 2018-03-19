@@ -24,9 +24,122 @@ import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 
 public class GXDDifferentialIndexerSQL extends Indexer 
 {   
+	//--- instance variables ---//
+	
+	// shared empty set object to make code simpler later on
+	private Set<String> emptySet = new HashSet<String>();
+	
+	// maps from EMAPS structure key to all of its EMAPS ancestor keys (not just parents)
+	private Map<String,Set<String>> emapaAncestors = null;
+	
+	//--- constructors ---//
+	
 	public GXDDifferentialIndexerSQL () 
 	{ super("gxdDifferentialMarker"); }
 
+	//--- methods ---//
+	
+	// get the mapping from each EMAPS term key to its EMAPA ancestor keys
+	public void fillEmapaAncestors() throws Exception {
+		emapaAncestors = new HashMap<String,Set<String>>();
+		
+		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key "
+			+ "from term_ancestor a, term t, term_emap e, term_emap te "
+			+ "where a.term_key = t.term_key "
+			+ " and a.ancestor_term_key = e.term_key "
+			+ " and t.term_key = te.term_key "
+			+ " and t.vocab_name = 'EMAPS'";
+		
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String termKey = rs.getString("term_key");
+			if (!emapaAncestors.containsKey(termKey)) {
+				emapaAncestors.put(termKey, new HashSet<String>());
+				emapaAncestors.get(termKey).add(rs.getString("emapa_term_key"));
+			}
+			emapaAncestors.get(termKey).add(rs.getString("ancestor_term_key"));
+		}
+		rs.close();
+		logger.info("Got EMAPA ancestors for " + emapaAncestors.size() + " EMAPS terms");
+	}
+	
+	// get the set of EMAPA structure keys that are ancestors of the given EMAPS structure key,
+	// including EMAPA key for 'emapsKey' itself
+	public Set<String> getEmapaAncestors(String emapsKey) throws Exception {
+		if (emapaAncestors == null) {
+			fillEmapaAncestors();
+		}
+		if (emapaAncestors.containsKey(emapsKey)) {
+			return emapaAncestors.get(emapsKey);
+		}
+		return emptySet;
+	}
+	
+	// go through the list of results per marker and identify the exclusive structures, returning a 
+	// mapping from:
+	//		marker key (String) : set of structure keys (Strings)
+	// Because everything traces up the DAG to 'mouse', everything should at least have one exclusive
+	// structure returned.
+	// Use:  This field is used when the user specifies a structure, specifies no stages, and
+	//		checks the "nowhere else" checkbox.
+	private Map<String, Set<String>> findExclusiveStructures(Map<Integer, List<Result>> markerResults) throws Exception {
+		// The easiest way to find the list of exclusive structures appears to be to find the intersection
+		// of the sets of ancestors (each with its annotated structure) for each result.
+		
+		Map<String, Set<String>> exStructures = new HashMap<String, Set<String>>();
+		for (Integer markerKey : markerResults.keySet()) {
+			Set<String> commonStructures = null;
+
+			for (Result result : markerResults.get(markerKey)) {
+				if (result.expressed) {
+					Set<String> resultStructures = new HashSet<String>();
+					resultStructures.addAll(getEmapaAncestors(result.structureKey));
+
+					if (commonStructures == null) {
+						commonStructures = resultStructures;
+					} else {
+						commonStructures.retainAll(resultStructures);
+					}
+				}
+			}
+			exStructures.put(markerKey + "", commonStructures);
+		}
+		return exStructures;
+	}
+
+	// go through the list of results per marker and identify the exclusive stages, returning a 
+	// mapping from:
+	//		marker key (String) : set of stages (Strings)
+	// Note: Because the QF stage field is allows multiple selections, queries against this field
+	//		will likely need to be NOT searches... ie- user selects TS10 and TS12, so we search
+	//		for markers where the list of exclusive stages does not contain TS1-9, TS11, or TS13-28.
+	// Use:  This field is used when the user does not specify a structure, specifies 1+ stages, and
+	//		checks the "nowhere else" checkbox.
+	private Map<String, Set<String>> findExclusiveStages(Map<Integer, List<Result>> markerResults) {
+		Map<String, Set<String>> exStages = new HashMap<String, Set<String>>();
+		for (Integer markerKey : markerResults.keySet()) {
+			String stringKey = markerKey + "";
+			exStages.put(stringKey, new HashSet<String>());
+
+			for (Result result : markerResults.get(markerKey)) {
+				if (result.expressed) {
+					exStages.get(stringKey).add(result.stage);
+				}
+			}
+		}
+		return exStages;
+	}
+
+
+	// Note:
+	// For searches where the user specifies a structure and one or more stages, then checks the
+	// "and nowhere else" checkbox, we will need to perform that search as:
+	//		1. specified structure is in the set of exclusive structures for the marker, AND
+	//		2. no other stages are in the set of exclusive stages for the marker
+	// A third field is not needed.  (One had been proposed for structure/stage pairs.)
+	
+	
+	// main logic for building the index
 	public void index() throws Exception
 	{    
 		Map<String,List<String>> structureAncestorIdMap = new HashMap<String,List<String>>();
@@ -122,15 +235,34 @@ public class GXDDifferentialIndexerSQL extends Indexer
 				markerResults.get(marker_key).add(new Result(structure_key,emapsId,stage,is_expressed));
 			}
 
+			// can walk through markerResults here to find for each marker:
+			// 1. structures where expression happens exclusively (nowhere outside that structure and its descendants)
+			// 2. stages where expression happens exclusively (at no other structures)
+			
+			Map<String,Set<String>> exclusiveStructures = findExclusiveStructures(markerResults);
+			Map<String,Set<String>> exclusiveStages = findExclusiveStages(markerResults);
+			
+			// ready, set, compose documents!  (note: compose is only one letter different than compost.)
+			
 			Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 			logger.info("Creating Solr Documents");
 			for(int markerKey : markerResults.keySet())
 			{   
+				String mrkKey = "" + markerKey;
+				
 				SolrInputDocument doc = new SolrInputDocument();
 				// Add the single value fields
-				doc.addField(GxdResultFields.KEY, ""+markerKey);
+				doc.addField(GxdResultFields.KEY, mrkKey);
 				doc.addField(GxdResultFields.MARKER_KEY, markerKey);
+				
+				// populate the exclusive structures and stages fields...
+				if (exclusiveStructures.containsKey(mrkKey)) {
+					doc.addField(GxdResultFields.DIFF_EXCLUSIVE_STRUCTURES, exclusiveStructures.get(mrkKey));
+				}
+				if (exclusiveStages.containsKey(mrkKey)) {
+					doc.addField(GxdResultFields.DIFF_EXCLUSIVE_STAGES, exclusiveStages.get(mrkKey));
+				}
 
 				// create a result tracker for each marker to manage stage/structure combos
 				// also calculates when a marker is expressed "exclusively" in a structure
@@ -200,8 +332,8 @@ public class GXDDifferentialIndexerSQL extends Indexer
 				}
 			}
 			writeDocs(docs);
-			commit();
 		}
+		commit();
 	}
 
 	/*

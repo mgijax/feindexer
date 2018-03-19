@@ -48,7 +48,7 @@ public class RefIndexerSQL extends Indexer {
 		String diseaseRelevantRefQuery =
 				"with closure as ( "
 					+ "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor_simple s, term t "
+					+ "from hdp_annotation ha, term_ancestor s, term t "
 					+ "where ha.term_key = s.term_key "
 					+ " and ha.vocab_name = 'Disease Ontology' "
 					+ " and s.ancestor_primary_id = t.primary_id "

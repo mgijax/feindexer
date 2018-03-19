@@ -104,7 +104,7 @@ public abstract class Indexer implements Runnable {
 	// closes down the connection and makes sure a last commit is run
 	public void closeConnection() {
 		
-		logger.info("Waiting for Threads to finish: ");
+		logger.info("Indexer: Waiting for " + currentThreads.size() + " Threads to finish, RAM used: " + memoryUsed());
 		
 		for(Thread t : currentThreads) {
 			try {
@@ -154,18 +154,24 @@ public abstract class Indexer implements Runnable {
 	
 	private void checkMemory() {
 		if(memoryPercent() > 0.95) {
-			logger.info("Memory usage is HIGH!!!: " + df.format(memoryPercent() * 100) + "%");
+			logger.info("Memory usage is HIGH!!!: " + memoryUsed());
 			printMemory();
 		}
 	}
 	
 	protected void printMemory() {
-		logger.info("Used Mem: " + (runtime.totalMemory() - runtime.freeMemory()) + " " + memoryPercent() + "%");
+		logger.info("Used Mem: " + (runtime.totalMemory() - runtime.freeMemory()) + " " + memoryUsed());
 		logger.info("Free Mem: " + runtime.freeMemory());
 		logger.info("Total Mem: " + runtime.totalMemory());
 		logger.info("Max Memory: " + runtime.maxMemory());
 	}
 
+	// returns the percentage of total memory used, as a String
+	protected String memoryUsed() {
+		return df.format(memoryPercent() * 100) + "%";
+	}
+	
+	// returns the fraction of total memory used, as a Double
 	protected double memoryPercent() {
 		return ((double)runtime.totalMemory() - (double)runtime.freeMemory()) / (double)runtime.maxMemory();
 	}
@@ -208,7 +214,6 @@ public abstract class Indexer implements Runnable {
 		} catch (Exception e) {e.printStackTrace();}
 		allValues.clear();
 		return tempMap;
-
 	}
 
 	/*
@@ -300,7 +305,7 @@ public abstract class Indexer implements Runnable {
 
 		rs.close();
 		long end = runtime.freeMemory();
-		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (end - start) + "bytes");
+		logger.info("finished populating map of "+ logText + " with " + rows + " rows for " + returnLookup.size() + " " + uniqueFieldName + " Memory Change: " + (end - start) + " bytes");
 		
 		return returnLookup;
 	}
