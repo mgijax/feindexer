@@ -195,7 +195,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				+ "from marker m "
 				+ "inner join marker_sequence_num n on (m.marker_key = n.marker_key) "
 				+ "inner join marker_counts c on (m.marker_key = c.marker_key) "
-				+ "left outer join hdp_genocluster gc on (m.marker_key = gc.marker_key) "
+				+ "left outer join hdp_genocluster_marker gc on (m.marker_key = gc.marker_key) "
 				+ "left outer join hdp_annotation a on (m.marker_key = a.marker_key and a.organism_key = 2)"
 				+ "where m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
 				+ "  and m.organism in ('mouse', 'human') "

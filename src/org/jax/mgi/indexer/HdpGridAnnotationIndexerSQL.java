@@ -272,7 +272,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		// marker/disease annotations)
 		String mouseQuery = "select distinct m.marker_key, gg.hdp_genocluster_key, ga.term_key, ga.qualifier_type, "
 			+ "  ha.header, ga.genotermref_count, ga.has_backgroundnote "
-			+ "from hdp_genocluster m, "
+			+ "from hdp_genocluster_marker m, "
 			+ "  hdp_genocluster_genotype gg, "
 			+ "  hdp_genocluster_annotation ga, "
 			+ "  hdp_annotation ha "

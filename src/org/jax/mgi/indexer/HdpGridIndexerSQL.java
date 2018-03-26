@@ -347,7 +347,7 @@ public class HdpGridIndexerSQL extends HdpIndexerSQL {
 		String mouseQuery = "select a.hdp_genocluster_key, gc.marker_key, "
 				+ "  a.term_key, a.annotation_type, a.qualifier_type, a.term_type "
 				+ "from hdp_genocluster_annotation a, "
-				+ "  hdp_genocluster gc "
+				+ "  hdp_genocluster_marker gc "
 				+ "where a.hdp_genocluster_key = gc.hdp_genocluster_key "
 				+ "order by a.hdp_genocluster_key, gc.marker_key";
 

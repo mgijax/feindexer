@@ -785,7 +785,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		genoclusterToGridcluster = new HashMap<Integer,Set<Integer>>();
 
 		String gcQuery = "select distinct gc.hdp_genocluster_key, gcm.hdp_gridcluster_key "
-			+ "from hdp_genocluster gc, "
+			+ "from hdp_genocluster_marker gc, "
 			+ "  hdp_gridcluster_marker gcm "
 			+ "where gc.marker_key = gcm.marker_key";
 
@@ -1945,7 +1945,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		String mouseQuery = "select distinct gg.hdp_genocluster_key, gcm.hdp_gridcluster_key "
 			+ "from hdp_genocluster_genotype gg "
-			+ "left outer join hdp_genocluster gc on (gg.hdp_genocluster_key = gc.hdp_genocluster_key) "
+			+ "left outer join hdp_genocluster_marker gc on (gg.hdp_genocluster_key = gc.hdp_genocluster_key) "
 			+ "left outer join hdp_gridcluster_marker gcm on (gc.marker_key = gcm.marker_key) "
 			+ "order by gg.hdp_genocluster_key, gcm.hdp_gridcluster_key";
 

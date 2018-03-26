@@ -258,7 +258,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		this.markerSymbol = new HashMap<Integer,String>(); 
 		
 		String cmd = "select distinct m.marker_key, m.symbol, m.primary_id "
-			+ "from marker m, hdp_genocluster gc "
+			+ "from marker m, hdp_genocluster_marker gc "
 			+ "where gc.marker_key = m.marker_key "
 			+ " and m.marker_key >= " + startMarker
 			+ " and m.marker_key < " + endMarker;
@@ -287,7 +287,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 			+ " regexp_replace("
 			+ "  regexp_replace(g.combination_1, '\\\\Allele\\([^\\|]*|', '', 'g'), "
 			+ "   '\\|\\)?', '', 'g') as allele_pairs "
-			+ "from marker m, hdp_genocluster gc, hdp_genocluster_genotype gg, genotype g "
+			+ "from marker m, hdp_genocluster_marker gc, hdp_genocluster_genotype gg, genotype g "
 			+ "where gc.marker_key = m.marker_key "
 			+ " and gc.hdp_genocluster_key = gg.hdp_genocluster_key "
 			+ " and gg.genotype_key = g.genotype_key "
@@ -333,7 +333,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		// that have genoclusters associated.
 		
 		logger.info("Finding min/max marker keys");
-		String markerCmd = "select min(marker_key) as min_key, max(marker_key) as max_key from hdp_genocluster";
+		String markerCmd = "select min(marker_key) as min_key, max(marker_key) as max_key from hdp_genocluster_marker";
 		ResultSet rsMrk = ex.executeProto(markerCmd);
 		if (!rsMrk.next()) {
 			throw new Exception("Cannot find marker keys");
@@ -374,7 +374,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 			String cmd = "select distinct g.marker_key, hga.hdp_genocluster_key, geno.genotype_key, "
 				+ " map.term_key_2 as structure_key, hga.qualifier_type, hga.has_backgroundnote, "
 				+ " r.reference_key, hga.term_key "
-				+ "from hdp_genocluster g, hdp_genocluster_annotation hga, term_to_term map, "
+				+ "from hdp_genocluster_marker g, hdp_genocluster_annotation hga, term_to_term map, "
 				+ " hdp_genocluster_genotype geno, genotype_to_annotation gta, annotation a, "
 				+ " annotation_reference r "
 				+ "where g.marker_key >= " + startMarker
