@@ -60,7 +60,19 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 		logger.info("Getting all distinct structures & synonyms");
 		
 		// has_gxdhd -- refers to whether a structure is cited in samples in the high-throughput expression data
-		String query = "with anatomy_synonyms as "+
+		String query = "with recombinase_terms as (select t.term_key " +
+				"from term t " +
+				"where t.vocab_name = 'EMAPA' " +
+				" and ( " +
+				"  exists (select 1 from term_emap e, recombinase_assay_result r " +
+				"    where e.emapa_term_key = t.term_key " +
+				"    and r.structure_key = e.term_key) " +
+				"  or exists (select 1 from term_emap e, term_ancestor a, recombinase_assay_result r2 " +
+				"    where t.term_key = e.emapa_term_key " +
+				"    and e.term_key = a.ancestor_term_key " +
+				"    and a.term_key = r2.structure_key)" +
+				"  ))," +
+				"anatomy_synonyms as "+
 				"(select distinct t.term structure, ts.synonym, t.term_key, "+
 				/* disabled until we want to use the picklist for actually picking a specific
 				 * term to search by ID, rather than a set of words
@@ -68,7 +80,7 @@ public class EmapaAutoCompleteIndexerSQL extends Indexer {
 				 *	    "  e.start_stage, " +
 				 *	    "  e.end_stage, " +
 				 */
-				 "case when (exists (select 1 from recombinase_assay_result rar where rar.structure=t.term)) "+
+				 "case when (exists (select 1 from recombinase_terms rt where t.term_key = rt.term_key)) "+
 				 "then true else false end as has_cre "+
 				 "from term t join term_emap e on t.term_key = e.term_key left outer join " +
 				 "term_synonym ts on t.term_key = ts.term_key "+
