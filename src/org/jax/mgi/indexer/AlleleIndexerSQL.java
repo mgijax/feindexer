@@ -98,6 +98,9 @@ public class AlleleIndexerSQL extends Indexer {
 		Map<String,Set<String>> alleleTermIdMap = getAlleleTermIdsMap(startKey,endKey);
 		populateOMIMNumberPartsForIds(alleleTermIdMap);
 
+		// molecular mutations
+		Map<String,Set<String>> mutationMap = getMutationMap(startKey, endKey);
+
 		// mutation involves markers
 		Map<String,Set<String>> mutationInvolvesMap = getMutationInvolvesMap(startKey, endKey);
 
@@ -234,6 +237,8 @@ public class AlleleIndexerSQL extends Indexer {
 				if(al.cytogeneticOffset!=null) doc.addField(IndexConstants.CYTOGENETIC_OFFSET, al.cytogeneticOffset);
 			}
 
+			// molecular mutations
+			addAllFromLookup(doc, IndexConstants.ALL_MUTATION, allKeyString, mutationMap);
 
 			// add allele accession IDs
 			addAllFromLookup(doc,IndexConstants.ALL_ID,allKeyString,allIdMap);
@@ -355,6 +360,12 @@ public class AlleleIndexerSQL extends Indexer {
 		allelePhenoTermMap = populateLookup(mpSynonymSQL,"allele_key","synonym","allele_key->alt IDs",allelePhenoTermMap);
 
 		return allelePhenoTermMap;
+	}
+
+	public Map<String,Set<String>> getMutationMap(int start,int end) throws Exception {
+		String mutationSQL = "select allele_key, mutation from allele_mutation where allele_key > "+start+" and allele_key <= "+end+" ";
+		Map<String,Set<String>> mutationMap = populateLookup(mutationSQL, "allele_key", "mutation","allele_keys -> mutations");
+		return mutationMap;
 	}
 
 	public Map<String,Set<String>> getAlleleIdsMap(int start,int end) throws Exception {
