@@ -401,11 +401,10 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 				cell.addChildren();
 			}
 		} else if (isAncestor) {
-			// do not propagate "not detected" or "ambiguous" up to ancestors, but flag their presence
+			// do not propagate "not detected" or "ambiguous" up to ancestors, but flag their presence and
+			// note that we'd like to be able to expand the rows to see the children
 			cell.flagQuestionableDescendants();
-			if ("Ambiguous".equals(isExpressed)) {
-				cell.addChildren(); 
-			}
+			cell.addChildren(); 
 		} else if ("Ambiguous".equals(isExpressed)) {
 			cell.addAmbiguous();
 		} else {
