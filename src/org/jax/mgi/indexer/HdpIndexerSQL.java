@@ -727,6 +727,19 @@ public abstract class HdpIndexerSQL extends Indexer {
 			markerAllIdMap = populateLookup(markerIdQuery,"marker_key","acc_id","marker keys to IDs");
 
 			logger.info("Finished loading IDs for " + markerAllIdMap.size() + " markers" + Timer.getElapsedMessage());
+
+			// For searching, add the alternate form for OMIM IDs
+			for (String markerKey : markerAllIdMap.keySet()) {
+				Set<String> altIds = markerAllIdMap.get(markerKey);
+				List<String> newIds = new ArrayList<String>();
+				// This adds the Number part of OMIM to the alt ids also for searching
+				for (String altId : altIds) {
+					if (altId.startsWith("OMIM:")) {
+						newIds.add(altId.replaceFirst("OMIM:", ""));
+					}
+				}
+				altIds.addAll(newIds);
+			}
 		}
 		return markerAllIdMap;
 	}
