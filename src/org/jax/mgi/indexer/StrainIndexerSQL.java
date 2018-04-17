@@ -54,7 +54,7 @@ public class StrainIndexerSQL extends Indexer {
 			+ "order by sequence_num";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - finished ID query in " + ex.getTimestamp());
+		logger.info("  - finished ID query in " + ex.getTimestamp());
 		
 		int i = 0;
 		accessionIDs = new HashMap<String,List<AccessionID>>();
@@ -68,7 +68,7 @@ public class StrainIndexerSQL extends Indexer {
 			i++;
 		}
 		rs.close();
-		logger.debug("  - cached " + i + " IDs for " + accessionIDs.size() + " strains");
+		logger.info("  - cached " + i + " IDs for " + accessionIDs.size() + " strains");
 	}
 	
 	/* get the set of accession IDs for the given strain key
@@ -80,6 +80,21 @@ public class StrainIndexerSQL extends Indexer {
 		return null;
 	}
 	
+	/* get a List of just the ID strings for the given strain key
+	 */
+	public List<String> getIDStrings(String strainKey) throws Exception {
+		List<AccessionID> objects = getIDs(strainKey);
+		if (objects != null) {
+			List<String> ids = new ArrayList<String>();
+			for (AccessionID obj : objects) {
+				ids.add(obj.getAccID());
+			}
+			return ids;
+		}
+		return null;
+	}
+
+
 	/* cache the synonyms for each strain in 'synonyms'
 	 */
 	private void cacheSynonyms() throws Exception {
@@ -89,7 +104,7 @@ public class StrainIndexerSQL extends Indexer {
 			+ "order by sequence_num";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - finished synonym query in " + ex.getTimestamp());
+		logger.info("  - finished synonym query in " + ex.getTimestamp());
 		
 		int i = 0;
 		synonyms = new HashMap<String,List<String>>();
@@ -102,7 +117,7 @@ public class StrainIndexerSQL extends Indexer {
 			i++;
 		}
 		rs.close();
-		logger.debug("  - cached " + i + " synonyms for " + synonyms.size() + " strains");
+		logger.info("  - cached " + i + " synonyms for " + synonyms.size() + " strains");
 		
 	}
 	
@@ -124,7 +139,7 @@ public class StrainIndexerSQL extends Indexer {
 			+ "order by sequence_num";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - finished attribute query in " + ex.getTimestamp());
+		logger.info("  - finished attribute query in " + ex.getTimestamp());
 		
 		int i = 0;
 		attributes = new HashMap<String,List<String>>();
@@ -137,7 +152,7 @@ public class StrainIndexerSQL extends Indexer {
 			i++;
 		}
 		rs.close();
-		logger.debug("  - cached " + i + " attributes for " + attributes.size() + " strains");
+		logger.info("  - cached " + i + " attributes for " + attributes.size() + " strains");
 	}
 	
 	/* get the set of attributes for the given strain key
@@ -162,7 +177,7 @@ public class StrainIndexerSQL extends Indexer {
 			+ "group by 1, 2, 3, 4, 5";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - finished main strain query in " + ex.getTimestamp());
+		logger.info("  - finished main strain query in " + ex.getTimestamp());
 
 		int i = 0;
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
@@ -184,7 +199,7 @@ public class StrainIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.STRAIN_KEY, strainKey);
 			doc.addField(IndexConstants.STRAIN_NAME, name);
 			doc.addField(IndexConstants.STRAIN_TYPE, rs.getString("strain_type"));
-			doc.addField(IndexConstants.ACC_ID, strain.getAccessionIDs());
+			doc.addField(IndexConstants.ACC_ID, getIDStrings(strainKey));
 			doc.addField(IndexConstants.BY_DEFAULT, rs.getInt("by_strain"));
 			doc.addField(IndexConstants.STRAIN, mapper.writeValueAsString(strain));
 			
