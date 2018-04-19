@@ -186,18 +186,22 @@ public class StrainIndexerSQL extends Indexer {
 			String strainKey = rs.getString("strain_key");
 			String name = rs.getString("name");
 			String primaryID = rs.getString("primary_id");
+			List<String> synonyms = getSynonyms(strainKey);
 
 			// build the object that we will store as JSON in the strain field of the index
 			SimpleStrain strain = new SimpleStrain(name, primaryID);
 			strain.setAttributes(getAttributes(strainKey));
 			strain.setAccessionIDs(getIDs(strainKey));
-			strain.setSynonyms(getSynonyms(strainKey));
+			strain.setSynonyms(synonyms);
 			strain.setReferenceCount(rs.getInt("reference_count"));
 			
 			// start building the solr document (will have only four fields total)
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.STRAIN_KEY, strainKey);
 			doc.addField(IndexConstants.STRAIN_NAME, name);
+			if (synonyms != null) {
+				doc.addField(IndexConstants.STRAIN_NAME, synonyms);
+			}
 			doc.addField(IndexConstants.STRAIN_TYPE, rs.getString("strain_type"));
 			doc.addField(IndexConstants.ACC_ID, getIDStrings(strainKey));
 			doc.addField(IndexConstants.BY_DEFAULT, rs.getInt("by_strain"));
