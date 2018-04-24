@@ -64,23 +64,36 @@ public class StrainAutoCompleteIndexerSQL extends Indexer {
 			@Override
 			public int compare(StrainPair a, StrainPair b) {
 				// Sort rules:
-				// 1. primary: smart-alpha by strain name (assumes strain names cannot be null)
-				// 2. secondary: null synonym before non-null synonym
-				// 3. tertiary: smart-alpha by synonym
-				int out = smartAlphaComparator.compare(a.name, b.name);
-				if (out != 0) { return out; }
+				// 1. if both terms have synonyms, sort by synonym primarily, then by strain name
+				// 2. if only one has a synonym, compare synonym with the other's name
+				// 3. if neither has a synonym, compare by name
 				
-				// smartAlphaComparator sorts nulls after non-nulls, so needs to be custom here
+				int out = 0;
 				if (a.synonym != null) {
 					if (b.synonym != null) {
-						return smartAlphaComparator.compare(a.synonym, b.synonym);
+						// rule #1
+						out = smartAlphaComparator.compare(a.synonym, b.synonym); 
+						if (out == 0) {
+							out = smartAlphaComparator.compare(a.name, b.name);
+						}
 					} else {
-						return 1;		// null b first
+						// rule #2
+						out = smartAlphaComparator.compare(a.synonym, b.name);
+						if (out == 0) {
+							out = 1;		// prefer name to synonym, if match
+						}
 					}
 				} else if (b.synonym != null) {
-					return -1;			// null a first
+					// rule #2
+					out = smartAlphaComparator.compare(a.name, b.synonym);
+					if (out == 0) {
+						out = -1;			// prefer name to synonym, if match
+					}
+				} else {
+					// rule #3
+					out = smartAlphaComparator.compare(a.name, b.name);
 				}
-				return 0;
+				return out;
 			}
 		}
 	}
