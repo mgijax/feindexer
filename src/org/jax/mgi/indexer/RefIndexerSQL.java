@@ -30,6 +30,14 @@ public class RefIndexerSQL extends Indexer {
 		super("reference");
 	}
 
+	/** get a mapping from reference keys (with strain data) to list of the Strain IDs for that reference
+	 */
+	public Map<String,Set<String>> getStrainIDs() throws Exception {
+		String cmd = "select r.reference_key, s.primary_id "
+			+ "from strain_to_reference r, strain s "
+			+ "where s.strain_key = r.strain_key";
+		return populateLookup(cmd, "reference_key", "primary_id", "strain IDs");
+	}
 
 	/**
 	 * The main worker of this class, it starts by gathering up all the 1->N 
@@ -39,6 +47,8 @@ public class RefIndexerSQL extends Indexer {
 	 */
 	public void index() throws Exception
 	{
+		Map<String,Set<String>> strainIDs = getStrainIDs();
+		
 		String diseaseRelevantMarkerQuery = "select mtr.reference_key, m.primary_id marker_id " +
 				"from hdp_marker_to_reference mtr,marker m " +
 				"where m.marker_key=mtr.marker_key ";
@@ -196,6 +206,9 @@ public class RefIndexerSQL extends Indexer {
 			String refKey = rs_overall.getString("reference_key");
 			doc.addField(IndexConstants.REF_KEY, refKey);
 
+			// add strain IDs associated with the reference
+			addAllFromLookup(doc, IndexConstants.STRAIN_ID, refKey, strainIDs);
+			
 			// add all the marker IDs for disease relevant markers
 			addAllFromLookup(doc,IndexConstants.REF_DISEASE_RELEVANT_MARKER_ID,refKey,diseaseRelevantMarkerMap);
 			addAllFromLookup(doc,IndexConstants.REF_DISEASE_ID,refKey,diseaseRelevantRefMap);
