@@ -206,6 +206,7 @@ public class StrainIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.ACC_ID, getIDStrings(strainKey));
 			doc.addField(IndexConstants.BY_DEFAULT, rs.getInt("by_strain"));
 			doc.addField(IndexConstants.STRAIN, mapper.writeValueAsString(strain));
+			doc.addField(IndexConstants.STRAIN_ATTRIBUTE, strain.getAttributes());
 			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
