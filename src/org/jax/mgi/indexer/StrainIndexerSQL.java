@@ -32,6 +32,7 @@ public class StrainIndexerSQL extends Indexer {
 	private Map<String,List<AccessionID>> accessionIDs = null;		// maps from strain key to list of IDs
 	private Map<String,List<String>> synonyms = null;				// maps from strain key to synonyms
 	private Map<String,List<String>> attributes = null;				// maps from strain key to attributes
+	private Map<String,List<String>> references = null;				// maps from strain key to reference IDs
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -44,6 +45,31 @@ public class StrainIndexerSQL extends Indexer {
 	/*-----------------------*/
 	/*--- private methods ---*/
 	/*-----------------------*/
+
+	/* gather the reference IDs that can be used to retrieve each strain, caching them in 'references'
+	 */
+	private void cacheReferences() throws Exception {
+		logger.info("caching reference IDs");
+		String cmd = "select s.strain_key, i.acc_id "
+			+ "from strain_to_reference s, reference_id i "
+			+ "where s.reference_key = i.reference_key";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.info("  - finished ref ID query in " + ex.getTimestamp());
+		
+		int i = 0;
+		references = new HashMap<String,List<String>>();
+		while (rs.next()) {
+			String strainKey = rs.getString("strain_key");
+			if (!references.containsKey(strainKey)) {
+				references.put(strainKey, new ArrayList<String>());
+			}
+			references.get(strainKey).add(rs.getString("acc_id"));
+			i++;
+		}
+		rs.close();
+		logger.info("  - cached " + i + " ref IDs for " + references.size() + " strains");
+	}
 
 	/* gather the accession IDs that can be used to retrieve each strain, caching them in 'accessionIDs'
 	 */
@@ -80,18 +106,25 @@ public class StrainIndexerSQL extends Indexer {
 		return null;
 	}
 	
-	/* get a List of just the ID strings for the given strain key
+	/* get a List of all the ID strings that can be used to return the strain record with the given key
 	 */
-	public List<String> getIDStrings(String strainKey) throws Exception {
+	public List<String> getSearchableIDs(String strainKey) throws Exception {
+		List<String> allIDs = new ArrayList<String>();
+		if (references.containsKey(strainKey)) {
+			allIDs.addAll(references.get(strainKey));
+		}
+		
 		List<AccessionID> objects = getIDs(strainKey);
 		if (objects != null) {
-			List<String> ids = new ArrayList<String>();
 			for (AccessionID obj : objects) {
-				ids.add(obj.getAccID());
+				allIDs.add(obj.getAccID());
 			}
-			return ids;
 		}
-		return null;
+
+		if (allIDs.size() == 0) {
+			return null; 
+		}
+		return allIDs;
 	}
 
 
@@ -203,7 +236,7 @@ public class StrainIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.STRAIN_NAME, synonyms);
 			}
 			doc.addField(IndexConstants.STRAIN_TYPE, rs.getString("strain_type"));
-			doc.addField(IndexConstants.ACC_ID, getIDStrings(strainKey));
+			doc.addField(IndexConstants.ACC_ID, getSearchableIDs(strainKey));
 			doc.addField(IndexConstants.BY_DEFAULT, rs.getInt("by_strain"));
 			doc.addField(IndexConstants.STRAIN, mapper.writeValueAsString(strain));
 			doc.addField(IndexConstants.STRAIN_ATTRIBUTE, strain.getAttributes());
@@ -233,6 +266,7 @@ public class StrainIndexerSQL extends Indexer {
 	public void index() throws Exception {
 		// collect various mappings needed for data lookup
 		cacheAttributes();
+		cacheReferences();
 		cacheIDs();
 		cacheSynonyms();
 		processStrains();
