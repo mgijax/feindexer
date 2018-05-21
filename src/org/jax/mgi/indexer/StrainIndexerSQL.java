@@ -197,6 +197,19 @@ public class StrainIndexerSQL extends Indexer {
 		return null;
 	}
 	
+	/* get a list of IDs to display, but with secondary MGI IDs filtered out.  (Only keep non-MGI IDs
+	 * and primary MGI IDs.)
+	 */
+	private List<AccessionID> filterSecondaryIDs(List<AccessionID> ids, String primaryID) {
+		List<AccessionID> filteredIDs = new ArrayList<AccessionID>();
+		for (AccessionID id : ids) {
+			if (!id.getLogicalDB().equals("MGI") || (id.getAccID().equals(primaryID))) {
+				filteredIDs.add(id);
+			}
+		}
+		return filteredIDs;
+	}
+	
 	/* retrieve strains from the database, build Solr docs, and write them to the server.
 	 */
 	private void processStrains() throws Exception {
@@ -224,7 +237,7 @@ public class StrainIndexerSQL extends Indexer {
 			// build the object that we will store as JSON in the strain field of the index
 			SimpleStrain strain = new SimpleStrain(name, primaryID);
 			strain.setAttributes(getAttributes(strainKey));
-			strain.setAccessionIDs(getIDs(strainKey));
+			strain.setAccessionIDs(filterSecondaryIDs(getIDs(strainKey), primaryID));
 			strain.setSynonyms(synonyms);
 			strain.setReferenceCount(rs.getInt("reference_count"));
 			
