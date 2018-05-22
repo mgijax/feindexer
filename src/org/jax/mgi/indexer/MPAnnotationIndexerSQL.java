@@ -88,6 +88,24 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		return annotationToRefs; 
 	}
 
+	// get a mapping from each genotype key to its strain ID (only for those strains which were moved
+	// to the front-end database)
+	public HashMap<String, String> getStrainIDs() throws Exception {
+		HashMap<String, String> map = new HashMap<String, String>();
+
+		String cmd = "select g.genotype_key, g.strain_id "
+			+ "from genotype g "
+			+ "where g.strain_id is not null";
+		
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			map.put(rs.getString("genotype_key"), rs.getString("strain_id"));
+		}
+		rs.close();
+		logger.info("Cached " + map.size() + " strain IDs");
+		return map;
+	}
+	
 	// dataType should be either 'background_strain' or 'combination_1', depending on what you want
 	public HashMap<String, HashSet<String>> getGenotypeInfoMap(String dataType) {
 		String genotypeQuery = "select distinct g.genotype_key, "
@@ -176,6 +194,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		HashMap<String, HashSet<String>> mpAncestors = getTermAncestorMap(mpVocabName);
 		HashMap<String, HashSet<String>> emapaTermKeyToID = getTermDataMap(emapaVocabName, "primary_id");
 		HashMap<String, HashSet<String>> mpToEmapa = getMpToEmapaMap();
+		HashMap<String, String> strainIDs = getStrainIDs();
 		
 		// Our main relationship is between annotation keys and MP term
 		// IDs, while also including the ordering by genotype and by
@@ -269,6 +288,11 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				// background strain for genotype
 				if (genotypeToStrain.containsKey(genotypeKey)) {
 					doc.addField(IndexConstants.BACKGROUND_STRAIN, getOne(genotypeToStrain, genotypeKey));
+				}
+
+				// primary ID of background strain for genotype
+				if (strainIDs.containsKey(genotypeKey)) {
+					doc.addField(IndexConstants.STRAIN_ID, strainIDs.get(genotypeKey));
 				}
 
 				// allele pairs for genotype
