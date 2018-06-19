@@ -216,7 +216,7 @@ public class StrainIndexerSQL extends Indexer {
 		logger.info("loading strains");
 		
 		String cmd = "select s.strain_key, s.primary_id, s.name, s.strain_type, n.by_strain, "
-			+ "  count(distinct r.reference_key) as reference_count "
+			+ "  count(distinct r.reference_key) as reference_count, s.is_sequenced "
 			+ "from strain s "
 			+ "inner join strain_sequence_num n on (s.strain_key = n.strain_key) "
 			+ "left outer join strain_to_reference r on (s.strain_key = r.strain_key) "
@@ -251,6 +251,7 @@ public class StrainIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.STRAIN_TYPE, rs.getString("strain_type"));
 			doc.addField(IndexConstants.ACC_ID, getSearchableIDs(strainKey));
 			doc.addField(IndexConstants.BY_DEFAULT, rs.getInt("by_strain"));
+			doc.addField(IndexConstants.STRAIN_IS_SEQUENCED, rs.getInt("is_sequenced"));
 			doc.addField(IndexConstants.STRAIN, mapper.writeValueAsString(strain));
 			doc.addField(IndexConstants.STRAIN_ATTRIBUTE, strain.getAttributes());
 			
