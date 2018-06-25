@@ -33,6 +33,7 @@ public class StrainIndexerSQL extends Indexer {
 	private Map<String,List<String>> synonyms = null;				// maps from strain key to synonyms
 	private Map<String,List<String>> attributes = null;				// maps from strain key to attributes
 	private Map<String,List<String>> references = null;				// maps from strain key to reference IDs
+	private Map<String,List<String>> collections = null;			// maps from strain key to collections
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -187,12 +188,46 @@ public class StrainIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("  - cached " + i + " attributes for " + attributes.size() + " strains");
 	}
-	
+
 	/* get the set of attributes for the given strain key
 	 */
 	public List<String> getAttributes(String strainKey) throws Exception {
 		if (attributes.containsKey(strainKey)) {
 			return attributes.get(strainKey);
+		}
+		return null;
+	}
+
+	/* gather the collections for each strain and cache them in 'collections'
+	 */
+	private void cacheCollections() throws Exception {
+		logger.info("caching collections");
+		String cmd = "select strain_key, collection "
+			+ "from strain_collection "
+			+ "order by collection";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.info("  - finished collection query in " + ex.getTimestamp());
+		
+		int i = 0;
+		collections = new HashMap<String,List<String>>();
+		while (rs.next()) {
+			String strainKey = rs.getString("strain_key");
+			if (!collections.containsKey(strainKey)) {
+				collections.put(strainKey, new ArrayList<String>());
+			}
+			collections.get(strainKey).add(rs.getString("collection"));
+			i++;
+		}
+		rs.close();
+		logger.info("  - cached " + i + " collections for " + collections.size() + " strains");
+	}
+	
+	/* get the set of collections for the given strain key
+	 */
+	public List<String> getCollections(String strainKey) throws Exception {
+		if (collections.containsKey(strainKey)) {
+			return collections.get(strainKey);
 		}
 		return null;
 	}
@@ -254,6 +289,7 @@ public class StrainIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.STRAIN_IS_SEQUENCED, rs.getInt("is_sequenced"));
 			doc.addField(IndexConstants.STRAIN, mapper.writeValueAsString(strain));
 			doc.addField(IndexConstants.STRAIN_ATTRIBUTE, strain.getAttributes());
+			doc.addField(IndexConstants.STRAIN_GROUPS, getCollections(strainKey));
 			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
@@ -279,6 +315,7 @@ public class StrainIndexerSQL extends Indexer {
 	@Override
 	public void index() throws Exception {
 		// collect various mappings needed for data lookup
+		cacheCollections();
 		cacheAttributes();
 		cacheReferences();
 		cacheIDs();
