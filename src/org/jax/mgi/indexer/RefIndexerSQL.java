@@ -20,6 +20,46 @@ public class RefIndexerSQL extends Indexer {
 		super("reference");
 	}
 
+	// pre-compute some data in temp tables to aid efficiency
+	public void createTempTables() {
+		// closure table for DO terms and their ancestors
+		
+		String cmd0 = "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
+				+ "into temp table closure "
+				+ "from hdp_annotation ha, term_ancestor s, term t "
+				+ "where ha.term_key = s.term_key "
+				+ " and ha.vocab_name = 'Disease Ontology' "
+				+ " and s.ancestor_primary_id = t.primary_id "
+				+ " and t.vocab_name = 'Disease Ontology' "
+				+ "union "
+				+ "select ha.term_key, ha.term_key, ha.term_id "
+				+ "from hdp_annotation ha "
+				+ "where ha.vocab_name = 'Disease Ontology' ";
+		ex.executeVoid(cmd0);
+		this.createTempIndex("closure", "term_key");
+		this.createTempIndex("closure", "ancestor_key"); 
+		logger.info("created temp table closure");
+		
+		// mapping from a marker to its alleles (including traversing relationship tables)
+
+		String cmd1 = "with pair_union as ("
+			+ "select marker_key, allele_key "
+			+ "from marker_to_allele "
+			+ "union "
+			+ "select related_marker_key, allele_key "
+			+ "from allele_related_marker "
+			+ "where relationship_category in "
+			+ "  ('mutation_involves', 'expresses_component')"
+			+ ") "
+			+ "select marker_key, allele_key "
+			+ "into temp table pairs "
+			+ "from pair_union";
+		ex.executeVoid(cmd1);
+		this.createTempIndex("pairs", "marker_key");
+		this.createTempIndex("pairs", "allele_key"); 
+		logger.info("created temp table pairs");
+	}
+	
 	/** get a mapping from reference keys (with strain data) to list of the Strain IDs for that reference.
 	 */
 	public Map<String,Set<String>> getStrainIDs(int startKey, int endKey) throws Exception {
@@ -45,20 +85,7 @@ public class RefIndexerSQL extends Indexer {
 
 	// get a mapping from reference key to disease IDs associated with it
 	public Map<String,Set<String>> getDiseaseRelevantReferenceMap(int startKey, int endKey) throws Exception {
-		String diseaseRelevantRefQuery =
-			"with closure as ( "
-				+ "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
-				+ "from hdp_annotation ha, term_ancestor s, term t "
-				+ "where ha.term_key = s.term_key "
-				+ " and ha.vocab_name = 'Disease Ontology' "
-				+ " and s.ancestor_primary_id = t.primary_id "
-				+ " and t.vocab_name = 'Disease Ontology' "
-				+ "union "
-				+ "select ha.term_key, ha.term_key, ha.term_id "
-				+ "from hdp_annotation ha "
-				+ "where ha.vocab_name = 'Disease Ontology' "
-				+ ") "
-			+ "select distinct trt.reference_key, c.ancestor_primary_id as disease_id "
+		String diseaseRelevantRefQuery = "select distinct trt.reference_key, c.ancestor_primary_id as disease_id "
 			+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
 			+ "where ha.term_key = c.term_key "
 			+ " and c.term_key = trt.term_key "
@@ -70,7 +97,7 @@ public class RefIndexerSQL extends Indexer {
 				"disease IDs to references (for linking from disease portal)");
 	}
 
-	// get a mapping from reference keys to the GO IDs associated with them
+	// get a mapping from reference keys to the marker IDs associated with them via GO data
 	public Map<String,Set<String>> getGoMarkerMap (int startKey, int endKey) throws Exception {
 		String goMarkerSQL = "select distinct m.primary_id, r.reference_key "
 			+ "from marker_to_annotation mta, "
@@ -89,18 +116,9 @@ public class RefIndexerSQL extends Indexer {
 		return populateLookup(goMarkerSQL, "reference_key", "primary_id", "GO/Marker annotations");
 	}
 
-	// get a mapping from reference keys to the MP IDs associated with them
+	// get a mapping from reference keys to the marker IDs associated with them via phenotype data
 	public Map<String,Set<String>> getPhenoMarkerMap (int startKey, int endKey) throws Exception {
-		String phenoMarkerSQL = "with pairs as ("
-			+ "select marker_key, allele_key "
-			+ "from marker_to_allele "
-			+ "union "
-			+ "select related_marker_key, allele_key "
-			+ "from allele_related_marker "
-			+ "where relationship_category in "
-			+ "  ('mutation_involves', 'expresses_component')"
-			+ ") "
-			+ "select distinct m.primary_id, r.reference_key "
+		String phenoMarkerSQL = "select distinct m.primary_id, r.reference_key "
 			+ "from marker m, pairs mta, allele a, "
 			+ "  allele_to_reference atr, reference r "
 			+ "where m.marker_key = mta.marker_key "
@@ -226,11 +244,10 @@ public class RefIndexerSQL extends Indexer {
 		int batchSize = 50000;						// number of reference keys per batch
 		logger.info("Processing references " + minKey + " to " + maxKey);
 		
+		createTempTables();
+		
 		// collection of solr documents waiting to be sent to the server
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-
-		// count of documents produced so far
-		int count=0;
 
 		// iterate through batches of references (inclusive of startKey, exclusive of endKey in each batch)
 		int startKey = minKey;
@@ -265,7 +282,6 @@ public class RefIndexerSQL extends Indexer {
 
 			ResultSet rs_overall = ex.executeProto(referenceSQL);
 			while (rs_overall.next()) {
-				count++;
 				SolrInputDocument doc = new SolrInputDocument();
 				
 				String refKey = rs_overall.getString("reference_key");
