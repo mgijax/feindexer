@@ -13,395 +13,189 @@ import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
  * RefIndexerSQL
- * @author mhall
  * This class has the primary responsibility for populating the reference index.
- * It has a fairly large number of sub object relationships, but since its a 
- * fairly small dataset there is no real need to do actual chunking.
- * 
- * Note: Refactored during 5.x development
  */
-
 public class RefIndexerSQL extends Indexer {
-	
-
-
-
 	public RefIndexerSQL () {
 		super("reference");
 	}
 
-	/** get a mapping from reference keys (with strain data) to list of the Strain IDs for that reference
+	/** get a mapping from reference keys (with strain data) to list of the Strain IDs for that reference.
 	 */
-	public Map<String,Set<String>> getStrainIDs() throws Exception {
+	public Map<String,Set<String>> getStrainIDs(int startKey, int endKey) throws Exception {
 		String cmd = "select r.reference_key, s.primary_id "
 			+ "from strain_to_reference r, strain s "
-			+ "where s.strain_key = r.strain_key";
+			+ "where s.strain_key = r.strain_key "
+			+ "  and r.reference_key >= " + startKey
+			+ "  and r.reference_key < " + endKey;
 		return populateLookup(cmd, "reference_key", "primary_id", "strain IDs");
 	}
 
-	/**
-	 * The main worker of this class, it starts by gathering up all the 1->N 
-	 * subobject relationships that a reference can have, and then runs the 
-	 * main query.  We then enter a parsing phase where we place the data into
-	 * solr documents, and put them into the index.
-	 */
-	public void index() throws Exception
-	{
-		Map<String,Set<String>> strainIDs = getStrainIDs();
-		
-		String diseaseRelevantMarkerQuery = "select mtr.reference_key, m.primary_id marker_id " +
-				"from hdp_marker_to_reference mtr,marker m " +
-				"where m.marker_key=mtr.marker_key ";
-		Map<String,Set<String>> diseaseRelevantMarkerMap = populateLookup(diseaseRelevantMarkerQuery,"reference_key","marker_id",
+	// get a mapping from reference key to IDs for its associated disease-relevant markers
+	public Map<String,Set<String>> getDiseaseRelevantMarkerMap(int startKey, int endKey) throws Exception {
+		String diseaseRelevantMarkerQuery = "select mtr.reference_key, m.primary_id marker_id "
+			+ "from hdp_marker_to_reference mtr,marker m "
+			+ "where m.marker_key = mtr.marker_key "
+			+ " and mtr.reference_key >= " + startKey
+			+ " and mtr.reference_key < " + endKey;
+
+		return populateLookup(diseaseRelevantMarkerQuery,"reference_key","marker_id",
 				"disease relevant marker IDs (for linking from disease portal)");
+	}
 
+	// get a mapping from reference key to disease IDs associated with it
+	public Map<String,Set<String>> getDiseaseRelevantReferenceMap(int startKey, int endKey) throws Exception {
 		String diseaseRelevantRefQuery =
-				"with closure as ( "
-					+ "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor s, term t "
-					+ "where ha.term_key = s.term_key "
-					+ " and ha.vocab_name = 'Disease Ontology' "
-					+ " and s.ancestor_primary_id = t.primary_id "
-					+ " and t.vocab_name = 'Disease Ontology' "
-					+ "union "
-					+ "select ha.term_key, ha.term_key, ha.term_id "
-					+ "from hdp_annotation ha "
-					+ "where ha.vocab_name = 'Disease Ontology' "
-					+ ") "
-				+ "select distinct trt.reference_key, c.ancestor_primary_id as disease_id "
-				+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
-				+ "where ha.term_key = c.term_key "
-				+ " and c.term_key = trt.term_key "
-				+ " and ha.vocab_name = 'Disease Ontology' ";
-		Map<String,Set<String>> diseaseRelevantRefMap = populateLookup(diseaseRelevantRefQuery,"reference_key","disease_id",
-				"disease IDs to references (for linking from disease portal)");
-
-		// populate lookup from reference key to set of marker IDs which have
-		// GO annotations from that reference
-		String goMarkerSQL = "select distinct m.primary_id, r.reference_key "
-				+ "from marker_to_annotation mta, "
-				+ "    annotation a, "
-				+ "    annotation_reference r, "
-				+ "    marker m "
-				+ "where mta.annotation_key = a.annotation_key "
-				+ "    and a.annotation_key = r.annotation_key "
-				+ "    and mta.marker_key = m.marker_key "
-				+ "    and a.evidence_code != 'ND' "
-				+ "    and m.organism = 'mouse' "
-				+ "    and a.vocab_name = 'GO' ";		
-		Map<String, Set<String>> goMarkerMap = populateLookup(goMarkerSQL,
-				"reference_key", "primary_id", "GO/Marker annotations");
-
-		// populate lookup from reference key to set of marker IDs which have
-		// alleles associated with that reference
-		String phenoMarkerSQL = "with pairs as ("
-				+ "select marker_key, allele_key "
-				+ "from marker_to_allele "
+			"with closure as ( "
+				+ "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
+				+ "from hdp_annotation ha, term_ancestor s, term t "
+				+ "where ha.term_key = s.term_key "
+				+ " and ha.vocab_name = 'Disease Ontology' "
+				+ " and s.ancestor_primary_id = t.primary_id "
+				+ " and t.vocab_name = 'Disease Ontology' "
 				+ "union "
-				+ "select related_marker_key, allele_key "
-				+ "from allele_related_marker "
-				+ "where relationship_category in "
-				+ "  ('mutation_involves', 'expresses_component')"
+				+ "select ha.term_key, ha.term_key, ha.term_id "
+				+ "from hdp_annotation ha "
+				+ "where ha.vocab_name = 'Disease Ontology' "
 				+ ") "
-				+ "select distinct m.primary_id, r.reference_key "
-				+ "from marker m, pairs mta, allele a, "
-				+ "  allele_to_reference atr, reference r "
-				+ "where m.marker_key = mta.marker_key "
-				+ "  and mta.allele_key = a.allele_key "
-				+ "  and a.is_wild_type = 0 "
-				+ "  and a.allele_key = atr.allele_key "
-				+ "  and atr.reference_key = r.reference_key ";
-		Map<String,Set<String>> phenoMarkerMap = populateLookup(phenoMarkerSQL,
-				"reference_key", "primary_id", "MP/Marker associations");
+			+ "select distinct trt.reference_key, c.ancestor_primary_id as disease_id "
+			+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
+			+ "where ha.term_key = c.term_key "
+			+ " and c.term_key = trt.term_key "
+			+ " and trt.reference_key >= " + startKey
+			+ " and trt.reference_key < " + endKey
+			+ " and ha.vocab_name = 'Disease Ontology' ";
 
-		// How many references are there total?
-		ResultSet rs_tmp = ex.executeProto("select max(reference_Key) as maxRefKey from reference");
-		rs_tmp.next();
+		return populateLookup(diseaseRelevantRefQuery,"reference_key","disease_id",
+				"disease IDs to references (for linking from disease portal)");
+	}
 
-		logger.info("Max Ref Number: " + rs_tmp.getString("maxRefKey") + " Timing: "+ ex.getTiming());
-		String start = "0";
-		String end = rs_tmp.getString("maxRefKey");
+	// get a mapping from reference keys to the GO IDs associated with them
+	public Map<String,Set<String>> getGoMarkerMap (int startKey, int endKey) throws Exception {
+		String goMarkerSQL = "select distinct m.primary_id, r.reference_key "
+			+ "from marker_to_annotation mta, "
+			+ "    annotation a, "
+			+ "    annotation_reference r, "
+			+ "    marker m "
+			+ "where mta.annotation_key = a.annotation_key "
+			+ "    and a.annotation_key = r.annotation_key "
+			+ "    and mta.marker_key = m.marker_key "
+			+ "    and r.reference_key >= " + startKey
+			+ "    and r.reference_key < " + endKey
+			+ "    and a.evidence_code != 'ND' "
+			+ "    and m.organism = 'mouse' "
+			+ "    and a.vocab_name = 'GO' ";		
 
-		// Get all reference -> marker relationships, by marker key
+		return populateLookup(goMarkerSQL, "reference_key", "primary_id", "GO/Marker annotations");
+	}
 
-		logger.info("Selecting all reference -> marker");
-		String markerToRefSQL = "select reference_key, marker_key from marker_to_reference where reference_key > " + start + " and reference_key <= "+ end;
-		logger.info(markerToRefSQL);
-		HashMap <String, HashSet <String>> refToMarkers = makeHash(markerToRefSQL, "reference_key", "marker_key");
+	// get a mapping from reference keys to the MP IDs associated with them
+	public Map<String,Set<String>> getPhenoMarkerMap (int startKey, int endKey) throws Exception {
+		String phenoMarkerSQL = "with pairs as ("
+			+ "select marker_key, allele_key "
+			+ "from marker_to_allele "
+			+ "union "
+			+ "select related_marker_key, allele_key "
+			+ "from allele_related_marker "
+			+ "where relationship_category in "
+			+ "  ('mutation_involves', 'expresses_component')"
+			+ ") "
+			+ "select distinct m.primary_id, r.reference_key "
+			+ "from marker m, pairs mta, allele a, "
+			+ "  allele_to_reference atr, reference r "
+			+ "where m.marker_key = mta.marker_key "
+			+ "  and mta.allele_key = a.allele_key "
+			+ "  and a.is_wild_type = 0 "
+			+ "  and a.allele_key = atr.allele_key "
+			+ "  and atr.reference_key >= " + startKey
+			+ "  and atr.reference_key < " + endKey
+			+ "  and atr.reference_key = r.reference_key ";
 
-		// Get all reference -> book publisher relationships, by publisher
+		return populateLookup(phenoMarkerSQL, "reference_key", "primary_id", "MP/Marker associations");
+	}
+	
+	// get a mapping from reference keys to the marker keys associated with them
+	public Map<String,Set<String>> getMarkerMap (int startKey, int endKey) throws Exception {
+		String markerToRefSQL = "select reference_key, marker_key from marker_to_reference where reference_key >= " + startKey + " and reference_key < "+ endKey;
+		return populateLookup(markerToRefSQL, "reference_key", "marker_key", "associated markers");
+	}
 
-		logger.info("Selecting all reference -> publisher");
-		String pubToRefSQL = "select reference_key, publisher from reference_book where reference_key > " + start + " and reference_key <= "+ end;
-		logger.info(pubToRefSQL);
-		HashMap <String, HashSet <String>> pubToRefs = makeHash(pubToRefSQL, "reference_key", "publisher");            
+	// Get all reference -> book publisher relationships (for books)
+	public Map<String,Set<String>> getPublisherMap (int startKey, int endKey) throws Exception {
+		String pubToRefSQL = "select reference_key, publisher from reference_book where reference_key >= " + startKey + " and reference_key < "+ endKey;
+		return populateLookup(pubToRefSQL, "reference_key", "publisher", "book publishers");            
+	}
 
-		// Get all reference -> allele relationships, by allele key
+	// get a mapping from reference key to the allele keys associated with it
+	public Map<String,Set<String>> getAlleleMap (int startKey, int endKey) throws Exception {
+		String alleleToRefSQL = "select reference_key, allele_key from allele_to_reference where reference_key >= " + startKey + " and reference_key < "+ endKey;
+		return populateLookup(alleleToRefSQL, "reference_key", "allele_key", "allele keys");
+	}
 
-		logger.info("Selecting all reference -> allele");
-		String alleleToRefSQL = "select reference_key, allele_key from allele_to_reference where reference_key > " + start + " and reference_key <= "+ end;
-		logger.info(alleleToRefSQL);
-		HashMap <String, HashSet <String>> refToAlleles = makeHash(alleleToRefSQL, "reference_key", "allele_key");
+	// get a mapping from reference key to the authors associated with it
+	public Map<String,Set<String>> getAuthorMap (int startKey, int endKey) throws Exception {
+		String referenceAuthorSQL = "select reference_key, author from reference_individual_authors where reference_key >= " + startKey + " and reference_key < "+ endKey;
+		return populateLookup(referenceAuthorSQL, "reference_key", "author", "authors");
+	}
 
-		// Get all reference -> sequence relationships, by sequence key
+	// get a mapping from reference key to the last author associated with it
+	public Map<String,Set<String>> getLastAuthorMap (int startKey, int endKey) throws Exception {
+		String referenceAuthorLastSQL = "select reference_key, author from reference_individual_authors where is_last = 1 and reference_key >= " + startKey + " and reference_key < "+ endKey;
+		return populateLookup(referenceAuthorLastSQL, "reference_key", "author", "last authors");
+	}
 
-		//            logger.info("Selecting all reference -> sequence associations");
-		//            String referenceToSeqSQL = "select reference_key, sequence_key from reference_to_sequence where reference_key > " + start + " and reference_key <= "+ end;
-		//            logger.info(referenceToSeqSQL);
-		//            //HashMap <String, HashSet <String>> refToSequences = makeHash(referenceToSeqSQL,"reference_key","sequence_key");
+	// get a mapping from reference key to the first author associated with it
+	public Map<String,Set<String>> getFirstAuthorMap (int startKey, int endKey) throws Exception {
+		String referenceAuthorFirstSQL = "select reference_key, author from reference_individual_authors where sequence_num = 1 and reference_key >= " + startKey + " and reference_key < "+ endKey;
+		return populateLookup(referenceAuthorFirstSQL, "reference_key", "author", "first authors");
+	}
 
-		// Author information, for the formatted authors.
-		logger.info("Selecting all reference -> authors");
-		String referenceAuthorSQL = "select reference_key, author from reference_individual_authors where reference_key > " + start + " and reference_key <= "+ end;
-		logger.info(referenceAuthorSQL);
-		HashMap <String, HashSet <String>> refAuthors = makeHash(referenceAuthorSQL,"reference_key","author");
+	// get a mapping from reference key to the IDs associated with it
+	public Map<String,Set<String>> getReferenceIDMap (int startKey, int endKey) throws Exception {
+		String referenceIDsSQL = "select reference_key, acc_id from reference_id where reference_key >= " + startKey + " and reference_key < " + endKey;
+		return populateLookup(referenceIDsSQL, "reference_key", "acc_id", "reference IDs");
+	}
 
-		// last Author information, for the formatted authors.
-		logger.info("Selecting all reference -> author last names");
-		String referenceAuthorLastSQL = "select reference_key, author from reference_individual_authors where is_last = 1 and reference_key > " + start + " and reference_key <= "+ end;
-		logger.info(referenceAuthorLastSQL);
-		HashMap <String, HashSet <String>> refAuthorsLast = makeHash(referenceAuthorLastSQL,"reference_key","author");
-
-		// first Author information, for the formatted authors.
-		logger.info("Selecting all reference -> first author");
-		String referenceAuthorFirstSQL = "select reference_key, author from reference_individual_authors where sequence_num = 1 and reference_key > " + start + " and reference_key <= "+ end;
-		logger.info(referenceAuthorFirstSQL);
-		HashMap <String, HashSet <String>> refAuthorsFirst = makeHash(referenceAuthorFirstSQL,"reference_key","author");
-
-		// MGI IDs (not J: numbers) for each reference
-		logger.info("Selecting references -> IDs");
-		String referenceIDsSQL = "select reference_key, acc_id from reference_id where reference_key > " + start + " and reference_key <= " + end;
-		logger.info (referenceIDsSQL);
-		HashMap<String, HashSet<String>> refIDs = makeHash(referenceIDsSQL, "reference_key", "acc_id");
-
-		// The main reference query.
-
-		logger.info("Getting all references");
-		String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title," +
-				" r.journal, r.vol, r.issue, ra.abstract," +
-				" rc.marker_count, rc.probe_count, rc.mapping_expt_count, rc.gxd_index_count, rc.gxd_result_count," +
-				" rc.gxd_structure_count, rc.gxd_assay_count, rc.allele_count, rc.sequence_count, rc.go_annotation_count, r.reference_group " +
-				"from reference as r " +
-				"inner join reference_abstract ra on r.reference_key = ra.reference_key inner join reference_counts as rc on r.reference_key = rc.reference_key";
-		logger.info(referenceSQL);
-		ResultSet rs_overall = ex.executeProto(referenceSQL);
-
-		rs_overall.next();
-
-		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-		// Parse the base query, adding its contents into solr
-
-		int count=0;
-		while (!rs_overall.isAfterLast()) {
-			count++;
-			SolrInputDocument doc = new SolrInputDocument();
-			doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
-			if (rs_overall.getString("jnum_id") != null) {
-				String jnumID [] = rs_overall.getString("jnum_id").split(":");
-				doc.addField(IndexConstants.REF_ID, jnumID[1]); 
-			}
-
-			doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
-			doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
-			doc.addField(IndexConstants.REF_GROUPING, rs_overall.getString("reference_group"));
-
-			String refKey = rs_overall.getString("reference_key");
-			doc.addField(IndexConstants.REF_KEY, refKey);
-
-			// add strain IDs associated with the reference
-			addAllFromLookup(doc, IndexConstants.STRAIN_ID, refKey, strainIDs);
-			
-			// add all the marker IDs for disease relevant markers
-			addAllFromLookup(doc,IndexConstants.REF_DISEASE_RELEVANT_MARKER_ID,refKey,diseaseRelevantMarkerMap);
-			addAllFromLookup(doc,IndexConstants.REF_DISEASE_ID,refKey,diseaseRelevantRefMap);
-
-			// add all marker IDs where this reference has GO data
-			addAllFromLookup(doc, IndexConstants.REF_GO_MARKER_ID, refKey,
-					goMarkerMap); 
-
-			// add all marker IDs where this reference is associated with
-			// alleles of the marker
-			addAllFromLookup(doc, IndexConstants.REF_PHENO_MARKER_ID, refKey,
-					phenoMarkerMap); 
-
-			doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
-
-			// Temporary new way to put in the title
-
-			// This string is used for the overall smushed title and abstract field.
-			String titleAndAbstract = "";
-
-			if (rs_overall.getString("title") != null) {
-				String tempTitle = rs_overall.getString("title").replaceAll("\\p{Punct}", " ");
-
-				doc.addField(IndexConstants.REF_TITLE_STEMMED, tempTitle);
-				doc.addField(IndexConstants.REF_TITLE_UNSTEMMED, tempTitle);
-				titleAndAbstract = tempTitle;
-			}
-
-			doc.addField(IndexConstants.REF_YEAR, rs_overall.getString("year"));
-			doc.addField(IndexConstants.REF_ABSTRACT, rs_overall.getString("abstract"));
-
-
-			if (rs_overall.getString("abstract") != null) {                
-				String tempAbstract = rs_overall.getString("abstract").replaceAll("\\p{Punct}", " ");
-
-				doc.addField(IndexConstants.REF_ABSTRACT_STEMMED, tempAbstract);
-				doc.addField(IndexConstants.REF_ABSTRACT_UNSTEMMED, tempAbstract);
-
-				// Put together the second part of the smushed title and abstract
-
-				if (titleAndAbstract.equals("")) {
-					titleAndAbstract = tempAbstract;
-				} else {
-					titleAndAbstract = titleAndAbstract + " WORDTHATCANTEXIST " + tempAbstract;
-				}
-
-			}
-
-			// Add the smushed title and abstract into the document
-
-			doc.addField(IndexConstants.REF_TITLE_ABSTRACT_STEMMED, titleAndAbstract);
-			doc.addField(IndexConstants.REF_TITLE_ABSTRACT_UNSTEMMED, titleAndAbstract);
-
-			doc.addField(IndexConstants.REF_ISSUE, rs_overall.getString("issue"));
-			doc.addField(IndexConstants.REF_VOLUME, rs_overall.getString("vol"));
-
-			Boolean foundACount = Boolean.FALSE;
-
-			// good samaritan: The following 50ish lines of code here hurt me on such an emotional level that I could not let it go unchanged.
-			// I will leave this code as an example of the madness.
-			//                doc.addField(IndexConstants.MRK_COUNT, convertCount(rs_overall.getInt("marker_count")));
-			//                if (convertCount(rs_overall.getInt("marker_count")) > 0) {
-			//                    doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
-			//                    foundACount = Boolean.TRUE;
-			//                }
-			int marker_count = rs_overall.getInt("marker_count");
-			// It is pretty questionable why we would convert a count to 1 or 0, but it's not my code and I don't want to break anything.
-			// so I'm leaving this little gem here.
-			doc.addField(IndexConstants.MRK_COUNT, marker_count>0 ? 1 : 0);
-			if (marker_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Genome features");
-				foundACount = Boolean.TRUE;
-			}
-			int probe_count = rs_overall.getInt("probe_count");
-			doc.addField(IndexConstants.PRB_COUNT, probe_count>0 ? 1 : 0);
-			if (probe_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Molecular probes and clones");
-				foundACount = Boolean.TRUE;
-			}
-
-			int map_expt_count = rs_overall.getInt("mapping_expt_count");
-			doc.addField(IndexConstants.MAP_EXPT_COUNT, map_expt_count>0 ? 1 : 0);
-			if (map_expt_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Mapping data");
-				foundACount = Boolean.TRUE;
-			}
-			int gxd_index_count = rs_overall.getInt("gxd_index_count");
-			doc.addField(IndexConstants.GXD_INDEX_COUNT, gxd_index_count>0 ? 1 : 0);
-			if (gxd_index_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Expression literature records");
-				foundACount = Boolean.TRUE;
-			}
-
-			int gxd_result_count = rs_overall.getInt("gxd_result_count");
-			doc.addField(IndexConstants.GXD_RESULT_COUNT, gxd_result_count>0 ? 1 : 0);
-			if (gxd_result_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
-				foundACount = Boolean.TRUE;
-			}
-
-			int gxd_structure_count = rs_overall.getInt("gxd_structure_count");
-			doc.addField(IndexConstants.GXD_STRUCT_COUNT, gxd_structure_count>0 ? 1 : 0);
-			if (gxd_structure_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
-				foundACount = Boolean.TRUE;
-			}
-
-			int gxd_assay_count = rs_overall.getInt("gxd_assay_count");
-			doc.addField(IndexConstants.GXD_ASSAY_COUNT, gxd_assay_count>0 ? 1 : 0);
-			if (gxd_assay_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Expression: assays results");
-				foundACount = Boolean.TRUE;
-			}
-
-			int allele_count = rs_overall.getInt("allele_count");
-			doc.addField(IndexConstants.ALL_COUNT, allele_count>0 ? 1 : 0);
-			if (allele_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Phenotypic alleles");
-				foundACount = Boolean.TRUE;
-			}
-
-			int sequence_count = rs_overall.getInt("sequence_count");
-			doc.addField(IndexConstants.SEQ_COUNT, sequence_count>0 ? 1 : 0);
-			if (sequence_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Sequences");
-				foundACount = Boolean.TRUE;
-			}
-
-			int go_annot_count = rs_overall.getInt("go_annotation_count");
-			doc.addField(IndexConstants.GO_ANNOT_COUNT, go_annot_count>0 ? 1 : 0);
-			if (go_annot_count > 0) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "Functional annotations (GO)");
-				foundACount = Boolean.TRUE;
-			}
-
-			if (!foundACount) {
-				doc.addField(IndexConstants.REF_HAS_DATA, "No curated data");
-			}
-			// Count of orthologs isn't implemented yet.
-			doc.addField(IndexConstants.ORTHO_COUNT, 0);
-
-			// Add in the 1->n marker relationships
-
-			if (refToMarkers.containsKey(rs_overall.getString("reference_key"))) {
-				for (String markerKey: refToMarkers.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.MRK_KEY, markerKey);
+	// add the count for the given solrField to the document, add the has-data flag if the count is
+	// greater than zero, and return true if the count is non-zero (false if zero count).
+	public boolean handleCount(SolrInputDocument doc, String solrField, int count, String flag) {
+		doc.addField(solrField, count>0 ? 1 : 0);
+		if (count > 0) {
+			doc.addField(IndexConstants.REF_HAS_DATA, flag);
+			return true;
+		}
+		return false;
+	}
+	
+	// add all permutations of the given 'author' as values for 'solrField' in the given 'doc'
+	public void addAuthorPermutations(SolrInputDocument doc, String solrField, String author) {
+		if (author != null) {
+			String [] temp = author.split("[\\W-&&[^']]");
+			if (temp.length > 1) {
+				String tempString = "";
+				for (int i = 0; i< temp.length && i <= 3; i++) {
+					if (i == 0) {
+						tempString = temp[i];
+					}
+					else {
+						tempString = tempString + " " + temp[i];
+					}
+					doc.addField(solrField, tempString);
 				}
 			}
+		}
+	}
 
-			// Add in the 1->1 publisher relationships, this only applies to books.
+	// Add in all of the indivudual authors, specifically formatted for searching.
+	// In a nutshell we split on whitespace, and then add in each resulting token into the database,
+	// as well as the entirety of the author string.  We optionally include them in the author facet field.
+	public void addAuthorData(SolrInputDocument doc, String solrField, Map<String,Set<String>> authorMap, String refKey, boolean includeInFacetField) {
+		if (authorMap.containsKey(refKey)) {
+			for (String author: authorMap.get(refKey)) {
+				doc.addField(solrField, author);
+				addAuthorPermutations(doc, solrField, author);
 
-			if (pubToRefs.containsKey(rs_overall.getString("reference_key"))) {
-				for (String publisher: pubToRefs.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.REF_JOURNAL_FACET, publisher);
-				}
-			}                
-
-			// Add in the 1->n allele relationships
-
-			if (refToAlleles.containsKey(rs_overall.getString("reference_key"))) {
-				for (String alleleKey: refToAlleles.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.ALL_KEY, alleleKey);
-				}
-			}
-
-			// Add in the 1->n sequence relationships
-
-			//                if (refToSequences.containsKey(rs_overall.getString("reference_key"))) {
-			//                    for (String sequenceKey: refToSequences.get(rs_overall.getString("reference_key"))) {
-			//                        doc.addField(IndexConstants.SEQ_KEY, sequenceKey);
-			//                    }
-			//                }
-
-			// add in the MGI ID(s) for each reference (not J: numbers)
-
-			if (refIDs.containsKey(rs_overall.getString("reference_key"))) {
-				for (String refID: refIDs.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.REF_ID, refID);
-				}
-			}
-
-			// Add in all of the indivudual authors, specifically formatted for 
-			// searching.
-
-			// In a nutshell we split on whitespace, and then add in each resulting
-			// token into the database, as well as the entirety of the author string.
-
-			if (refAuthors.containsKey(rs_overall.getString("reference_key"))) {
-				for (String author: refAuthors.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.REF_AUTHOR_FORMATTED, author);
-
+				if (includeInFacetField) {
 					// Add in a single untouched version of the formatted authors
 					if (author == null || author.equals(" ")) {
 						doc.addField(IndexConstants.REF_AUTHOR_FACET, "No author listed");
@@ -409,109 +203,176 @@ public class RefIndexerSQL extends Indexer {
 					else {
 						doc.addField(IndexConstants.REF_AUTHOR_FACET, author);
 					}
-
-					if (author != null) {
-						String [] temp = author.split("[\\W-&&[^']]");
-
-						// Add all possible permutations of this author into the index.
-						if (temp.length > 1) {
-							String tempString = "";
-							for (int i = 0; i< temp.length && i <= 3; i++) {
-								if (i == 0) {
-									tempString = temp[i];
-								}
-								else {
-									tempString = tempString + " " + temp[i];
-								}
-								doc.addField(IndexConstants.REF_AUTHOR_FORMATTED, tempString);
-							}
-						}
-					}
 				}
-			}
-
-
-			// Add all possible prefixes for the first author only
-
-			if (refAuthorsFirst.containsKey(rs_overall.getString("reference_key"))) {
-				for (String author: refAuthorsFirst.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.REF_FIRST_AUTHOR, author);
-
-					if (author != null) {
-						String [] temp = author.split("[\\W-&&[^']]");
-
-						// Add all possible permutations of this author into the index.
-						if (temp.length > 1) {
-							String tempString = "";
-							for (int i = 0; i< temp.length && i <= 3; i++) {
-								if (i == 0) {
-									tempString = temp[i];
-								}
-								else {
-									tempString = tempString + " " + temp[i];
-								}
-								doc.addField(IndexConstants.REF_FIRST_AUTHOR, tempString);
-							}
-						}
-					}
-				}
-			}
-
-			// Add all possible prefixes for the last author only
-
-			if (refAuthorsLast.containsKey(rs_overall.getString("reference_key"))) {
-				for (String author: refAuthorsLast.get(rs_overall.getString("reference_key"))) {
-					doc.addField(IndexConstants.REF_LAST_AUTHOR, author);
-
-					if (author != null) {
-						String [] temp = author.split("[\\W-&&[^']]");
-
-						// Add all possible permutations of this author into the index.
-						if (temp.length > 1) {
-							String tempString = "";
-							for (int i = 0; i< temp.length && i <= 3; i++) {
-								if (i == 0) {
-									tempString = temp[i];
-								}
-								else {
-									tempString = tempString + " " + temp[i];
-								}
-								doc.addField(IndexConstants.REF_LAST_AUTHOR, tempString);
-							}
-						}
-					}
-				}
-			}
-
-			rs_overall.next();
-
-			docs.add(doc);
-
-			if (docs.size() > 1000) {
-				//logger.info("Adding a stack of the documents to Solr");
-				writeDocs(docs);
-				docs = new ArrayList<SolrInputDocument>();
-				//logger.info("Done adding to solr, Moving on");
-			}
-			if(count % 20000 == 0)
-			{
-				// commit regularly to keep Solr from blowing out of memory
-				logger.info("committing docs "+(count-20000)+" through "+count);
-				commit();
 			}
 		}
+	}
+	
+	/**
+	 * The main worker of this class, it identifies the min & max reference keys, breaks the set of
+	 * references into chunks, caches in memory some mappings for the current batch, iterates over
+	 * the references in the batch to produce solr documents, and periodically ships them to the
+	 * Solr server.
+	 */
+	public void index() throws Exception
+	{
+		// find the lowest and highest reference keys, for use later in iteration
+		
+		String minMaxCmd = "select min(reference_key) as min_key, max(reference_key) as max_key from reference";
+		ResultSet minMaxRs = ex.executeProto(minMaxCmd);
+		minMaxRs.next();
+		int minKey = minMaxRs.getInt("min_key");	// lowest reference key in database
+		int maxKey = minMaxRs.getInt("max_key");	// highest reference key in database
+		int batchSize = 50000;						// number of reference keys per batch
+		logger.info("Processing references " + minKey + " to " + maxKey);
+		
+		// collection of solr documents waiting to be sent to the server
+		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
+
+		// count of documents produced so far
+		int count=0;
+
+		// iterate through batches of references (inclusive of startKey, exclusive of endKey in each batch)
+		int startKey = minKey;
+		while (startKey <= maxKey) {
+			int endKey = startKey + batchSize;
+			logger.info("Starting batch >= " + startKey + " and < " + endKey);
+			
+			// populate caches of data for this batch
+			Map<String,Set<String>> strainIDs = getStrainIDs(startKey, endKey);
+			Map<String,Set<String>> diseaseRelevantMarkerMap = getDiseaseRelevantMarkerMap(startKey, endKey);
+			Map<String,Set<String>> diseaseRelevantRefMap = getDiseaseRelevantReferenceMap(startKey, endKey);
+			Map<String,Set<String>> goMarkerMap = getGoMarkerMap(startKey, endKey);
+			Map<String,Set<String>> phenoMarkerMap = getPhenoMarkerMap(startKey, endKey);
+			Map<String,Set<String>> markerMap = getMarkerMap(startKey, endKey);
+			Map<String,Set<String>> publisherMap = getPublisherMap(startKey, endKey);
+			Map<String,Set<String>> alleleMap = getAlleleMap(startKey, endKey);
+			Map<String,Set<String>> authorMap = getAuthorMap(startKey, endKey);
+			Map<String,Set<String>> lastAuthorMap = getLastAuthorMap(startKey, endKey);
+			Map<String,Set<String>> firstAuthorMap = getFirstAuthorMap(startKey, endKey);
+			Map<String,Set<String>> referenceIDMap = getReferenceIDMap(startKey, endKey);
+		
+			logger.info("Getting basic references data");
+			String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title,"
+				+ " r.journal, r.vol, r.issue, ra.abstract, rc.marker_count, rc.probe_count, rc.mapping_expt_count, "
+				+ " rc.gxd_index_count, rc.gxd_result_count, rc.gxd_structure_count, rc.gxd_assay_count, "
+				+ " rc.allele_count, rc.sequence_count, rc.go_annotation_count, r.reference_group "
+				+ "from reference as r "
+				+ "inner join reference_abstract ra on r.reference_key = ra.reference_key "
+				+ "inner join reference_counts as rc on r.reference_key = rc.reference_key "
+				+ "where r.reference_key >= " + startKey
+				+ "  and r.reference_key < " + endKey;
+
+			ResultSet rs_overall = ex.executeProto(referenceSQL);
+			while (rs_overall.next()) {
+				count++;
+				SolrInputDocument doc = new SolrInputDocument();
+				
+				String refKey = rs_overall.getString("reference_key");
+
+				// add simple data from the query
+				
+				doc.addField(IndexConstants.REF_KEY, refKey);
+				doc.addField(IndexConstants.REF_AUTHOR, rs_overall.getString("authors"));
+				doc.addField(IndexConstants.REF_JOURNAL, rs_overall.getString("journal"));
+				doc.addField(IndexConstants.REF_JOURNAL_FACET, rs_overall.getString("journal"));
+				doc.addField(IndexConstants.REF_GROUPING, rs_overall.getString("reference_group"));
+				doc.addField(IndexConstants.REF_TITLE, rs_overall.getString("title"));
+				doc.addField(IndexConstants.REF_YEAR, rs_overall.getString("year"));
+				doc.addField(IndexConstants.REF_ISSUE, rs_overall.getString("issue"));
+				doc.addField(IndexConstants.REF_VOLUME, rs_overall.getString("vol"));
+				doc.addField(IndexConstants.REF_ABSTRACT, rs_overall.getString("abstract"));
+
+				// add data from the various mappings we collected for this batch
+				
+				addAllFromLookup(doc, IndexConstants.STRAIN_ID, refKey, strainIDs);
+				addAllFromLookup(doc, IndexConstants.REF_DISEASE_RELEVANT_MARKER_ID, refKey, diseaseRelevantMarkerMap);
+				addAllFromLookup(doc, IndexConstants.REF_DISEASE_ID, refKey, diseaseRelevantRefMap);
+				addAllFromLookup(doc, IndexConstants.REF_GO_MARKER_ID, refKey, goMarkerMap); 
+				addAllFromLookup(doc, IndexConstants.REF_PHENO_MARKER_ID, refKey, phenoMarkerMap); 
+				addAllFromLookup(doc, IndexConstants.MRK_KEY, refKey, markerMap);
+				addAllFromLookup(doc, IndexConstants.REF_JOURNAL_FACET, refKey, publisherMap);
+				addAllFromLookup(doc, IndexConstants.ALL_KEY, refKey, alleleMap);
+				addAllFromLookup(doc, IndexConstants.REF_ID, refKey, referenceIDMap);
+				addAuthorData(doc, IndexConstants.REF_AUTHOR_FORMATTED, authorMap, refKey, true);
+				addAuthorData(doc, IndexConstants.REF_FIRST_AUTHOR, firstAuthorMap, refKey, false);
+				addAuthorData(doc, IndexConstants.REF_LAST_AUTHOR, lastAuthorMap, refKey, false);
+				
+				// special handling for title and abstract in joined fields
+
+				String titleAndAbstract = "";	// overall joined together title + abstract fields
+				
+				if (rs_overall.getString("title") != null) {
+					String tempTitle = rs_overall.getString("title").replaceAll("\\p{Punct}", " ");
+
+					doc.addField(IndexConstants.REF_TITLE_STEMMED, tempTitle);
+					doc.addField(IndexConstants.REF_TITLE_UNSTEMMED, tempTitle);
+					titleAndAbstract = tempTitle;
+				}
+
+				if (rs_overall.getString("abstract") != null) {                
+					String tempAbstract = rs_overall.getString("abstract").replaceAll("\\p{Punct}", " ");
+
+					doc.addField(IndexConstants.REF_ABSTRACT_STEMMED, tempAbstract);
+					doc.addField(IndexConstants.REF_ABSTRACT_UNSTEMMED, tempAbstract);
+
+					// Put together the second part of the smushed title and abstract
+
+					if (titleAndAbstract.equals("")) {
+						titleAndAbstract = tempAbstract;
+					} else {
+						titleAndAbstract = titleAndAbstract + " WORDTHATCANTEXIST " + tempAbstract;
+					}
+				}
+
+				doc.addField(IndexConstants.REF_TITLE_ABSTRACT_STEMMED, titleAndAbstract);
+				doc.addField(IndexConstants.REF_TITLE_ABSTRACT_UNSTEMMED, titleAndAbstract);
+				
+				// add just the numeric part of the J: number
+				
+				if (rs_overall.getString("jnum_id") != null) {
+					String jnumID [] = rs_overall.getString("jnum_id").split(":");
+					doc.addField(IndexConstants.REF_ID, jnumID[1]); 
+				}
+				
+				// now deal with all the counts, tracking if we've found a non-zero one
+				
+				boolean foundACount = handleCount(doc, IndexConstants.MRK_COUNT, rs_overall.getInt("marker_count"), "Genome features");
+				foundACount = handleCount(doc, IndexConstants.PRB_COUNT, rs_overall.getInt("probe_count"), "Molecular probes and clones") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.MAP_EXPT_COUNT, rs_overall.getInt("mapping_expt_count"), "Mapping data") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.GXD_INDEX_COUNT, rs_overall.getInt("gxd_index_count"), "Expression literature records") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.GXD_RESULT_COUNT, rs_overall.getInt("gxd_result_count"), "Expression: assays results") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.GXD_STRUCT_COUNT, rs_overall.getInt("gxd_structure_count"), "Expression: assays results") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.GXD_ASSAY_COUNT, rs_overall.getInt("gxd_assay_count"), "Expression: assays results") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.ALL_COUNT, rs_overall.getInt("allele_count"), "Phenotypic alleles") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.SEQ_COUNT, rs_overall.getInt("sequence_count"), "Sequences") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.GO_ANNOT_COUNT, rs_overall.getInt("go_annotation_count"), "Functional annotations (GO)") || foundACount;
+
+				if (!foundACount) {
+					doc.addField(IndexConstants.REF_HAS_DATA, "No curated data");
+				}
+				
+				// Count of orthologs isn't implemented yet.
+				doc.addField(IndexConstants.ORTHO_COUNT, 0);
+
+				docs.add(doc);
+				if (docs.size() > 1000) {
+					writeDocs(docs);
+					docs = new ArrayList<SolrInputDocument>();
+				}
+			}
+			rs_overall.close();
+			
+			// commit with each batch to help Solr's memory usage
+			logger.info("Committing docs >= " + startKey + " and < " + endKey);
+			commit();
+
+			logger.info("Finished batch >= " + startKey + " and < " + endKey);
+			startKey = endKey;
+		}
+		
+		// final push & commit in case anything's hanging around
 		writeDocs(docs);
 		commit();
 	}
-
-	// Convert the counts from actual values to something like a bit.
-	// anonymous: WTF is this for anyway?
-	//    protected Integer convertCount(Integer count) {
-	//        if (count > 0) {
-	//            return 1;
-	//        }
-	//        else {
-	//            return 0; 
-	//        }
-	//    }
 }
