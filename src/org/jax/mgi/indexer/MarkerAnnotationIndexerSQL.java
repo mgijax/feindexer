@@ -138,6 +138,8 @@ public class MarkerAnnotationIndexerSQL extends Indexer {
 			logger.info(" - Found refs for " + annotToRefs.size() + " annotations");
 
 			// Setup the main query here
+			// A unique annotation is here defined as: (annotation key, vocab name, term, evidence code,
+			//	evidence term, term ID, qualifier, marker key, DAG name, evidence category, term key)
 
 			logger.info(" - Getting all marker annotations.");
 			rs = ex.executeProto("select a.annotation_key, a.vocab_name, a.term, a.evidence_code, a.evidence_term, " +
