@@ -15,7 +15,7 @@ public class SharedQueries {
 	/*--- shared constants ---*/
 
 	// This list is for querying only, not the autocomplete. It defines which term IDs can be used in queries.
-	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'Disease Ontology', 'MouseCyc')";
+	static String GXD_VOCABULARIES = "('GO', 'Mammalian Phenotype', 'InterPro Domains', 'PIR Superfamily', 'Disease Ontology')";
 	
 	// Gets vocab annotation IDs(including children, excluding NOTs) by marker key
 	// Also excludes the 3 GO high level terms
