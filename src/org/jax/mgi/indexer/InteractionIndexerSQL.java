@@ -244,9 +244,9 @@ public class InteractionIndexerSQL extends Indexer {
 				docs.add(doc);
 
 				// keep memory requirements down by writing to Solr every
-				// 25k documents
+				// 15k documents
 
-				if (docs.size() > 25000) {
+				if (docs.size() > 15000) {
 					writeDocs(docs);
 					docs = new ArrayList<SolrInputDocument>();
 				}
