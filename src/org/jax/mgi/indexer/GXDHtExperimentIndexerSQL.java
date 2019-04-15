@@ -67,9 +67,8 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		logger.info("Processing experiments...");
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		ResultSet rs = ex.executeProto(cmd5, 1000);
-		rs.next();
-		
-		while (!rs.isAfterLast()) {
+
+		while (rs.next()) {
 			String exptKey = rs.getString("experiment_key");
 			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
@@ -98,7 +97,6 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 			if (notes.containsKey(exptKey)) {
 				doc.addAllDistinct(GxdHtFields.NOTE, notes.get(exptKey));
 			}
-			rs.next();
 			
 			docs.add(doc);
 			if (docs.size() > 10000) {

@@ -238,9 +238,8 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		logger.info("Processing samples...");
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		ResultSet rs = ex.executeProto(cmd, 5000);
-		rs.next();
 		
-		while (!rs.isAfterLast()) {
+		while (rs.next()) {
 			String sampleKey = rs.getString("sample_key");
 			String exptKey = rs.getString("experiment_key");
 			String genotypeKey = rs.getString("genotype_key");
@@ -298,7 +297,6 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 				doc.addField(GxdHtFields.STRUCTURE_ID, this.getTermID(emapaKey));
 				doc.addAllDistinct(GxdHtFields.STRUCTURE_SEARCH, this.getTermStringsWithAncestors(stage, emapaKey));
 			}
-			rs.next();
 
 			docs.add(doc);
 			if (docs.size() > 10000) {

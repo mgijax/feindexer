@@ -96,9 +96,7 @@ public class GXDLitIndexerSQL extends Indexer {
 			myInts.add(new Integer(i));
 		}
 
-		rs_base.next();
-
-		while (!rs_base.isAfterLast()) {
+		while (rs_base.next()) {
 			SolrInputDocument doc = new SolrInputDocument();
 
 			doc.addField(IndexConstants.GXD_LIT_SINGLE_KEY, rs_base.getString("index_key"));
@@ -265,8 +263,6 @@ public class GXDLitIndexerSQL extends Indexer {
 				docs = new ArrayList<SolrInputDocument>();
 				//logger.info("Done adding to solr, Moving on");
 			}
-
-			rs_base.next();
 		}
 
 		writeDocs(docs);
@@ -309,9 +305,7 @@ public class GXDLitIndexerSQL extends Indexer {
 						+ "order by eis.index_key");
 
 		try {
-			rs_assay_age_pair.next();
-
-			while (!rs_assay_age_pair.isAfterLast()) {
+			while (rs_assay_age_pair.next()) {
 
 				GxdLitAgeAssayTypePair pair = new GxdLitAgeAssayTypePair();
 				pair.setAge(rs_assay_age_pair.getString("age_string"));
@@ -338,8 +332,6 @@ public class GXDLitIndexerSQL extends Indexer {
 					pairList.add(pair);
 					records.put(rs_assay_age_pair.getString("index_key"), pairList);	
 				}
-
-				rs_assay_age_pair.next();
 			}
 		}
 		catch (Exception e) {e.printStackTrace();}
@@ -375,9 +367,7 @@ public class GXDLitIndexerSQL extends Indexer {
 		logger.info("Entering the main marker section");
 
 		try {
-			rs_marker_base.next();
-
-			while (!rs_marker_base.isAfterLast()) {
+			while (rs_marker_base.next()) {
 				MarkerSearchInfo msi = new MarkerSearchInfo();
 				msi.setSymbol(rs_marker_base.getString("symbol"));
 				msi.setName(rs_marker_base.getString("name"));
@@ -390,7 +380,6 @@ public class GXDLitIndexerSQL extends Indexer {
 				}
 
 				markerInfo.put(rs_marker_base.getString("marker_key"), msi);
-				rs_marker_base.next();
 			}
 		}
 		catch (Exception e) {e.printStackTrace();}
@@ -443,9 +432,7 @@ public class GXDLitIndexerSQL extends Indexer {
 		HashMap <String, HashSet <String>> refAuthorsFirst = makeHash(referenceAuthorFirstSQL,"reference_key","author");        
 
 		try {
-			rs_reference_base.next();
-
-			while (!rs_reference_base.isAfterLast()) {
+			while (rs_reference_base.next()) {
 
 				String reference_key = rs_reference_base.getString("reference_key");
 				ReferenceSearchInfo rsi = new ReferenceSearchInfo();
@@ -599,8 +586,6 @@ public class GXDLitIndexerSQL extends Indexer {
 				rsi.setTitleAbstractUnstemmed(titleAndAbstract);
 
 				referenceInfo.put(reference_key, rsi);
-
-				rs_reference_base.next();
 			}
 		}
 		catch (Exception e) {e.printStackTrace();}

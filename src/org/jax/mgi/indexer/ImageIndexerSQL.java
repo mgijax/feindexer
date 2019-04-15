@@ -51,11 +51,9 @@ public class ImageIndexerSQL extends Indexer {
 				"from image i, image_sequence_num isn " + 
 				"where isn.image_key = i.image_key");
 
-		rs_overall.next();
-
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
-		while (!rs_overall.isAfterLast()) {
+		while (rs_overall.next()) {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.IMAGE_KEY, rs_overall.getString("image_key"));
 			doc.addField(IndexConstants.IMAGE_ID, rs_overall.getString("mgi_id"));
@@ -76,8 +74,6 @@ public class ImageIndexerSQL extends Indexer {
 					doc.addField(IndexConstants.ALL_KEY, alleleKey);
 				}
 			}                  
-
-			rs_overall.next();
 
 			docs.add(doc);
 

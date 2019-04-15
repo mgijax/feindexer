@@ -42,11 +42,9 @@ public class MarkerPanesetIndexerSQL extends Indexer {
 				"where s.image_key = n.image_key " +
 				"and s.in_pixeldb = 1");
 
-		rs_overall.next();
-
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
-		while (!rs_overall.isAfterLast()) {
+		while (rs_overall.next()) {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.PANESET_KEY, rs_overall.getString("paneset_key"));
 			doc.addField(IndexConstants.BY_DEFAULT, rs_overall.getString("by_default"));
@@ -57,8 +55,6 @@ public class MarkerPanesetIndexerSQL extends Indexer {
 					doc.addField(IndexConstants.MRK_KEY, markerKey);
 				}
 			}
-
-			rs_overall.next();
 
 			docs.add(doc);
 
