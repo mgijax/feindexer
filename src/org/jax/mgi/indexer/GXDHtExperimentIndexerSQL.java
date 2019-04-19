@@ -6,6 +6,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
@@ -30,8 +32,30 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		return it.next();
 	}
 	
+	private Map<String, List<String>> getPubMedIDs() throws Exception {
+		String cmd0 = "select experiment_key, value, sequence_num "
+			+ "from expression_ht_experiment_property "
+			+ "where name = 'PubMed ID' "
+			+ "order by experiment_key, sequence_num";
+		Map<String, List<String>> pmIDs = new HashMap<String, List<String>>();
+
+		ResultSet rs = ex.executeProto(cmd0, 1000);
+		while (rs.next()) {
+			String exptKey = rs.getString("experiment_key");
+			if (!pmIDs.containsKey(exptKey)) {
+				pmIDs.put(exptKey, new ArrayList<String>());
+			}
+			pmIDs.get(exptKey).add(rs.getString("value"));
+		}
+		rs.close();
+		return pmIDs;
+	}
+	
 	public void index() throws Exception {
 		logger.info("Beginning index() method");
+		
+		// look up the PubMed IDs associated with each experiment
+		Map<String, List<String>> pmIDs = this.getPubMedIDs();
 		
 		// look up sample count for each experiment
 		String cmd1 = "select e.experiment_key, count(distinct s.sample_key) as sample_count "
@@ -79,6 +103,10 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 			doc.addField(GxdHtFields.STUDY_TYPE, rs.getString("study_type"));
 			doc.addField(GxdHtFields.METHOD, rs.getString("method"));
 			doc.addField(GxdHtFields.BY_DEFAULT, rs.getString("sequence_num"));
+			
+			if (pmIDs.containsKey(exptKey)) {
+				doc.addAllDistinct(GxdHtFields.PUBMED_IDS, pmIDs.get(exptKey));
+			}
 			
 			if (sampleCounts.containsKey(exptKey)) {
 				doc.addAllDistinct(GxdHtFields.SAMPLE_COUNT, sampleCounts.get(exptKey));
