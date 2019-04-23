@@ -34,6 +34,7 @@ public class StrainIndexerSQL extends Indexer {
 	private Map<String,List<String>> attributes = null;				// maps from strain key to attributes
 	private Map<String,List<String>> references = null;				// maps from strain key to reference IDs
 	private Map<String,List<String>> collections = null;			// maps from strain key to collections
+	private Map<String,List<String>> tags = null;					// maps from strain key to extra tags
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -128,7 +129,49 @@ public class StrainIndexerSQL extends Indexer {
 		return allIDs;
 	}
 
+	/* cache the extra tags by which users may want to retrieve strains (largely for
+	 * associations to other data sets like GXD HT)
+	 */
+	private void cacheTags() throws Exception {
+		logger.info("caching tags");
+		tags = new HashMap<String, List<String>>();
 
+		// The "GXDHT" tag is for strains that:
+		//	1. are attached to GXD HT samples, and
+		//	2. are part of one of these data sets:
+		//		a. MGP (is_sequenced flag in strain table)
+		//		b. Inbred strains (in strain_attribute table)
+		//		c. CC (strain name begins CC0)
+		//		d. HDP (in strain_collection table)
+		//		e. DO/CC Founders (in strain_collection table)
+		String gxdhtCmd = "select distinct s.strain_key "
+			+ "from strain s, expression_ht_sample h, genotype g "
+			+ "where h.genotype_key = g.genotype_key "
+			+ "  and g.background_strain = s.name "
+			+ "  and (s.is_sequenced = 1 "
+			+ "    or s.name like 'CC0%' "
+			+ "    or exists (select 1 from strain_collection c "
+			+ "      where s.strain_key = c.strain_key "
+			+ "        and c.collection in ('HDP', 'DOCCFounders') ) "
+			+ "    or exists (select 1 from strain_attribute a "
+			+ "      where s.strain_key = a.strain_key "
+			+ "      and a.attribute = 'inbred strain') "
+			+ "  )";
+
+		ResultSet rs = ex.executeProto(gxdhtCmd, cursorLimit);
+		logger.info("  - finished GXD HT query in " + ex.getTimestamp());
+		
+		while (rs.next()) {
+			String strainKey = rs.getString("strain_key");
+			if (!tags.containsKey(strainKey)) {
+				tags.put(strainKey, new ArrayList<String>());
+			}
+			tags.get(strainKey).add("GXDHT");
+		}
+		rs.close();
+		logger.info("  - cached tags for " + tags.size() + " strains");
+	}
+	
 	/* cache the synonyms for each strain in 'synonyms'
 	 */
 	private void cacheSynonyms() throws Exception {
@@ -152,7 +195,6 @@ public class StrainIndexerSQL extends Indexer {
 		}
 		rs.close();
 		logger.info("  - cached " + i + " synonyms for " + synonyms.size() + " strains");
-		
 	}
 	
 	/* get the list of synonyms for the given strain key
@@ -232,6 +274,15 @@ public class StrainIndexerSQL extends Indexer {
 		return null;
 	}
 	
+	/* get the set of tags for the given strain key
+	 */
+	public List<String> getTags(String strainKey) throws Exception {
+		if (tags.containsKey(strainKey)) {
+			return tags.get(strainKey);
+		}
+		return null;
+	}
+	
 	/* get a list of IDs to display, but with secondary MGI IDs filtered out.  (Only keep non-MGI IDs
 	 * and primary MGI IDs.)
 	 */
@@ -290,6 +341,7 @@ public class StrainIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.STRAIN, mapper.writeValueAsString(strain));
 			doc.addField(IndexConstants.STRAIN_ATTRIBUTE, strain.getAttributes());
 			doc.addField(IndexConstants.STRAIN_GROUPS, getCollections(strainKey));
+			doc.addField(IndexConstants.STRAIN_TAGS, getTags(strainKey));
 			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
@@ -315,6 +367,7 @@ public class StrainIndexerSQL extends Indexer {
 	@Override
 	public void index() throws Exception {
 		// collect various mappings needed for data lookup
+		cacheTags();
 		cacheCollections();
 		cacheAttributes();
 		cacheReferences();
