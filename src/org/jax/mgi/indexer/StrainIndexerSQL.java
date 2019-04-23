@@ -137,26 +137,32 @@ public class StrainIndexerSQL extends Indexer {
 		tags = new HashMap<String, List<String>>();
 
 		// The "GXDHT" tag is for strains that:
-		//	1. are attached to GXD HT samples, and
-		//	2. are part of one of these data sets:
+		//	1. are attached to GXD HT samples,
+		//	2. are standard strains, and
+		//	3. are part of one of these data sets:
 		//		a. MGP (is_sequenced flag in strain table)
 		//		b. Inbred strains (in strain_attribute table)
 		//		c. CC (strain name begins CC0)
-		//		d. HDP (in strain_collection table)
-		//		e. DO/CC Founders (in strain_collection table)
-		String gxdhtCmd = "select distinct s.strain_key "
+		//		d. DO/CC Founders (in strain_collection table)
+		String gxdhtCmd = "with gxdht_strains as ( "
+			+ "select distinct g.background_strain "
 			+ "from strain s, expression_ht_sample h, genotype g "
 			+ "where h.genotype_key = g.genotype_key "
-			+ "  and g.background_strain = s.name "
+			+ "  and s.name like concat(g.background_strain, '%') "
+			+ "  and s.is_standard = 1 "
 			+ "  and (s.is_sequenced = 1 "
 			+ "    or s.name like 'CC0%' "
 			+ "    or exists (select 1 from strain_collection c "
-			+ "      where s.strain_key = c.strain_key "
-			+ "        and c.collection in ('HDP', 'DOCCFounders') ) "
+			+ "      where s.strain_key = c.strain_key"
+			+ "        and c.collection = 'DOCCFounders') "
 			+ "    or exists (select 1 from strain_attribute a "
 			+ "      where s.strain_key = a.strain_key "
-			+ "      and a.attribute = 'inbred strain') "
-			+ "  )";
+			+ "        and a.attribute = 'inbred strain') "
+			+ "  ) "
+			+ ") "
+			+ "select g.background_strain, s.name, s.strain_key "
+			+ "from gxdht_strains g "
+			+ "inner join strain s on (g.background_strain = s.name)";
 
 		ResultSet rs = ex.executeProto(gxdhtCmd, cursorLimit);
 		logger.info("  - finished GXD HT query in " + ex.getTimestamp());
