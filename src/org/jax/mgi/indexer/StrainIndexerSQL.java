@@ -142,8 +142,7 @@ public class StrainIndexerSQL extends Indexer {
 		//	3. are part of one of these data sets:
 		//		a. MGP (is_sequenced flag in strain table)
 		//		b. Inbred strains (in strain_attribute table)
-		//		c. CC (strain name begins CC0)
-		//		d. DO/CC Founders (in strain_collection table)
+		//		c. DO/CC Founders (in strain_collection table)
 		String gxdhtCmd = "with gxdht_strains as ( "
 			+ "select distinct g.background_strain "
 			+ "from strain s, expression_ht_sample h, genotype g "
@@ -151,7 +150,6 @@ public class StrainIndexerSQL extends Indexer {
 			+ "  and s.name like concat(g.background_strain, '%') "
 			+ "  and s.is_standard = 1 "
 			+ "  and (s.is_sequenced = 1 "
-			+ "    or s.name like 'CC0%' "
 			+ "    or exists (select 1 from strain_collection c "
 			+ "      where s.strain_key = c.strain_key"
 			+ "        and c.collection = 'DOCCFounders') "
