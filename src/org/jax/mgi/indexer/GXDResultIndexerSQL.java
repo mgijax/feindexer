@@ -305,7 +305,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 		if (forRnaSeq) {
 			// adjust the query when dealing with RNA-Seq data
-			systemQuery = "select distinct sm.consolidated_measurement_key as result_key, "
+			systemQuery = "select distinct 'rnaseq' || sm.consolidated_measurement_key as result_key, "
 				+ "  ta.ancestor_term as anatomical_system, "
 				+ "  ta.ancestor_primary_id as emapa_id "
 				+ "from expression_ht_consolidated_sample_measurement sm, "
@@ -1171,7 +1171,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 			logger.info("Processing measurement key > " + start + " and <= " + end + ", RAM used: " + memoryUsed());
 
-			String query = "select sm.consolidated_measurement_key, "
+			String query = "select 'rnaseq' || sm.consolidated_measurement_key as consolidated_measurement_key, "
 				+ "  sm.marker_key, cs.experiment_key, "
 				+ "  emaps.term_key as structure_key, cs.theiler_stage, "
 				+ "  case "
