@@ -251,7 +251,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	}
 	
 	// cache data for references for expression results > startKey and <= endKey
-	public void cacheReferences (int startKey, int endKey, boolean forRnaSeq) throws SQLException {
+	public void cacheReferences (int startKey, int endKey) throws SQLException {
 		pubmedID = new HashMap<String, String>();
 		citation = new HashMap<String, String>();
 
@@ -260,21 +260,6 @@ public class GXDResultIndexerSQL extends Indexer {
 			+ "where e.result_key > " + startKey
 			+ " and e.result_key <= " + endKey
 			+ " and e.reference_key = r.reference_key";
-		
-		if (forRnaSeq) {
-			// adjust the query if we need to be working with RNA-Seq data rather than classical
-			referenceQuery = "select distinct r.reference_key, r.pubmed_id, r.mini_citation "
-				+ "from expression_ht_consolidated_sample_measurement sm, "
-				+ "  expression_ht_consolidated_sample cs, "
-				+ "  expression_ht_experiment_property p, "
-				+ "  reference r "
-				+ "where sm.consolidated_measurement_key > " + startKey
-				+ " and sm.consolidated_measurement_key <= " + endKey
-				+ " and sm.consolidated_sample_key = cs.consolidated_sample_key "
-				+ " and cs.experiment_key = p.experiment_key "
-				+ " and p.name = 'PubMed ID' "
-				+ " and p.value = r.pubmed_id";
-		}
 		
 		ResultSet rs = ex.executeProto(referenceQuery);
 		while (rs.next()) {
@@ -811,7 +796,7 @@ public class GXDResultIndexerSQL extends Indexer {
 
 			cacheGenotypes(start, end, false);		// cache allele combinations for genotypes for this chunk
 			cacheMarkers(start, end, false);		// cache marker symbols, names, IDs, and subtypes for this chunk
-			cacheReferences(start, end, false);		// cache pubmed IDs and citations for references for this chunk
+			cacheReferences(start, end);			// cache pubmed IDs and citations for references for this chunk
 			cacheAssays(start, end, false);			// cache data for assays in this chunk
 			cacheTerms(start, end, false);			// cache data for structures in this chunk
 			
@@ -1176,7 +1161,6 @@ public class GXDResultIndexerSQL extends Indexer {
 
 			cacheGenotypes(start, end, true);		// cache allele combinations for genotypes for this chunk
 			cacheMarkers(start, end, true);			// cache marker symbols, names, IDs, and subtypes for this chunk
-			cacheReferences(start, end, true);		// cache pubmed IDs and citations for references for this chunk
 			cacheAssays(start, end, true);			// cache data for assays in this chunk
 			cacheTerms(start, end, true);			// cache data for structures in this chunk
 			
@@ -1198,7 +1182,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				+ "  sm.level as detection_level, cs.age_min, cs.age_max, "
 				+ "  null as pattern, et.primary_id as emaps_id, "
 				+ "  null as is_wild_type, cs.genotype_key, "
-				+ "  null as reference_key, "
+				+ "  exp.primary_id as ref_id, exp.name as ref_title, "
 				+ "  0 as r_by_assay_type, "
 				+ "  msn.by_symbol as r_by_gene_symbol, "
 				+ "  0 as r_by_age, "
@@ -1207,11 +1191,13 @@ public class GXDResultIndexerSQL extends Indexer {
 				+ "  0 as r_by_mutant_alleles, "
 				+ "  0 as r_by_reference "
 				+ "from expression_ht_consolidated_sample_measurement sm, "
-				+ "  expression_ht_consolidated_sample cs,"
+				+ "  expression_ht_consolidated_sample cs, "
+				+ "  expression_ht_experiment exp, "
 				+ "  term_emap emaps, term et, marker_sequence_num msn "
 				+ "where sm.consolidated_measurement_key > " + start
 				+ "  and sm.consolidated_measurement_key <= " + end
 				+ "  and sm.marker_key = msn.marker_key "
+				+ "  and cs.experiment_key = exp.experiment_key "
 				+ "  and sm.consolidated_sample_key = cs.consolidated_sample_key "
 				+ "  and cs.theiler_stage::integer = emaps.stage "
 				+ "  and cs.emapa_key = emaps.emapa_term_key "
@@ -1312,9 +1298,9 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.STRUCTURE_PRINTNAME, printname.get(structureTermKey));
 				doc.addField(GxdResultFields.AGE, rs.getString("age_abbreviation"));
 				doc.addField(GxdResultFields.ASSAY_MGIID, assayID.get(assay_key));
-				doc.addField(GxdResultFields.JNUM, rs.getString("jnum_id"));
-				doc.addField(GxdResultFields.PUBMED_ID, pubmedID.get(rs.getString("reference_key")));
-				doc.addField(GxdResultFields.SHORT_CITATION, citation.get(rs.getString("reference_key")));
+				doc.addField(GxdResultFields.JNUM, rs.getString("ref_id"));
+				doc.addField(GxdResultFields.PUBMED_ID, rs.getString("ref_id"));
+				doc.addField(GxdResultFields.SHORT_CITATION, rs.getString("ref_title"));
 				doc.addField(GxdResultFields.GENOTYPE, allelePairs.get(rs.getString("genotype_key")));
 				doc.addField(GxdResultFields.PATTERN, rs.getString("pattern"));
 
