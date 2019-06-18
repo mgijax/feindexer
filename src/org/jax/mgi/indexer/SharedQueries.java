@@ -28,7 +28,8 @@ public class SharedQueries {
 	
 	// excludes the above query to only markers with expression data
 	static String GXD_VOCAB_EXPRESSION_QUERY = GXD_VOCAB_QUERY+
-			"and exists(select 1 from expression_result_summary ers where mta.marker_key=ers.marker_key) ";
+			"and (exists(select 1 from expression_result_summary ers where mta.marker_key=ers.marker_key) " +
+			" or exists(select 1 from expression_ht_consolidated_sample_measurement sm where mta.marker_key=sm.marker_key) )";
     
 	// get relationships to DO terms for mouse markers which are
 	// associated with human markers (via homology) where those human
