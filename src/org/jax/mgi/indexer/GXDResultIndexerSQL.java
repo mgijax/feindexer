@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.MarkerMPCache;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
@@ -55,6 +56,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	public Map<String, String> cytoband = null;
 	public Map<String, String> strand = null;
 	public Map<String, String> chromosome = null;
+	public MarkerMPCache markerMpCache = null;
 	
 	// caches of reference data (key is reference key)
 	public Map<String, String> pubmedID = null;
@@ -70,6 +72,11 @@ public class GXDResultIndexerSQL extends Indexer {
 	
 	public GXDResultIndexerSQL() {
 		super("gxdResult");
+		try {
+			markerMpCache = new MarkerMPCache();
+		} catch (Exception e) {
+			logger.error("Marker/MP Cache failed; no MP filtering terms will be indexed.");
+		}
 	}
 
 	// cache data for assays for expression results > startKey and <= endKey
@@ -934,6 +941,11 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.GENOTYPE, allelePairs.get(rs.getString("genotype_key")));
 				doc.addField(GxdResultFields.PATTERN, rs.getString("pattern"));
 
+				// add fields for filtering by marker-associated vocabularies
+				for (String mpTerm : markerMpCache.getTerms(markerKey)) {
+					doc.addField(GxdResultFields.MP_HEADERS, mpTerm);
+				}
+
 				// multi values
 
 				if (systemMap.containsKey(result_key)) {
@@ -1270,6 +1282,11 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.NOMENCLATURE, markerName.get(markerKey));
 				doc.addField(GxdResultFields.MARKER_TYPE, markerSubtype.get(markerKey));
 
+				// add fields for filtering by marker-associated vocabularies
+				for (String mpTerm : markerMpCache.getTerms(markerKey)) {
+					doc.addField(GxdResultFields.MP_HEADERS, mpTerm);
+				}
+				
 				// location stuff
 				doc.addField(GxdResultFields.CHROMOSOME, chr);
 				doc.addField(GxdResultFields.START_COORD, start_coord);
