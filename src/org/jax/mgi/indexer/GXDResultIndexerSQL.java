@@ -14,6 +14,7 @@ import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.MarkerMPCache;
+import org.jax.mgi.shr.MarkerGOCache;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
@@ -57,6 +58,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	public Map<String, String> strand = null;
 	public Map<String, String> chromosome = null;
 	public MarkerMPCache markerMpCache = null;
+	public MarkerGOCache markerGoCache = null;
 	
 	// caches of reference data (key is reference key)
 	public Map<String, String> pubmedID = null;
@@ -72,10 +74,17 @@ public class GXDResultIndexerSQL extends Indexer {
 	
 	public GXDResultIndexerSQL() {
 		super("gxdResult");
+
 		try {
 			markerMpCache = new MarkerMPCache();
 		} catch (Exception e) {
 			logger.error("Marker/MP Cache failed; no MP filtering terms will be indexed.");
+		}
+
+		try {
+			markerGoCache = new MarkerGOCache();
+		} catch (Exception e) {
+			logger.error("Marker/GO Cache failed; no GO filtering terms will be indexed.");
 		}
 	}
 
@@ -946,6 +955,10 @@ public class GXDResultIndexerSQL extends Indexer {
 					doc.addField(GxdResultFields.MP_HEADERS, mpTerm);
 				}
 
+				for (String goTerm : markerGoCache.getTerms(markerKey)) {
+					doc.addField(GxdResultFields.GO_HEADERS, goTerm);
+				}
+
 				// multi values
 
 				if (systemMap.containsKey(result_key)) {
@@ -1287,6 +1300,10 @@ public class GXDResultIndexerSQL extends Indexer {
 					doc.addField(GxdResultFields.MP_HEADERS, mpTerm);
 				}
 				
+				for (String goTerm : markerGoCache.getTerms(markerKey)) {
+					doc.addField(GxdResultFields.GO_HEADERS, goTerm);
+				}
+
 				// location stuff
 				doc.addField(GxdResultFields.CHROMOSOME, chr);
 				doc.addField(GxdResultFields.START_COORD, start_coord);
