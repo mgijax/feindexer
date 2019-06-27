@@ -14,6 +14,7 @@ import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.MarkerMPCache;
+import org.jax.mgi.shr.MarkerTypeCache;
 import org.jax.mgi.shr.MarkerDOCache;
 import org.jax.mgi.shr.MarkerGOCache;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -61,6 +62,7 @@ public class GXDResultIndexerSQL extends Indexer {
 	public MarkerMPCache markerMpCache = null;
 	public MarkerGOCache markerGoCache = null;
 	public MarkerDOCache markerDoCache = null;
+	public MarkerTypeCache markerTypeCache = null;
 	
 	// caches of reference data (key is reference key)
 	public Map<String, String> pubmedID = null;
@@ -93,6 +95,12 @@ public class GXDResultIndexerSQL extends Indexer {
 			markerDoCache = new MarkerDOCache();
 		} catch (Exception e) {
 			logger.error("Marker/DO Cache failed; no DO filtering terms will be indexed.");
+		}
+
+		try {
+			markerTypeCache = new MarkerTypeCache();
+		} catch (Exception e) {
+			logger.error("Marker/Type Cache failed; no Feature Type filtering terms will be indexed.");
 		}
 	}
 
@@ -971,6 +979,10 @@ public class GXDResultIndexerSQL extends Indexer {
 					doc.addField(GxdResultFields.DO_HEADERS, doTerm);
 				}
 
+				for (String featureType : markerTypeCache.getTerms(markerKey)) {
+					doc.addField(GxdResultFields.FEATURE_TYPES, featureType);
+				}
+
 				// multi values
 
 				if (systemMap.containsKey(result_key)) {
@@ -1318,6 +1330,10 @@ public class GXDResultIndexerSQL extends Indexer {
 
 				for (String doTerm : markerDoCache.getTerms(markerKey)) {
 					doc.addField(GxdResultFields.DO_HEADERS, doTerm);
+				}
+
+				for (String featureType : markerTypeCache.getTerms(markerKey)) {
+					doc.addField(GxdResultFields.FEATURE_TYPES, featureType);
 				}
 
 				// location stuff
