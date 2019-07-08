@@ -78,30 +78,6 @@ public class GXDResultIndexerSQL extends Indexer {
 	
 	public GXDResultIndexerSQL() {
 		super("gxdResult");
-
-		try {
-			markerMpCache = new MarkerMPCache();
-		} catch (Exception e) {
-			logger.error("Marker/MP Cache failed; no MP filtering terms will be indexed.");
-		}
-
-		try {
-			markerGoCache = new MarkerGOCache();
-		} catch (Exception e) {
-			logger.error("Marker/GO Cache failed; no GO filtering terms will be indexed.");
-		}
-
-		try {
-			markerDoCache = new MarkerDOCache();
-		} catch (Exception e) {
-			logger.error("Marker/DO Cache failed; no DO filtering terms will be indexed.");
-		}
-
-		try {
-			markerTypeCache = new MarkerTypeCache();
-		} catch (Exception e) {
-			logger.error("Marker/Type Cache failed; no Feature Type filtering terms will be indexed.");
-		}
 	}
 
 	// cache data for assays for expression results > startKey and <= endKey
@@ -742,6 +718,30 @@ public class GXDResultIndexerSQL extends Indexer {
 	public void index() throws Exception {
 		// first get a pull a bunch of mappings into memory, to make later
 		// processing easier
+
+		try {
+			markerMpCache = new MarkerMPCache();
+		} catch (Exception e) {
+			logger.error("Marker/MP Cache failed; no MP filtering terms will be indexed.");
+		}
+
+		try {
+			markerGoCache = new MarkerGOCache();
+		} catch (Exception e) {
+			logger.error("Marker/GO Cache failed; no GO filtering terms will be indexed.");
+		}
+
+		try {
+			markerDoCache = new MarkerDOCache();
+		} catch (Exception e) {
+			logger.error("Marker/DO Cache failed; no DO filtering terms will be indexed.");
+		}
+
+		try {
+			markerTypeCache = new MarkerTypeCache();
+		} catch (Exception e) {
+			logger.error("Marker/Type Cache failed; no Feature Type filtering terms will be indexed.");
+		}
 
 		// mapping from marker key to List of synonyms for each marker
 		Map<String, List<String>> markerNomenMap = getMarkerNomenMap();
