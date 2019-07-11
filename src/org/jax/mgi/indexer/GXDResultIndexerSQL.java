@@ -1508,7 +1508,7 @@ public class GXDResultIndexerSQL extends Indexer {
 			logger.info("Finished chunk; RAM used: " + ramUsed + " -> " + memoryUsed());
 
 			if(memoryPercent() > .80) { printMemory(); commit(); }
-			else if (i % 2 == 0) {
+			else if (i % 4 == 0) {
 				// To avoid out of memory errors on the server, we need to commit frequently regardless of the memoryPercent()
 				// of the Indexer.  We use a mod factor to try to spread out the commits and save a little performance.
 				commit();
