@@ -41,6 +41,7 @@ public abstract class Indexer implements Runnable {
 	protected DecimalFormat df = new DecimalFormat("#.00");
 	protected Runtime runtime = Runtime.getRuntime();
 	public boolean indexPassed = true;
+	public boolean skipOptimizer = false;
 
 	// Variables for handling threads
 	private List<Thread> currentThreads =new ArrayList<Thread>();
@@ -89,6 +90,10 @@ public abstract class Indexer implements Runnable {
 	 */
 	abstract void index() throws Exception;
 
+	public void setSkipOptimizer(boolean val) {
+		this.skipOptimizer = val;
+	}
+
 	public void run() {
 		try {
 			setupConnection();
@@ -116,7 +121,9 @@ public abstract class Indexer implements Runnable {
 		}
 		
 		commit(true);
-		optimize(true);
+		if (!this.skipOptimizer) {
+			optimize(true);
+		}
 		logger.info("Solr Documents are flushed to the server shuting down: " + solrIndexName);
 		client.close();
 	}
