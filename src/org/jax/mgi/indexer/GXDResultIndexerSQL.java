@@ -162,7 +162,7 @@ public class GXDResultIndexerSQL extends Indexer {
 		allelePairs = new HashMap<String, String>();
 		bgStrains = new HashMap<String, String>();
 
-		String genotypeQuery = "select distinct g.genotype_key, g.combination_1 "
+		String genotypeQuery = "select distinct g.genotype_key, g.combination_1, g.background_strain "
 			+ "from expression_result_summary e, genotype g "
 			+ "where e.result_key > " + startKey
 			+ " and e.result_key <= " + endKey
@@ -796,10 +796,10 @@ public class GXDResultIndexerSQL extends Indexer {
 		// -------------------------------------------------------------------
 
 		identifySystemIDs();
-		indexRnaSeqData(markerNomenMap, centimorganMap, mutatedInMap, mutatedInAlleleMap,
+		indexClassicalData(markerNomenMap, centimorganMap, mutatedInMap, mutatedInAlleleMap,
 			markerVocabMap, vocabAncestorMap, structureAncestorIdMap, structureAncestorKeyMap,
 			structureSynonymMap);
-		indexClassicalData(markerNomenMap, centimorganMap, mutatedInMap, mutatedInAlleleMap,
+		indexRnaSeqData(markerNomenMap, centimorganMap, mutatedInMap, mutatedInAlleleMap,
 			markerVocabMap, vocabAncestorMap, structureAncestorIdMap, structureAncestorKeyMap,
 			structureSynonymMap);
 		this.setSkipOptimizer(true);
@@ -865,22 +865,20 @@ public class GXDResultIndexerSQL extends Indexer {
 					+ "  ers.age_abbreviation,  ers.jnum_id, ers.detection_level, "
 					+ "  ers.age_min, ers.age_max, ers.pattern, emaps.primary_id as emaps_id, "
 					+ "  ers.is_wild_type, ers.genotype_key, ers.reference_key, " 
-					+ "  ersn.by_assay_type r_by_assay_type, "
+					+ "  sp.sex, ersn.by_assay_type r_by_assay_type, "
 					+ "  ersn.by_gene_symbol r_by_gene_symbol, "
 					+ "  ersn.by_age r_by_age, "
 					+ "  ersn.by_expressed r_by_expressed, "
 					+ "  ersn.by_structure r_by_structure, "
 					+ "  ersn.by_mutant_alleles r_by_mutant_alleles, "
 					+ "  ersn.by_reference r_by_reference "
-					+ "from expression_result_summary ers, "
-					+ "  marker_counts mc, term emaps, "
-					+ "  expression_result_sequence_num ersn "
-					+ "where ers.marker_key=mc.marker_key "
-					+ "  and ersn.result_key=ers.result_key "
-					+ "  and ers.structure_key = emaps.term_key "
-					+ "  and ers.assay_type != 'Recombinase reporter'"
+					+ "from expression_result_summary ers "
+					+ "inner join marker_counts mc on (ers.marker_key = mc.marker_key and mc.gxd_literature_count > 0) "
+					+ "inner join term emaps on (ers.structure_key = emaps.term_key) "
+					+ "inner join expression_result_sequence_num ersn on (ersn.result_key = ers.result_key) "
+					+ "left outer join assay_specimen sp on (ers.specimen_key = sp.specimen_key) "
+					+ "where ers.assay_type != 'Recombinase reporter'"
 					+ "  and ers.assay_type != 'In situ reporter (transgenic)'"
-					+ "  and mc.gxd_literature_count>0 "
 					+ "  and ers.result_key > " + start
 					+ "  and ers.result_key <= " + end + " ";
 
@@ -932,6 +930,8 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.IS_EXPRESSED, isExpressed);
 				doc.addField(GxdResultFields.AGE_MIN, roundAge(rs.getString("age_min")));
 				doc.addField(GxdResultFields.AGE_MAX, roundAge(rs.getString("age_max")));
+				doc.addField(GxdResultFields.SEX, rs.getString("sex"));
+				doc.addField(GxdResultFields.STRAIN, bgStrains.get(rs.getString("genotype_key")));
 
 				boolean isWildType = rs.getString("is_wild_type").equals("1") || rs.getString("genotype_key").equals("-1");
 

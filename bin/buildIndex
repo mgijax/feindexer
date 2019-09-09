@@ -34,6 +34,12 @@ fi
 MIN_MEM=2
 MAX_MEM=4
 
+# special settings for gxdResult index
+if [ "$1" == "gxdResult" ]; then
+	MIN_MEM=2
+	MAX_MEM=6
+fi
+
 if [ $# -gt 1 ]; then
     MIN_MEM=$2
 
