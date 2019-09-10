@@ -84,7 +84,8 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		
 		// main query including pre-computed sequence num
 		String cmd5 = "select e.experiment_key, e.primary_id as arrayexpress_id, e.name as title, "
-			+ " e.description, e.method, e.study_type, o.by_primary_id as sequence_num "
+			+ " e.description, e.method, e.study_type, o.by_primary_id as sequence_num, "
+			+ " e.is_in_atlas "
 			+ "from expression_ht_experiment e, expression_ht_experiment_sequence_num o "
 			+ "where e.experiment_key = o.experiment_key";
 		
@@ -103,6 +104,7 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 			doc.addField(GxdHtFields.STUDY_TYPE, rs.getString("study_type"));
 			doc.addField(GxdHtFields.METHOD, rs.getString("method"));
 			doc.addField(GxdHtFields.BY_DEFAULT, rs.getString("sequence_num"));
+			doc.addField(GxdHtFields.IS_IN_ATLAS, rs.getString("is_in_atlas"));
 			
 			if (pmIDs.containsKey(exptKey)) {
 				doc.addAllDistinct(GxdHtFields.PUBMED_IDS, pmIDs.get(exptKey));
