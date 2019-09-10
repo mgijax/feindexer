@@ -1245,7 +1245,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				+ "  sm.marker_key, cs.experiment_key, "
 				+ "  emaps.term_key as structure_key, cs.theiler_stage, "
 				+ "  cs.age as age_abbreviation, "
-				+ "  sm.level as detection_level, cs.age_min, cs.age_max, "
+				+ "  sm.level as tpm_level, cs.age_min, cs.age_max, "
 				+ "  null as pattern, et.primary_id as emaps_id, "
 				+ "  null as is_wild_type, cs.genotype_key, "
 				+ "  exp.primary_id as ref_id, exp.name as ref_title, "
@@ -1255,7 +1255,6 @@ public class GXDResultIndexerSQL extends Indexer {
 				+ "  sn.by_expressed as r_by_expressed, "
 				+ "  sn.by_structure as r_by_structure, "
 				+ "  sn.by_experiment as r_by_reference, "
-				+ "  sm.average_qn_tpm, "
 				+ "  sm.biological_replicate_count, "
 				+ "  cs.sex, cs.note "
 				+ "from expression_ht_consolidated_sample_measurement sm, "
@@ -1275,6 +1274,7 @@ public class GXDResultIndexerSQL extends Indexer {
 			ResultSet rs = ex.executeProto(query);
 			String assay_type = "RNA-Seq";
 			String isExpressed = "0";
+			String detectionLevel = "No";
 
 			while (rs.next()) {
 				String markerKey = rs.getString("marker_key");
@@ -1283,10 +1283,12 @@ public class GXDResultIndexerSQL extends Indexer {
 
 				// result fields
 				String theilerStage = rs.getString("theiler_stage");
-				if ("Below Cutoff".equals(rs.getString("detection_level"))) {
+				if ("Below Cutoff".equals(rs.getString("tpm_level"))) {
 					isExpressed = "0";
+					detectionLevel = "No";
 				} else {
 					isExpressed = "1";
+					detectionLevel = "Yes";
 				}
 				String structureTermKey = rs.getString("structure_key");
 
@@ -1324,7 +1326,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.IS_EXPRESSED, isExpressed);
 				doc.addField(GxdResultFields.AGE_MIN, roundAge(rs.getString("age_min")));
 				doc.addField(GxdResultFields.AGE_MAX, roundAge(rs.getString("age_max")));
-				doc.addField(GxdResultFields.TPM_LEVEL, rs.getString("average_qn_tpm"));
+				doc.addField(GxdResultFields.TPM_LEVEL, rs.getString("tpm_level"));
 				doc.addField(GxdResultFields.BIOLOGICAL_REPLICATES, rs.getString("biological_replicate_count"));
 				doc.addField(GxdResultFields.SEX, rs.getString("sex"));
 				doc.addField(GxdResultFields.NOTES, rs.getString("note"));
@@ -1389,7 +1391,7 @@ public class GXDResultIndexerSQL extends Indexer {
 				doc.addField(GxdResultFields.A_BY_ASSAY_TYPE, Integer.toString(rs.getInt("r_by_gene_symbol") + countOfClassicalResults));
 
 				// result summary
-				doc.addField(GxdResultFields.DETECTION_LEVEL, mapDetectionLevel(rs.getString("detection_level")) );
+				doc.addField(GxdResultFields.DETECTION_LEVEL, detectionLevel);
 				doc.addField(GxdResultFields.STRUCTURE_PRINTNAME, printname.get(structureTermKey));
 				doc.addField(GxdResultFields.AGE, rs.getString("age_abbreviation"));
 				doc.addField(GxdResultFields.ASSAY_MGIID, assayID.get(assay_key));
