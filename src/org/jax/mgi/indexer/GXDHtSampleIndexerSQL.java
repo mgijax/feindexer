@@ -28,6 +28,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String,String> terms = null;					// maps term key to term (EMAPA)
 	HashMap<String,String> termIDs = null;					// maps term key to term ID (EMAPA)
 	HashMap<String, HashSet<String>> termStrings = null;	// maps term key to terms, IDs, and synonyms
+	HashSet<String> conditionalGenotypes = null;		// set of genotype keys for conditional genotypes
 
 	// maps EMAPA term key to stage key to ancestor term keys (including self), so we ensure that EMAPA
 	// ancestry is stage-aware
@@ -60,6 +61,24 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		logger.info("Retrieved sample notes for " + this.notes.size() + " samples");
 	}
 	
+	// add an "Is Conditional" note to each genotype where applicable
+	private void addConditionalGenotypeNotes(String sampleKey) {
+		// prepend to existing notes
+		if (this.notes.containsKey(sampleKey)) {
+			HashSet<String> myNotes = this.notes.get(sampleKey);
+			// It's a set, but there's only one member.
+			for (String note : myNotes) {
+				myNotes.remove(note);
+				myNotes.add("Conditional mutant. " + note);
+			}
+		} else {
+			// no other note, so add this one
+			HashSet<String> myNotes = new HashSet<String>();
+			myNotes.add("Conditional mutant.");
+			this.notes.put(sampleKey, myNotes);
+		}
+	}
+
 	private void cacheExperimentData() throws Exception {
 		// look up IDs and variables for each experiment
 		String cmd2 = "select experiment_key, acc_id from expression_ht_experiment_id";
@@ -75,8 +94,9 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		// look up genotype info (strain + alleles) for genotypes tied to samples
 		this.strains = new HashMap<String,String>();
 		this.alleles = new HashMap<String,String>();
+		this.conditionalGenotypes = new HashSet<String>();
 
-		String cmd3 = "select s.genotype_key, g.background_strain, g.combination_1 "
+		String cmd3 = "select s.genotype_key, g.background_strain, g.combination_1, g.is_conditional "
 			+ "from expression_ht_sample s, genotype g "
 			+ "where s.genotype_key = g.genotype_key";
 		ResultSet rs3 = ex.executeProto(cmd3);
@@ -84,6 +104,9 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			String genotypeKey = rs3.getString("genotype_key");
 			this.strains.put(genotypeKey, rs3.getString("background_strain"));
 			this.alleles.put(genotypeKey, rs3.getString("combination_1"));
+			if (rs3.getInt("is_conditional") != 0) {
+				this.conditionalGenotypes.add(genotypeKey);
+			}
 		}
 		rs3.close();
 		logger.info("Retrieved straings and alleles for " + this.strains.size() + " genotypes");
@@ -276,6 +299,14 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			}
 
 			if (this.notes.containsKey(sampleKey)) {
+				// add a conditional genotype note, if applicable
+				if (this.conditionalGenotypes.contains(genotypeKey)) {
+					addConditionalGenotypeNotes(sampleKey);
+				}
+				doc.addAllDistinct(GxdHtFields.NOTE, this.notes.get(sampleKey));
+			} else if (this.conditionalGenotypes.contains(genotypeKey)) {
+				// no other notes; add a conditional genotype one if needed.
+				addConditionalGenotypeNotes(sampleKey);
 				doc.addAllDistinct(GxdHtFields.NOTE, this.notes.get(sampleKey));
 			}
 
