@@ -41,9 +41,6 @@ public class Main {
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
 		indexerMap.put("vocabBrowser", new VocabBrowserIndexerSQL());
 		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
-		indexerMap.put("gxdResult", new GXDResultIndexerSQL());
-		indexerMap.put("gxdImagePane", new GXDImagePaneIndexerSQL());
-		indexerMap.put("gxdDifferentialMarker", new GXDDifferentialIndexerSQL());
 		indexerMap.put("gxdEmapaAC",new GXDEmapaAutoCompleteIndexerSQL());
 		indexerMap.put("mpCorrelationMatrix", new MPCorrelationMatrixIndexerSQL());
 		indexerMap.put("recombinaseMatrix", new RecombinaseMatrixIndexerSQL());
@@ -97,9 +94,6 @@ public class Main {
 					SPECIFIED_INDEXERS.add("hdpGridAnnotation");
 				} else if("gxd".equalsIgnoreCase(arg)) {
 					SPECIFIED_INDEXERS.add("gxdLitIndex");
-					SPECIFIED_INDEXERS.add("gxdResult");
-					SPECIFIED_INDEXERS.add("gxdImagePane");
-					SPECIFIED_INDEXERS.add("gxdDifferentialMarker");
 					SPECIFIED_INDEXERS.add("gxdEmapaAC");
 				} else if ("gxdht".equalsIgnoreCase(arg)) {
 					SPECIFIED_INDEXERS.add("gxdHtSample");
