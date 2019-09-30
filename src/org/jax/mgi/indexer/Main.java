@@ -37,7 +37,6 @@ public class Main {
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
-		indexerMap.put("dagEdge", new DagEdgeIndexerSQL());
 		indexerMap.put("vocabTermAC", new VocabTermAutoCompleteIndexerSQL());
 		indexerMap.put("vocabBrowser", new VocabBrowserIndexerSQL());
 		indexerMap.put("gxdLitIndex", new GXDLitIndexerSQL());
