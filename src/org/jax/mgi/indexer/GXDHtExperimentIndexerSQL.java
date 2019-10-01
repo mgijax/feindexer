@@ -33,6 +33,7 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 	}
 	
 	private Map<String, List<String>> getPubMedIDs() throws Exception {
+		logger.info("getting PubMed IDs for experiments");
 		String cmd0 = "select experiment_key, value, sequence_num "
 			+ "from expression_ht_experiment_property "
 			+ "where name = 'PubMed ID' "
@@ -48,15 +49,38 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 			pmIDs.get(exptKey).add(rs.getString("value"));
 		}
 		rs.close();
+		logger.info(" - finished. got " + pmIDs.size() + " experiments");
 		return pmIDs;
 	}
 	
+	// Get the experiment IDs that have been loaded and are available with
+	// the fully-coded classical expression data.
+	private Set<String> getLoadedIDs() throws Exception {
+		logger.info("getting IDs for loaded experiments");
+		String cmd1 = "select distinct e.primary_id "
+			+ "from expression_ht_experiment e "
+			+ "where exists (select 1 from expression_ht_consolidated_sample s "
+			+ "  where e.experiment_key = s.experiment_key)";
+		Set<String> loadedIDs = new HashSet<String>();
+
+		ResultSet rs = ex.executeProto(cmd1, 1000);
+		while (rs.next()) {
+			loadedIDs.add(rs.getString("primary_id"));
+		}
+		rs.close();
+		logger.info(" - finished. got " + loadedIDs.size());
+		return loadedIDs;
+	}
+
 	public void index() throws Exception {
 		logger.info("Beginning index() method");
 		
 		// look up the PubMed IDs associated with each experiment
 		Map<String, List<String>> pmIDs = this.getPubMedIDs();
 		
+		// look up the IDs of the experiments that have been loaded
+		Set<String> loadedIDs = this.getLoadedIDs();
+
 		// look up sample count for each experiment
 		String cmd1 = "select e.experiment_key, count(distinct s.sample_key) as sample_count "
 			+ "from expression_ht_experiment e "
@@ -95,10 +119,11 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 
 		while (rs.next()) {
 			String exptKey = rs.getString("experiment_key");
+			String primaryID = rs.getString("arrayexpress_id");
 			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			doc.addField(GxdHtFields.EXPERIMENT_KEY, exptKey);
-			doc.addField(GxdHtFields.ARRAYEXPRESS_ID, rs.getString("arrayexpress_id"));
+			doc.addField(GxdHtFields.ARRAYEXPRESS_ID, primaryID);
 			doc.addField(GxdHtFields.TITLE, rs.getString("title"));
 			doc.addField(GxdHtFields.DESCRIPTION, rs.getString("description"));
 			doc.addField(GxdHtFields.STUDY_TYPE, rs.getString("study_type"));
@@ -110,6 +135,12 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 				doc.addAllDistinct(GxdHtFields.PUBMED_IDS, pmIDs.get(exptKey));
 			}
 			
+			if (loadedIDs.contains(primaryID)) {
+				doc.addField(GxdHtFields.IS_LOADED, 1);
+			} else {
+				doc.addField(GxdHtFields.IS_LOADED, 0);
+			}
+
 			if (sampleCounts.containsKey(exptKey)) {
 				doc.addAllDistinct(GxdHtFields.SAMPLE_COUNT, sampleCounts.get(exptKey));
 			} else {
