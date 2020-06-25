@@ -141,6 +141,7 @@ public abstract class Indexer implements Runnable {
 				client.optimize();
 			}
 		} catch (SolrServerException | IOException e) {
+			logger.info("Exception in optimize");
 			e.printStackTrace();
 		}
 	}
@@ -155,6 +156,7 @@ public abstract class Indexer implements Runnable {
 				client.commit();
 			}
 		} catch (SolrServerException | IOException e) {
+			logger.info("Exception in commit");
 			e.printStackTrace();
 		}
 	}
@@ -235,12 +237,10 @@ public abstract class Indexer implements Runnable {
 		
 		try {
 			client.add(docs);
-		} catch (SolrServerException e) {
-			e.printStackTrace();
-		} catch (IOException e) {
+		} catch (SolrServerException | IOException e) {
+			logger.info("Exception in writeDocs");
 			e.printStackTrace();
 		}
-		
 	}
 
 	@Override

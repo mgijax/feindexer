@@ -37,7 +37,7 @@
 	<classpathentry kind="lib" path="lib/solr-core-4.5.1.jar"/>
 	<classpathentry kind="lib" path="lib/solr-dataimporthandler-4.5.1.jar"/>
 	<classpathentry kind="lib" path="lib/solr-dataimporthandler-extras-4.5.1.jar"/>
-	<classpathentry kind="lib" path="lib/solr-solrj-5.3.0.jar"/>
+	<classpathentry kind="lib" path="lib/solr-solrj-8.5.2.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/lib_java_fe"/>
 	<classpathentry kind="output" path="build"/>
 </classpath>
