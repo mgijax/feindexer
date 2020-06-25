@@ -223,8 +223,13 @@ public class MarkerIndexerSQL extends Indexer
 			{
 				for(MarkerNomen mn : nomenMap.get(mrkKeyInt))
 				{
-					float boost = SolrUtils.boost(nomenKeyList,mn.termType);
-					doc.addField(mapNomenField(mn.termType),mn.term,boost);
+					/* Index-time boosts were deprecated as of Solr 6.6.  Current advice:  "You should instead index
+					 * scoring factors into a separate field and combine them with the main query's score at search
+					 * time using function queries."
+					 */
+//					float boost = SolrUtils.boost(nomenKeyList,mn.termType);
+//					doc.addField(mapNomenField(mn.termType),mn.term,boost);
+					doc.addField(mapNomenField(mn.termType),mn.term);
 				}
 			}
 
