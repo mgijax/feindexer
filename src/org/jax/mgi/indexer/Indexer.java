@@ -51,6 +51,10 @@ public abstract class Indexer implements Runnable {
 
 	protected Indexer(String solrIndexName) {
 		this.solrIndexName = solrIndexName;
+
+		// Increase stall time detection (in ms).  The default is 15 seconds, which is far too quick for
+		// substantial commits.
+		System.setProperty("solr.cloud.client.stallTime", "119999");
 	}
 
 	public void setupConnection() throws Exception {
@@ -74,7 +78,6 @@ public abstract class Indexer implements Runnable {
 		logger.info("Setting up index: " + solrUrl);
 		try {
 			client = new ConcurrentUpdateSolrClient.Builder(solrUrl).withQueueSize(160).withThreadCount(4).build();
-//			client = new ConcurrentUpdateSolrClient.Builder(solrUrl).build();
 		} catch (Throwable e) {
 			logger.info("Failed to set up solr client:");
 			e.printStackTrace();
@@ -89,7 +92,9 @@ public abstract class Indexer implements Runnable {
 		try {
 			logger.info("Deleting current index: " + solrIndexName);
 			client.deleteByQuery("*:*");
+			logger.info("After delete statement");
 			commit();
+			logger.info("After commit statement");
 		}
 		catch (Throwable e) {
 			logger.info("Failed to delete documents from: " + solrIndexName);
