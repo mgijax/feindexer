@@ -32,7 +32,6 @@ public class Main {
 		indexerMap.put("reference", new RefIndexerSQL());
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
 		indexerMap.put("marker", new MarkerIndexerSQL());
-		indexerMap.put("markerPanesetImage", new MarkerPanesetIndexerSQL());
 		indexerMap.put("image", new ImageIndexerSQL());
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
