@@ -33,6 +33,7 @@ public class Main {
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
 		indexerMap.put("marker", new MarkerIndexerSQL());
 		indexerMap.put("image", new ImageIndexerSQL());
+		indexerMap.put("qsVocabBucket", new QSVocabBucketIndexerSQL());
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
