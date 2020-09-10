@@ -371,6 +371,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		processVocabulary(INTERPRO_DOMAINS);
 		processVocabulary(STRAIN);
 		
+		// need to add strains and to collect annotation counts beyond the 4 current ones
+		
 		// commit all the changes to Solr
 		commit();
 	}
