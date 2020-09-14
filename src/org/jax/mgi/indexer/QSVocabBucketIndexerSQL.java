@@ -318,9 +318,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				if ((annotLabel != null) && (annotLabel.length() != 0)) {
 					doc.addField(IndexConstants.QS_ANNOTATION_TEXT, annotLabel);
 
-					String annotUri = annotationUri.get(termKey);
+					String annotUri = annotationUri.get(displayVocab);
 					if ((annotUri != null) && (annotUri.length() != 0)) {
-						doc.addField(IndexConstants.QS_ANNOTATION_URI, annotUri);
+						doc.addField(IndexConstants.QS_ANNOTATION_URI, annotUri.replaceFirst("@@@@", primaryID));
 					}
 				}
 			}
