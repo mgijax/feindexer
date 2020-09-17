@@ -269,6 +269,22 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 			
+			if (chromosome.containsKey(featureKey)) {
+				doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(featureKey));
+			}
+			
+			if (startCoord.containsKey(featureKey)) {
+				doc.addField(IndexConstants.QS_START_COORD, startCoord.get(featureKey));
+
+				if (endCoord.containsKey(featureKey)) {
+					doc.addField(IndexConstants.QS_END_COORD, endCoord.get(featureKey));
+				}
+
+				if (strand.containsKey(featureKey)) {
+					doc.addField(IndexConstants.QS_STRAND, strand.get(featureKey));
+				}
+			}
+			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
 			docs.add(doc);
