@@ -39,7 +39,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private static Map<String,String> uriPrefixes;			
 	static {
 		uriPrefixes = new HashMap<String,String>();
-		uriPrefixes.put(INTERPRO_DOMAINS, null);				// Protein domains intentially omitted
+		uriPrefixes.put(INTERPRO_DOMAINS, null);				// Protein domains intentionally omitted
 		uriPrefixes.put(STRAIN, "/strain/");
 		uriPrefixes.put(MP_VOCAB, "/vocab/mp_ontology/");
 		uriPrefixes.put(DO_VOCAB, "/disease/");
