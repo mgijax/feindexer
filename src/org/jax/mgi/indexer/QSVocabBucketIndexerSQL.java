@@ -218,38 +218,50 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		annotationCount = new HashMap<Integer,Integer>();
 		annotationLabel = new HashMap<Integer,String>();
 
+		String cmd;
 		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
-			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
+			cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
 				+ "and t.is_obsolete = 0 "
 				+ "and t.vocab_name = '" + vocabName + "'";
-
-			ResultSet rs = ex.executeProto(cmd, cursorLimit);
-			while (rs.next()) {
-				Integer termKey = rs.getInt("term_key");
-				String termID = rs.getString("primary_id");
-				Integer objectCount = rs.getInt("object_count_with_descendents");
-				Integer annotCount = rs.getInt("annot_count_with_descendents");
-
-				annotationCount.put(termKey, annotCount);
-				if (MP_VOCAB.equals(vocabName)) {
-					if (!"MP:0000001".equals(termID)) {
-						annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
-					}
-
-				} else if (DO_VOCAB.equals(vocabName)) {
-					annotationLabel.put(termKey, "view human &amp; mouse annotations");
-
-				} else if (HPO_VOCAB.equals(vocabName)) {
-					annotationLabel.put(termKey, objectCount + " diseases with annotations");
-
-				} else {	// GO_VOCAB
-					annotationLabel.put(termKey, objectCount + " genes, " + annotCount + " annotations");
-				}
-			}
-			rs.close();
+		} else if (INTERPRO_DOMAINS.equals(vocabName)) {
+			cmd = "select a.term_key, a.term_id as primary_id, "
+				+ "  count(distinct m.marker_key) as object_count_with_descendents, "
+				+ "  count(1) as annot_count_with_descendents "
+				+ "from annotation a, marker_to_annotation mta, marker m "
+				+ "where a.annotation_key = mta.annotation_key "
+				+ "and mta.marker_key = m.marker_key "
+				+ "and a.vocab_name = 'InterPro Domains' "
+				+ "group by 1, 2";
+		} else {
+			return;
 		}
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next()) {
+			Integer termKey = rs.getInt("term_key");
+			String termID = rs.getString("primary_id");
+			Integer objectCount = rs.getInt("object_count_with_descendents");
+			Integer annotCount = rs.getInt("annot_count_with_descendents");
+
+			annotationCount.put(termKey, annotCount);
+			if (MP_VOCAB.equals(vocabName)) {
+				if (!"MP:0000001".equals(termID)) {
+					annotationLabel.put(termKey, objectCount + " genotypes, " + annotCount + " annotations");
+				}
+
+			} else if (DO_VOCAB.equals(vocabName)) {
+				annotationLabel.put(termKey, "view human &amp; mouse annotations");
+
+			} else if (HPO_VOCAB.equals(vocabName)) {
+				annotationLabel.put(termKey, objectCount + " diseases with annotations");
+
+			} else {	// GO_VOCAB
+				annotationLabel.put(termKey, objectCount + " genes, " + annotCount + " annotations");
+			}
+		}
+		rs.close();
 
 		logger.info(" - cached annotations for " + annotationCount.size() + " terms");
 	}
