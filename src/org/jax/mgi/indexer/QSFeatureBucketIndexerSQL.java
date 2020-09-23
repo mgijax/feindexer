@@ -47,7 +47,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,String> endCoord;			// marker or allele key : end coordinate
 	private Map<Integer,String> strand;				// marker or allele key : strand
 	
-	// TODO : ORTHOLOG NOMENCLATURE
+	private Map<Integer,Set<String>> orthologNomenOrg;		// marker key : set of "<organism & term type>:<term>"
+	private Map<Integer,Set<String>> orthologNomen;			// marker key : set of just symbols, names, synonyms across all organisms
 	
 	private Map<Integer,Set<String>> goProcessAnnotations;		// marker or allele key : annotated GO Process term, ID, synonym
 	private Map<Integer,Set<String>> goFunctionAnnotations;		// marker or allele key : annotated GO Function term, ID, synonym
@@ -207,6 +208,73 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + ct + " locations for " + chromosome.size() + " " + featureType + "s");
 	}
 	
+	/* Cache searchable nomenclature (symbol, name, synonyms) for orthologous markers in non-mouse organisms.
+	 */
+	private void cacheOrthologNomenclature(String featureType) throws Exception {
+		orthologNomen = new HashMap<Integer,Set<String>>();
+		orthologNomenOrg = new HashMap<Integer,Set<String>>();
+
+		// For now, bail out if looking for allele data.  May need to add in the future.
+		if (!MARKER.equals(featureType)) { return; }
+
+		// Retrieve terms to be indexed with ortholog nomenclature.  Prefer old mouse nomen, then human,
+		// then rat before all the others.  We can thus prioritize which organisms are shown for which
+		// terms in the "best match" column in the fewi.
+		String cmd = "select marker_key as feature_key, term, term_type, case " + 
+				"  when term_type like 'old%' then 1 " + 
+				"  when term_type like 'human%' then 2 " + 
+				"  when term_type like 'rat%' then 3 " + 
+				"  else 4 " + 
+				"  end as preference " + 
+				"			from marker_searchable_nomenclature  " + 
+				"			where term_type in ( " + 
+				"			    'old symbol', 'human name', 'human synonym', 'human symbol',  " + 
+				"			    'related synonym', 'old name',  " + 
+				"			    'rat symbol', 'rat synonym', 'chimpanzee symbol',  " + 
+				"			    'cattle symbol', 'chicken symbol', 'dog symbol',  " + 
+				"			    'rhesus macaque symbol', 'western clawed frog symbol',  " + 
+				"			    'zebrafish symbol')  " + 
+				"order by 1, 4, 2";
+			
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		int i = 0;
+		Integer lastFeatureKey = 0;
+		Set<String> termsSeen = new HashSet<String>();
+
+		while (rs.next())  {  
+			Integer featureKey = rs.getInt("feature_key");
+
+			// New feature?  If so, clear the cache of lowercase terms we've cached.
+			if (!featureKey.equals(lastFeatureKey)) {
+				termsSeen.clear();
+				lastFeatureKey = featureKey;
+			}
+
+			String term = rs.getString("term");
+			String termLower = term.toLowerCase();
+			String termType = rs.getString("term_type");
+
+			// First time we've seen this feature?  If so, add it to our maps.
+			if (!orthologNomen.containsKey(featureKey)) {
+				orthologNomen.put(featureKey, new HashSet<String>());
+				orthologNomenOrg.put(featureKey, new HashSet<String>());
+			}
+			
+			// If we've not already seen this particular string (case insensitive), we need to cache it.
+			if (!termsSeen.contains(termLower)) {
+				termsSeen.add(termLower);
+				orthologNomen.get(featureKey).add(term);
+				orthologNomenOrg.get(featureKey).add(termType + ":" + term);
+				i++;
+			}
+		}
+		rs.close();
+
+		logger.info(" - cached " + i + " ortholog nomen terms for " + orthologNomen.size() + " " + featureType + "s");
+	}
+	
 	/* Process the features of the given type, generating documents and sending them to Solr.
 	 * Assumes cacheIDs, cacheLocations, and cacheSynonyms have been run for this featureType.
 	 */
@@ -285,6 +353,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 			
+			if (orthologNomen.containsKey(featureKey)) {
+				for (String term : orthologNomen.get(featureKey).toArray(new String[0])) {
+					doc.addField(IndexConstants.QS_ORTHOLOG_NOMEN, term);
+				}
+				for (String term : orthologNomenOrg.get(featureKey).toArray(new String[0])) {
+					doc.addField(IndexConstants.QS_ORTHOLOG_NOMEN_ORG, term);
+				}
+			}
+			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
 			docs.add(doc);
@@ -301,7 +378,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("done processing " + i + " " + featureType + "s");
 	}
 	
-	/* process the given fetaure type, loading data from the database, composing documents, and writing to Solr.
+	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
 	private void processFeatureType(String featureType) throws Exception {
 		logger.info("beginning " + featureType);
@@ -309,6 +386,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		cacheIDs(featureType);
 		cacheSynonyms(featureType);
 		cacheLocations(featureType);
+		cacheOrthologNomenclature(featureType);
+
+		// need to do annotations
+		// need to do ortholog nomenclature
+		
 		processFeatures(featureType);
 		
 		logger.info("finished " + featureType);
@@ -323,8 +405,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processFeatureType(MARKER);
 		processFeatureType(ALLELE);
-		
-		// need to add strains and to collect annotation counts beyond the 4 current ones
 		
 		// commit all the changes to Solr
 		commit();
