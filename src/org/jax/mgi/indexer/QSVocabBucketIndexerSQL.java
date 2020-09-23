@@ -225,14 +225,14 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				+ "where t.term_key = c.term_key "
 				+ "and t.is_obsolete = 0 "
 				+ "and t.vocab_name = '" + vocabName + "'";
-		} else if (INTERPRO_DOMAINS.equals(vocabName)) {
+		} else if (INTERPRO_DOMAINS.equals(vocabName) || PIRSF_VOCAB.equals(vocabName)) {
 			cmd = "select a.term_key, a.term_id as primary_id, "
 				+ "  count(distinct m.marker_key) as object_count_with_descendents, "
 				+ "  count(1) as annot_count_with_descendents "
 				+ "from annotation a, marker_to_annotation mta, marker m "
 				+ "where a.annotation_key = mta.annotation_key "
 				+ "and mta.marker_key = m.marker_key "
-				+ "and a.vocab_name = 'InterPro Domains' "
+				+ "and a.vocab_name = '" + vocabName + "' "
 				+ "group by 1, 2";
 		} else {
 			return;
@@ -256,6 +256,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 
 			} else if (HPO_VOCAB.equals(vocabName)) {
 				annotationLabel.put(termKey, objectCount + " diseases with annotations");
+
+			} else if (PIRSF_VOCAB.equals(vocabName)) {
+				annotationLabel.put(termKey, objectCount + " genes");
 
 			} else {	// GO_VOCAB
 				annotationLabel.put(termKey, objectCount + " genes, " + annotCount + " annotations");
