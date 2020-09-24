@@ -56,7 +56,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
 	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
 	private Map<Integer,Set<String>> diseaseAnnotations;		// marker or allele key : annotated DO term, ID, synonym
-	private Map<Integer,Set<String>> proteinDomains;			// marker or allele key : annotated protein domains, ID, synonym
+	private Map<Integer,Set<String>> proteinDomains;			// marker or allele key : annotated protein domains, ID (no synonyms)
 	private Map<Integer,Set<String>> gxdAnnotations;			// marker or allele key : annotated EMAPA structure, ID, synonym
 	private Map<Integer,Set<String>> gxdAnnotationsWithTS;		// marker or allele key : annotated EMAPA structure, ID, synonym, with TS prepended
 
@@ -109,6 +109,39 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		rs.close();
 		
 		logger.info(" - cached " + ct + " IDs for " + allIDs.size() + " terms");
+	}
+	
+	/* Cache protein domain annotations for markers, populating the proteinDomains object.  If feature type
+	 * is for alleles, just skip this.
+	 */
+	private void cacheProteinDomains(String featureType) throws Exception {
+		proteinDomains = new HashMap<Integer,Set<String>>();
+		if (ALLELE.equals(featureType)) { return; }
+
+		logger.info(" - caching protein domains for " + featureType);
+
+		String cmd = "select distinct m.marker_key as feature_key, a.term_id as primary_id, a.term "
+			+ "from annotation a, marker_to_annotation mta, marker m "
+			+ "where a.annotation_key = mta.annotation_key "
+			+ "and mta.marker_key = m.marker_key "
+			+ "and a.vocab_name = 'InterPro Domains' ";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of terms processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("feature_key");
+			
+			if (!proteinDomains.containsKey(featureKey)) {
+				proteinDomains.put(featureKey, new HashSet<String>());
+			}
+			proteinDomains.get(featureKey).add(rs.getString("primary_id"));
+			proteinDomains.get(featureKey).add(rs.getString("term"));
+		}
+		rs.close();
+		
+		logger.info(" - cached " + ct + " protein domains for " + proteinDomains.size() + " " + featureType + "s");
 	}
 	
 	/* Cache all synonyms for the given feature type (markers or alleles), populating the synonyms object.
@@ -353,6 +386,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 			
+			if (proteinDomains.containsKey(featureKey)) {
+				for (String domain : proteinDomains.get(featureKey).toArray(new String[0])) {
+					doc.addField(IndexConstants.QS_PROTEIN_DOMAINS, domain);
+				}
+			}
+			
 			if (orthologNomen.containsKey(featureKey)) {
 				for (String term : orthologNomen.get(featureKey).toArray(new String[0])) {
 					doc.addField(IndexConstants.QS_ORTHOLOG_NOMEN, term);
@@ -387,9 +426,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		cacheSynonyms(featureType);
 		cacheLocations(featureType);
 		cacheOrthologNomenclature(featureType);
+		cacheProteinDomains(featureType);
 
 		// need to do annotations
-		// need to do ortholog nomenclature
 		
 		processFeatures(featureType);
 		
