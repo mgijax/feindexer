@@ -1,6 +1,7 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -10,6 +11,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.VocabTerm;
+import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /* Is: an indexer that builds the index supporting the quick search's feature (marker + allele) bucket (aka- bucket 1).
@@ -50,9 +53,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,Set<String>> orthologNomenOrg;		// marker key : set of "<organism & term type>:<term>"
 	private Map<Integer,Set<String>> orthologNomen;			// marker key : set of just symbols, names, synonyms across all organisms
 	
-	private Map<Integer,Set<String>> goProcessAnnotations;		// marker or allele key : annotated GO Process term, ID, synonym
-	private Map<Integer,Set<String>> goFunctionAnnotations;		// marker or allele key : annotated GO Function term, ID, synonym
-	private Map<Integer,Set<String>> goComponentAnnotations;	// marker or allele key : annotated GO Component term, ID, synonym
+	private Map<Integer,Set<Integer>> goProcessAnnotations;		// marker key : annotated term key from GO Process DAG
+	private Map<Integer,Set<Integer>> goFunctionAnnotations;	// marker key : annotated term key from GO Function DAG
+	private Map<Integer,Set<Integer>> goComponentAnnotations;	// marker key : annotated term key from GO Component DAG
 	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
 	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
 	private Map<Integer,Set<String>> diseaseAnnotations;		// marker or allele key : annotated DO term, ID, synonym
@@ -60,6 +63,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,Set<String>> gxdAnnotations;			// marker or allele key : annotated EMAPA structure, ID, synonym
 	private Map<Integer,Set<String>> gxdAnnotationsWithTS;		// marker or allele key : annotated EMAPA structure, ID, synonym, with TS prepended
 
+	private VocabTermCache goProcessCache;
+	private VocabTermCache goFunctionCache;
+	private VocabTermCache goComponentCache;
+	
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -108,7 +115,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - cached " + ct + " IDs for " + allIDs.size() + " terms");
+		logger.info(" - cached " + ct + " IDs for " + allIDs.size() + " " + featureType + "s");
 	}
 	
 	/* Cache protein domain annotations for markers, populating the proteinDomains object.  If feature type
@@ -308,6 +315,43 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + i + " ortholog nomen terms for " + orthologNomen.size() + " " + featureType + "s");
 	}
 	
+	private void addVocabAnnotations(SolrInputDocument doc, Integer featureKey, Map<Integer,Set<Integer>> annotatedTerms,
+		VocabTermCache termCache, String idField, String termField, String synonymField, String definitionField) {
+			
+		if (annotatedTerms.containsKey(featureKey)) {
+			for (Integer termKey : annotatedTerms.get(featureKey).toArray(new Integer[0])) {
+				VocabTerm term = termCache.getTerm(termKey);
+
+				if (term != null) {
+					// For this term, we must index not only it but also its ancestor terms.
+					List<VocabTerm> toIndex = new ArrayList<VocabTerm>();
+					toIndex.add(term);
+					if (termCache.getAncestors(termKey) != null) {
+						toIndex.addAll(termCache.getAncestors(termKey));
+					}
+
+					for (VocabTerm iTerm : toIndex) {
+						if (iTerm.getTerm() != null) { doc.addField(termField, iTerm.getTerm()); }
+
+						if (iTerm.getDefinition() != null) { doc.addField(definitionField, iTerm.getDefinition()); }
+
+						if (iTerm.getAllIDs() != null) {
+							for (String accID : iTerm.getAllIDs()) {
+								doc.addField(idField, accID);
+							}
+						}
+
+						if (iTerm.getSynonyms() != null) {
+							for (String synonym : iTerm.getSynonyms()) {
+								doc.addField(synonymField, synonym);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+			
 	/* Process the features of the given type, generating documents and sending them to Solr.
 	 * Assumes cacheIDs, cacheLocations, and cacheSynonyms have been run for this featureType.
 	 */
@@ -401,6 +445,20 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 			
+			if (MARKER.contentEquals(featureType)) {
+				addVocabAnnotations(doc, featureKey, goFunctionAnnotations, goFunctionCache,
+					IndexConstants.QS_FUNCTION_ANNOTATIONS_ID, IndexConstants.QS_FUNCTION_ANNOTATIONS_TERM,
+					IndexConstants.QS_FUNCTION_ANNOTATIONS_SYNONYM, IndexConstants.QS_FUNCTION_ANNOTATIONS_DEFINITION);
+			
+				addVocabAnnotations(doc, featureKey, goProcessAnnotations, goProcessCache,
+					IndexConstants.QS_PROCESS_ANNOTATIONS_ID, IndexConstants.QS_PROCESS_ANNOTATIONS_TERM,
+					IndexConstants.QS_PROCESS_ANNOTATIONS_SYNONYM, IndexConstants.QS_PROCESS_ANNOTATIONS_DEFINITION);
+			
+				addVocabAnnotations(doc, featureKey, goComponentAnnotations, goComponentCache,
+					IndexConstants.QS_COMPONENT_ANNOTATIONS_ID, IndexConstants.QS_COMPONENT_ANNOTATIONS_TERM,
+					IndexConstants.QS_COMPONENT_ANNOTATIONS_SYNONYM, IndexConstants.QS_COMPONENT_ANNOTATIONS_DEFINITION);
+			}
+			
 			// Add this doc to the batch we're collecting.  If the stack hits our
 			// threshold, send it to the server and reset it.
 			docs.add(doc);
@@ -417,6 +475,39 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("done processing " + i + " " + featureType + "s");
 	}
 	
+	/* Load annotations to vocab terms from the given feature type, then populate and return a cache such
+	 * that each feature key maps to all the term keys that are annotated to it (excluding NOT annotations
+	 * or those with a ND evidence code).
+	 */
+	private Map<Integer,Set<Integer>> cacheVocabAnnotations(String featureType, String annotType, String dagName) throws SQLException {
+		Map<Integer,Set<Integer>> map = new HashMap<Integer,Set<Integer>>();
+		
+		if (MARKER.equals(featureType)) {
+			String cmd = "select a.term_key, mta.marker_key " + 
+				"from annotation a, term t, marker_to_annotation mta " +
+				"where a.annotation_type = '" + annotType + "' " +
+				"and a.object_type ilike '" + featureType + "' " + 
+				"and a.term_key = t.term_key " + 
+				"and t.display_vocab_name = '" + dagName + "' " +
+				"and a.annotation_key = mta.annotation_key " + 
+				"and (a.qualifier is null or a.qualifier != 'NOT') " + 
+				"and (a.evidence_code is null or a.evidence_code != 'ND')";
+			
+			ResultSet rs = ex.executeProto(cmd);
+			while (rs.next() ) {
+				Integer featureKey = rs.getInt("marker_key");
+				if (!map.containsKey(featureKey)) {
+					map.put(featureKey, new HashSet<Integer>());
+				}
+				map.get(featureKey).add(rs.getInt("term_key"));
+			}
+			rs.close();
+		}
+		
+		logger.info("Cached " + annotType + " annotations for " + map.size() + " " + featureType + "s");
+		return map;
+	}
+	
 	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
 	private void processFeatureType(String featureType) throws Exception {
@@ -430,6 +521,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		// need to do annotations
 		
+		if (MARKER.equals(featureType)) {
+			this.goFunctionAnnotations = cacheVocabAnnotations(featureType, "GO/Marker", "Function");
+			this.goProcessAnnotations = cacheVocabAnnotations(featureType, "GO/Marker", "Process");
+			this.goComponentAnnotations = cacheVocabAnnotations(featureType, "GO/Marker", "Component");
+		} else {
+			this.goFunctionAnnotations = new HashMap<Integer,Set<Integer>>();
+			this.goProcessAnnotations = new HashMap<Integer,Set<Integer>>();
+			this.goComponentAnnotations = new HashMap<Integer,Set<Integer>>();
+		}
+
 		processFeatures(featureType);
 		
 		logger.info("finished " + featureType);
@@ -441,6 +542,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	@Override
 	public void index() throws Exception {
+		// cache vocabulary term data
+		this.goFunctionCache = new VocabTermCache("Function", ex);
+		this.goProcessCache = new VocabTermCache("Process", ex);
+		this.goComponentCache = new VocabTermCache("Component", ex);
+
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processFeatureType(MARKER);
 		processFeatureType(ALLELE);
