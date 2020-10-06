@@ -63,6 +63,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,Set<String>> gxdAnnotations;			// marker or allele key : annotated EMAPA structure, ID, synonym
 	private Map<Integer,Set<String>> gxdAnnotationsWithTS;		// marker or allele key : annotated EMAPA structure, ID, synonym, with TS prepended
 
+	private Map<Integer,Set<Integer>> highLevelTerms;		// maps from a term key to the keys of its high-level ancestors
+	
 	private VocabTermCache goProcessCache;
 	private VocabTermCache goFunctionCache;
 	private VocabTermCache goComponentCache;
@@ -316,8 +318,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	}
 	
 	private void addVocabAnnotations(SolrInputDocument doc, Integer featureKey, Map<Integer,Set<Integer>> annotatedTerms,
-		VocabTermCache termCache, String idField, String termField, String synonymField, String definitionField) {
+		VocabTermCache termCache, String idField, String termField, String synonymField, String definitionField,
+		String ancestorField) {
 			
+		// set of ancestor keys already added as facet values
+		Set<Integer> seenIt = new HashSet<Integer>();
+					
 		if (annotatedTerms.containsKey(featureKey)) {
 			for (Integer termKey : annotatedTerms.get(featureKey).toArray(new Integer[0])) {
 				VocabTerm term = termCache.getTerm(termKey);
@@ -347,6 +353,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 							}
 						}
 					}
+					
+					if ((ancestorField != null) && this.highLevelTerms.containsKey(termKey)) {
+						for (Integer ancestorKey : this.highLevelTerms.get(termKey)) {
+							if (!seenIt.contains(ancestorKey)) {
+								VocabTerm ancestor = termCache.getTerm(ancestorKey);
+								if (ancestor != null) {
+									doc.addField(ancestorField, ancestor.getTerm());
+								}
+								seenIt.add(ancestorKey);
+							}
+						}
+					}
 				}
 			}
 		}
@@ -356,7 +374,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	 * Assumes cacheIDs, cacheLocations, and cacheSynonyms have been run for this featureType.
 	 */
 	private void processFeatures(String featureType) throws Exception {
-		logger.info(" - loading " + featureType);
+		logger.info(" - loading " + featureType + "s");
 		
 		String uriPrefix = uriPrefixes.get(featureType);
 
@@ -448,15 +466,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (MARKER.contentEquals(featureType)) {
 				addVocabAnnotations(doc, featureKey, goFunctionAnnotations, goFunctionCache,
 					IndexConstants.QS_FUNCTION_ANNOTATIONS_ID, IndexConstants.QS_FUNCTION_ANNOTATIONS_TERM,
-					IndexConstants.QS_FUNCTION_ANNOTATIONS_SYNONYM, IndexConstants.QS_FUNCTION_ANNOTATIONS_DEFINITION);
+					IndexConstants.QS_FUNCTION_ANNOTATIONS_SYNONYM, IndexConstants.QS_FUNCTION_ANNOTATIONS_DEFINITION,
+					IndexConstants.QS_GO_FUNCTION_FACETS);
 			
 				addVocabAnnotations(doc, featureKey, goProcessAnnotations, goProcessCache,
 					IndexConstants.QS_PROCESS_ANNOTATIONS_ID, IndexConstants.QS_PROCESS_ANNOTATIONS_TERM,
-					IndexConstants.QS_PROCESS_ANNOTATIONS_SYNONYM, IndexConstants.QS_PROCESS_ANNOTATIONS_DEFINITION);
+					IndexConstants.QS_PROCESS_ANNOTATIONS_SYNONYM, IndexConstants.QS_PROCESS_ANNOTATIONS_DEFINITION,
+					IndexConstants.QS_GO_PROCESS_FACETS);
 			
 				addVocabAnnotations(doc, featureKey, goComponentAnnotations, goComponentCache,
 					IndexConstants.QS_COMPONENT_ANNOTATIONS_ID, IndexConstants.QS_COMPONENT_ANNOTATIONS_TERM,
-					IndexConstants.QS_COMPONENT_ANNOTATIONS_SYNONYM, IndexConstants.QS_COMPONENT_ANNOTATIONS_DEFINITION);
+					IndexConstants.QS_COMPONENT_ANNOTATIONS_SYNONYM, IndexConstants.QS_COMPONENT_ANNOTATIONS_DEFINITION,
+					IndexConstants.QS_GO_COMPONENT_FACETS);
 			}
 			
 			// Add this doc to the batch we're collecting.  If the stack hits our
@@ -493,7 +514,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and (a.qualifier is null or a.qualifier != 'NOT') " + 
 				"and (a.evidence_code is null or a.evidence_code != 'ND')";
 			
-			ResultSet rs = ex.executeProto(cmd);
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
 			while (rs.next() ) {
 				Integer featureKey = rs.getInt("marker_key");
 				if (!map.containsKey(featureKey)) {
@@ -536,6 +557,26 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("finished " + featureType);
 	}
 	
+	// For each vocabulary term, we need to know what its high-level ancestors (aka- slim terms) are, so
+	// look them up and cache them.
+	private void cacheHighLevelTerms() throws SQLException {
+		this.highLevelTerms = new HashMap<Integer,Set<Integer>>();
+		
+		String cmd = "select term_key, header_term_key from term_to_header"; 
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next() ) {
+			Integer termKey = rs.getInt("term_key");
+			if (!highLevelTerms.containsKey(termKey)) {
+				this.highLevelTerms.put(termKey, new HashSet<Integer>());
+			}
+			this.highLevelTerms.get(termKey).add(rs.getInt("header_term_key"));
+		}
+		rs.close();
+		
+		logger.info("Cached ancestors of " + this.highLevelTerms.size() + " terms");
+	}
+	
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
@@ -546,6 +587,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		this.goFunctionCache = new VocabTermCache("Function", ex);
 		this.goProcessCache = new VocabTermCache("Process", ex);
 		this.goComponentCache = new VocabTermCache("Component", ex);
+		this.cacheHighLevelTerms();
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processFeatureType(MARKER);
