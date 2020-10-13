@@ -141,7 +141,7 @@ public abstract class Indexer implements Runnable {
 		
 		commit(true);
 		if (!this.skipOptimizer) {
-			optimize(true);
+			optimize(false);
 		}
 		logger.info("Solr Documents are flushed to the server shuting down: " + solrIndexName);
 		client.close();
@@ -153,12 +153,8 @@ public abstract class Indexer implements Runnable {
 	
 	public void optimize(boolean wait) {
 		try {
-			logger.info("Waiting for Solr Optimize");
-			if(wait) {
-				client.optimize(wait, wait);
-			} else {
-				client.optimize();
-			}
+			logger.info("Beginning Solr Optimize (wait = " + wait + ")");
+			client.optimize(wait, wait);
 		} catch (SolrServerException | IOException e) {
 			logger.info("Exception in optimize");
 			e.printStackTrace();
