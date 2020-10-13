@@ -88,6 +88,17 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		termPrefixes.put(GO_CC, "Function");
 	}
 	
+	// which field to use for faceting a given DAG/vocab
+	private static Map<String,String> facetFields;
+	static {
+		facetFields = new HashMap<String,String>();
+		facetFields.put(GO_MP, IndexConstants.QS_GO_PROCESS_FACETS);
+		facetFields.put(GO_CC, IndexConstants.QS_GO_COMPONENT_FACETS);
+		facetFields.put(GO_MF, IndexConstants.QS_GO_FUNCTION_FACETS);
+		facetFields.put(MP_VOCAB, IndexConstants.QS_PHENOTYPE_FACETS);
+		facetFields.put(DO_VOCAB, IndexConstants.QS_DISEASE_FACETS);
+	}
+	
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
@@ -100,6 +111,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private Map<Integer,List<String>> synonyms;			// term key : list of synonyms for term
 	private Map<Integer,Integer> annotationCount;		// term key : count of annotations
 	private Map<Integer,String> annotationLabel;		// term key : label for annotation link
+	private Map<Integer,List<String>> ancestorFacets;	// term key : list of ancestor terms for a facet
 	
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -113,6 +125,14 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	/*--- private methods ---*/
 	/*-----------------------*/
 
+	// get the field to use for faceting for the given DAG/vocab name
+	private String getFacetField(String vocabName) {
+		if (facetFields.containsKey(vocabName)) {
+			return facetFields.get(vocabName);
+		}
+		return null;
+	}
+	
 	// get the prefix of the URI for the detail page corresponding to the given vocabName; should just
 	// have to append the primary ID to get to the term's detail page
 	private String getUriPrefix(String vocabName) {
@@ -269,6 +289,34 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		logger.info(" - cached annotations for " + annotationCount.size() + " terms");
 	}
 	
+	/* Load the ancestor terms (aka- slim terms) that should be used for facets for the terms in the
+	 * specified 'vocabName'.
+	 */
+	private void cacheAncestorFacets(String vocabName) throws Exception {
+		logger.info(" - loading ancestor facets for " + vocabName);
+		ancestorFacets = new HashMap<Integer,List<String>>();
+
+		String cmd = "select t.term_key, a.term as header " + 
+			"from term t, term a, term_to_header h " + 
+			"where t.term_key = h.term_key " + 
+			"and h.header_term_key = a.term_key " + 
+			"and t.vocab_name = 'GO' ";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		while (rs.next()) {
+			Integer termKey = rs.getInt("term_key");
+			String header = rs.getString("header");
+			
+			if (!ancestorFacets.containsKey(termKey)) {
+				ancestorFacets.put(termKey, new ArrayList<String>());
+			}
+			ancestorFacets.get(termKey).add(header);
+		}
+		rs.close();
+		logger.info(" - cached ancestor facets for " + ancestorFacets.size() + " terms");
+	}
+	
 	/* Process the terms for the give vocabulary name, generating documents and sending them to Solr.
 	 * Assumes cacheIDs and cacheSynonyms have been run for this vocabulary.
 	 */
@@ -309,6 +357,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.QS_VOCAB_NAME, getTermPrefix(displayVocab));
 			doc.addField(IndexConstants.QS_TERM_TYPE, getTermType(vocabName));
 
+			String facetField = getFacetField(displayVocab);
+			if ((facetField != null) && ancestorFacets.containsKey(termKey)) {
+				doc.addField(facetField, ancestorFacets.get(termKey));
+			}
+			
 			if (uriPrefix != null) {
 				doc.addField(IndexConstants.QS_DETAIL_URI, uriPrefix + primaryID);
 			}
@@ -364,6 +417,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		cacheIDs(vocabName);
 		cacheSynonyms(vocabName);
 		cacheAnnotations(vocabName);
+		cacheAncestorFacets(vocabName);
 		processTerms(vocabName);
 		
 		logger.info("finished " + vocabName);
