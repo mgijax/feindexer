@@ -371,7 +371,6 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			docs.add(doc);
 			if (docs.size() >= solrBatchSize)  {
 				writeDocs(docs);
-				commit();			// extra commit to minimize the size of each one
 				docs = new ArrayList<SolrInputDocument>();
 			}
 		}
