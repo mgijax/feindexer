@@ -323,7 +323,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private void processTerms(String vocabName) throws Exception {
 		logger.info(" - loading terms for " + vocabName);
 		
-		String cmd = "select t.term_key, t.primary_id, t.term, s.by_default, t.vocab_name, "
+		String cmd = "select t.term_key, t.primary_id, t.term, s.by_default, t.vocab_name, t.definition, "
 			+ "    case when t.vocab_name = 'GO' then t.display_vocab_name "
 			+ "    else null end as dag_name "
 			+ "from term t, term_sequence_num s "
@@ -347,6 +347,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			String term = rs.getString("term");
 			String primaryID = rs.getString("primary_id");
 			String uriPrefix = getUriPrefix(vocabName);
+			String definition = rs.getString("definition");
 
 			// start building the solr document 
 			SolrInputDocument doc = new SolrInputDocument();
@@ -360,6 +361,10 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			String facetField = getFacetField(displayVocab);
 			if ((facetField != null) && ancestorFacets.containsKey(termKey)) {
 				doc.addField(facetField, ancestorFacets.get(termKey));
+			}
+			
+			if ((definition != null) && (definition.length() > 0)) {
+				doc.addField(IndexConstants.QS_DEFINITION, definition);
 			}
 			
 			if (uriPrefix != null) {
