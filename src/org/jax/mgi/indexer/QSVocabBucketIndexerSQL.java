@@ -356,6 +356,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			doc.addField(IndexConstants.QS_TERM, term);
 			doc.addField(IndexConstants.QS_SEQUENCE_NUM, rs.getInt("by_default"));
 			doc.addField(IndexConstants.QS_VOCAB_NAME, getTermPrefix(displayVocab));
+			doc.addField(IndexConstants.QS_RAW_VOCAB_NAME, displayVocab);
 			doc.addField(IndexConstants.QS_TERM_TYPE, getTermType(vocabName));
 
 			String facetField = getFacetField(displayVocab);
