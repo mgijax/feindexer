@@ -98,8 +98,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and i.private = 0";
 		} else {
 			cmd = "select i.allele_key as feature_key, i.acc_id " + 
-					"from allele_id i " + 
-					"where i.private = 0";
+					"from allele_id i, allele a " + 
+					"where i.private = 0 " +
+					"and i.allele_key = a.allele_key " +
+					"and a.is_wild_type = 0";
 		}
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -169,7 +171,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					"from marker_synonym s";
 		} else {
 			cmd = "select s.allele_key as feature_key, s.synonym " + 
-					"from allele_synonym s";
+					"from allele_synonym s, allele a " +
+					"where s.allele_key = a.allele_key " +
+					"and a.is_wild_type = 0";
 		}
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -225,7 +229,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"left outer join marker_location cyto on (m.marker_key = cyto.marker_key "
 				+ " and cyto.location_type = 'cytogenetic') " +
 				"left outer join marker_location cm on (m.marker_key = cm.marker_key "
-				+ " and cm.location_type = 'centimorgans')";
+				+ " and cm.location_type = 'centimorgans')" +
+				"where a.is_wild_type = 0";
 		}
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -401,6 +406,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"from allele a, allele_sequence_num s, marker_to_allele mta, marker m " + 
 				"where a.allele_key = s.allele_key " +
 				"and a.allele_key = mta.allele_key " +
+				"and a.is_wild_type = 0 " +
 				"and mta.marker_key = m.marker_key";
 		}
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
