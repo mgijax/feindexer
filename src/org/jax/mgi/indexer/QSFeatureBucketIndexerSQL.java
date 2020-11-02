@@ -153,12 +153,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + ct + " protein domains for " + proteinDomains.size() + " " + featureType + "s");
 	}
 	
-	/* Cache all synonyms for the given feature type (markers or alleles), populating the synonyms object.
+	/* Cache and return all synonyms for the given feature type (markers or alleles), populating the synonyms object.
+	 * Note that this caching method is different from the others in that it does not directly modify the object's
+	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
+	 * with alleles.
 	 */
-	private void cacheSynonyms(String featureType) throws Exception {
+	private Map<Integer,List<String>> cacheSynonyms(String featureType) throws Exception {
 		logger.info(" - caching synonyms for " + featureType);
 		
-		synonyms = new HashMap<Integer,List<String>>();
+		HashMap<Integer,List<String>> mySynonyms = new HashMap<Integer,List<String>>();
 		
 		String cmd;
 		if (MARKER.equals(featureType)) {
@@ -178,14 +181,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			Integer featureKey = rs.getInt("feature_key");
 			String synonym = rs.getString("synonym");
 			
-			if (!synonyms.containsKey(featureKey)) {
-				synonyms.put(featureKey, new ArrayList<String>());
+			if (!mySynonyms.containsKey(featureKey)) {
+				mySynonyms.put(featureKey, new ArrayList<String>());
 			}
-			synonyms.get(featureKey).add(synonym);
+			mySynonyms.get(featureKey).add(synonym);
 		}
 		rs.close();
 
-		logger.info(" - cached " + ct + " synonyms for " + synonyms.size() + " " + featureType + "s");
+		logger.info(" - cached " + ct + " synonyms for " + mySynonyms.size() + " " + featureType + "s");
+		return mySynonyms;
 	}
 	
 	/* cache the chromosomes, coordinates, and strands for objects of the given feature type
@@ -376,6 +380,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private void processFeatures(String featureType) throws Exception {
 		logger.info(" - loading " + featureType + "s");
 		
+		Map<Integer,List<String>> markerSynonyms = null;
+		if (ALLELE.equals(featureType)) {
+			markerSynonyms = cacheSynonyms(MARKER);
+		}
+
 		String uriPrefix = uriPrefixes.get(featureType);
 
 		String cmd;
@@ -388,9 +397,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and m.status = 'official'";
 		} else {
 			cmd = "select a.allele_key as feature_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
-					"s.by_symbol as sequence_num " +
-				"from allele a, allele_sequence_num s " + 
-				"where a.allele_key = s.allele_key";
+					"s.by_symbol as sequence_num, m.symbol as marker_symbol, m.name as marker_name " +
+				"from allele a, allele_sequence_num s, marker_to_allele mta, marker m " + 
+				"where a.allele_key = s.allele_key " +
+				"and a.allele_key = mta.allele_key " +
+				"and mta.marker_key = m.marker_key";
 		}
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
@@ -432,6 +443,17 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 			
+			// For alleles, we also need to consider the nomenclature of each one's associated marker.
+			if (ALLELE.equals(featureType)) { 
+				doc.addField(IndexConstants.QS_MARKER_SYMBOL, rs.getString("marker_symbol"));
+				doc.addField(IndexConstants.QS_MARKER_NAME, rs.getString("marker_name"));
+				if ((markerSynonyms != null) && (markerSynonyms.containsKey(featureKey))) {
+					for (String s : markerSynonyms.get(featureKey)) {
+						doc.addField(IndexConstants.QS_MARKER_SYNONYM, s);
+					}
+				}
+			}
+		
 			if (chromosome.containsKey(featureKey)) {
 				doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(featureKey));
 			}
@@ -535,7 +557,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("beginning " + featureType);
 		
 		cacheIDs(featureType);
-		cacheSynonyms(featureType);
+		this.synonyms = cacheSynonyms(featureType);
 		cacheLocations(featureType);
 		cacheOrthologNomenclature(featureType);
 		cacheProteinDomains(featureType);
