@@ -192,6 +192,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				allIDs.put(termKey, new ArrayList<String>());
 			}
 			allIDs.get(termKey).add(id);
+			
+			// For OMIM IDs we also need to index it without the prefix.
+			if (id.startsWith("OMIM:")) {
+				allIDs.get(termKey).add(id.replaceAll("OMIM:", ""));
+			}
 		}
 		rs.close();
 		
