@@ -35,6 +35,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int NAME_WEIGHT = 85;
 	private static int MARKER_SYMBOL_WEIGHT = 80;
 	private static int MARKER_NAME_WEIGHT = 75;
+	private static int SYNONYM_WEIGHT = 70;
+	private static int MARKER_SYNONYM_WEIGHT = 65;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -60,9 +62,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private long uniqueKey = 0;						// ascending counter of documents created
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
-	private int maxMarkerSeqNum = -1;				// maximum sequence num assigned to markers
-
-	private Map<Integer,List<String>> synonyms;		// marker or allele key : list of synonyms
 
 	private Map<Integer,Set<String>> orthologNomenOrg;		// marker key : set of "<organism & term type>:<term>"
 	private Map<Integer,Set<String>> orthologNomen;			// marker key : set of just symbols, names, synonyms across all organisms
@@ -298,7 +297,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
 	 * with alleles.
 	 */
-/*	private Map<Integer,List<String>> cacheSynonyms(String featureType) throws Exception {
+	private Map<Integer,List<String>> cacheSynonyms(String featureType) throws Exception {
 		logger.info(" - caching synonyms for " + featureType);
 		
 		HashMap<Integer,List<String>> mySynonyms = new HashMap<Integer,List<String>>();
@@ -333,7 +332,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + ct + " synonyms for " + mySynonyms.size() + " " + featureType + "s");
 		return mySynonyms;
 	}
-*/	
+
 	/* Cache searchable nomenclature (symbol, name, synonyms) for orthologous markers in non-mouse organisms.
 	 */
 /*	private void cacheOrthologNomenclature(String featureType) throws Exception {
@@ -462,28 +461,51 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 	}
 	
+	// Retrieve synonyms, create documents, and index them.  For markers, do marker synonyms.  For alleles, do both
+	// marker synonyms and allele synonyms.
 	private void indexSynonyms(String featureType) throws Exception {
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 
-/*		Map<Integer,List<String>> markerSynonyms = null;
-		if (ALLELE.equals(featureType)) {
-			markerSynonyms = cacheSynonyms(MARKER);
-		}
-			// TODO -- marker synonyms for alleles
-
-		// TBD
-			if (synonyms.containsKey(featureKey)) {
-				for (String s : synonyms.get(featureKey)) {
-					doc.addField(IndexConstants.QS_SYNONYM, s);
+		// used for either allele synonyms or marker synonyms, depending on featureType
+		Map<Integer,List<String>> mySynonyms = cacheSynonyms(featureType);
+		
+		// Both markers and alleles have directly-associated synonyms.
+		for (Integer featureKey : mySynonyms.keySet()) {
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				for (String synonym : mySynonyms.get(featureKey)) {
+					addDoc(buildDoc(feature, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
 				}
 			}
-*/			
-	}
+		}
+		logger.info("Indexed synonyms for " + mySynonyms.size() + " " + featureType + "s");
+		
+		// Alleles should also be indexed for the synonyms of their respective markers.
+		if (ALLELE.contentEquals(featureType)) {
+			// used for marker synonyms when the featureType is for alleles
+			Map<Integer,List<String>> markerSynonyms = cacheSynonyms(MARKER);
 
-	
-	
-	
-	
+			String cmd = "select a.allele_key, m.marker_key " + 
+				"from allele a, marker_to_allele m " + 
+				"where a.allele_key = m.allele_key " + 
+				"and a.is_wild_type = 0";
+		
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next()) {
+				Integer alleleKey = rs.getInt("allele_key");
+				Integer markerKey = rs.getInt("marker_key");
+				
+				if (markerSynonyms.containsKey(markerKey)) {
+					QSFeature feature = features.get(alleleKey);
+					for (String synonym : markerSynonyms.get(markerKey)) {
+						addDoc(buildDoc(feature, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+					}
+				}
+			}
+			rs.close();
+			logger.info("Indexed marker synonyms for alleles");
+		}
+	}
 	
 	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
 	 * Assumes cacheLocations has been run for this featureType.
@@ -653,12 +675,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		cacheLocations(featureType);
 		buildInitialDocs(featureType);
 		indexIDs(featureType);
-
-/*		indexSynonyms(featureType);
+		indexSynonyms(featureType);
+/*		
 		indexOrthologNomenclature(featureType);
 		indexProteinDomains(featureType);
 		
-		this.synonyms = cacheSynonyms(featureType);
 		cacheOrthologNomenclature(featureType);
 		cacheProteinDomains(featureType);
 
