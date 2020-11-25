@@ -30,10 +30,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	// weights to prioritize different types of search terms / IDs
 	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int SYMBOL_WEIGHT = 95;
-	private static int NAME_WEIGHT = 90;
-	private static int MARKER_SYMBOL_WEIGHT = 85;
-	private static int MARKER_NAME_WEIGHT = 80;
+	private static int SECONDARY_ID_WEIGHT = 95;
+	private static int SYMBOL_WEIGHT = 90;
+	private static int NAME_WEIGHT = 85;
+	private static int MARKER_SYMBOL_WEIGHT = 80;
+	private static int MARKER_NAME_WEIGHT = 75;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -61,7 +62,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
 	private int maxMarkerSeqNum = -1;				// maximum sequence num assigned to markers
 
-	private Map<Integer,List<String>> allIDs;		// marker or allele key : list of all IDs
 	private Map<Integer,List<String>> synonyms;		// marker or allele key : list of synonyms
 
 	private Map<Integer,Set<String>> orthologNomenOrg;		// marker key : set of "<organism & term type>:<term>"
@@ -213,26 +213,27 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + ct + " locations for " + chromosome.size() + " " + featureType + "s");
 	}
 	
-	/* Cache accession IDs for the given feature type (marker or allele), populating the allIDs object.
-	 */
-/*	private void cacheIDs(String featureType) throws Exception {
-		logger.info(" - caching IDs for " + featureType);
+	// Load accession IDs for the given feature type (marker or allele) and create Solr documents for them.
+	private void indexIDs(String featureType) throws Exception {
+		logger.info(" - indexing IDs for " + featureType);
+		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 
-		allIDs = new HashMap<Integer,List<String>>();
 		String cmd;
 		
 		if (MARKER.equals(featureType)) {
-			cmd = "select i.marker_key as feature_key, i.acc_id " + 
+			cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db " + 
 				"from marker m, marker_id i " + 
 				"where m.marker_key = i.marker_key " + 
 				"and m.status = 'official' " + 
 				"and m.organism = 'mouse' " + 
+				"and m.primary_id != i.acc_id " +
 				"and i.private = 0";
 		} else {
-			cmd = "select i.allele_key as feature_key, i.acc_id " + 
+			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db " + 
 					"from allele_id i, allele a " + 
 					"where i.private = 0 " +
 					"and i.allele_key = a.allele_key " +
+					"and a.primary_id != i.acc_id " +
 					"and a.is_wild_type = 0";
 		}
 
@@ -243,17 +244,22 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			ct++;
 			Integer featureKey = rs.getInt("feature_key");
 			String id = rs.getString("acc_id");
+			String logicalDB = rs.getString("logical_db");
 			
-			if (!allIDs.containsKey(featureKey)) {
-				allIDs.put(featureKey, new ArrayList<String>());
+			if (id.startsWith(logicalDB)) {
+				logicalDB = "ID";
 			}
-			allIDs.get(featureKey).add(id);
+
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, id, null, id, logicalDB, SECONDARY_ID_WEIGHT));
+			}
 		}
 		rs.close();
 		
-		logger.info(" - cached " + ct + " IDs for " + allIDs.size() + " " + featureType + "s");
+		logger.info(" - indexed " + ct + " IDs for " + featureType + "s");
 	}
-*/	
+
 	/* Cache protein domain annotations for markers, populating the proteinDomains object.  If feature type
 	 * is for alleles, just skip this.
 	 */
@@ -603,7 +609,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		rs.close();
 
-		logger.info("done processing " + i + " " + featureType + "s");
+		logger.info("done with basic data for " + i + " " + featureType + "s");
 	}
 	
 	/* Load annotations to vocab terms from the given feature type, then populate and return a cache such
@@ -646,13 +652,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 		cacheLocations(featureType);
 		buildInitialDocs(featureType);
+		indexIDs(featureType);
 
 /*		indexSynonyms(featureType);
-		indexIDs(featureType);
 		indexOrthologNomenclature(featureType);
 		indexProteinDomains(featureType);
 		
-		cacheIDs(featureType);
 		this.synonyms = cacheSynonyms(featureType);
 		cacheOrthologNomenclature(featureType);
 		cacheProteinDomains(featureType);
