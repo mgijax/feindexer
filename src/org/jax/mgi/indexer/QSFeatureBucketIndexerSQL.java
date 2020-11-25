@@ -16,7 +16,8 @@ import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
 
 /* Is: an indexer that builds the index supporting the quick search's feature (marker + allele) bucket (aka- bucket 1).
- * 		Each document in the index represents data for a single marker or allele.
+ * 		Each document in the index represents a single searchable data element (e.g.- symbol, name, synonym, annotated
+ * 		term, etc.) for a marker or allele.
  */
 public class QSFeatureBucketIndexerSQL extends Indexer {
 
@@ -24,10 +25,17 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	/*--- class variables ---*/
 	/*--------------------------*/
 
-	private static String MARKER = "marker";	// name of InterPro Domains vocabulary
-	private static String ALLELE = "allele";	// name of InterPro Domains vocabulary
+	private static String MARKER = "marker";	// used to indicate we are currently working with markers
+	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
-	// what to add between base fewi URL and marker or allele ID, to link directly to a detail page
+	// weights to prioritize different types of search terms / IDs
+	private static int PRIMARY_ID_WEIGHT = 100;
+	private static int SYMBOL_WEIGHT = 95;
+	private static int NAME_WEIGHT = 90;
+	private static int MARKER_SYMBOL_WEIGHT = 85;
+	private static int MARKER_NAME_WEIGHT = 80;
+	
+	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
 	static {
 		uriPrefixes = new HashMap<String,String>();
@@ -35,21 +43,27 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		uriPrefixes.put(ALLELE, "/allele/");
 	}
 
+	public static Map<Integer, QSFeature> features;			// marker or allele key : QSFeature object
+
+	public static Map<Integer,String> chromosome;			// marker or allele key : chromosome
+	public static Map<Integer,String> startCoord;			// marker or allele key : start coordinate
+	public static Map<Integer,String> endCoord;				// marker or allele key : end coordinate
+	public static Map<Integer,String> strand;				// marker or allele key : strand
+	
 	/*--------------------------*/
 	/*--- instance variables ---*/
 	/*--------------------------*/
 
+	private Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
+
+	private long uniqueKey = 0;						// ascending counter of documents created
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
+	private int maxMarkerSeqNum = -1;				// maximum sequence num assigned to markers
 
 	private Map<Integer,List<String>> allIDs;		// marker or allele key : list of all IDs
 	private Map<Integer,List<String>> synonyms;		// marker or allele key : list of synonyms
 
-	private Map<Integer,String> chromosome;			// marker or allele key : chromosome
-	private Map<Integer,String> startCoord;			// marker or allele key : start coordinate
-	private Map<Integer,String> endCoord;			// marker or allele key : end coordinate
-	private Map<Integer,String> strand;				// marker or allele key : strand
-	
 	private Map<Integer,Set<String>> orthologNomenOrg;		// marker key : set of "<organism & term type>:<term>"
 	private Map<Integer,Set<String>> orthologNomen;			// marker key : set of just symbols, names, synonyms across all organisms
 	
@@ -81,119 +95,59 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	/*--- private methods ---*/
 	/*-----------------------*/
 
-	/* Cache accession IDs for the given feature type (marker or allele), populating the allIDs object.
-	 */
-	private void cacheIDs(String featureType) throws Exception {
-		logger.info(" - caching IDs for " + featureType);
-
-		allIDs = new HashMap<Integer,List<String>>();
-		String cmd;
-		
-		if (MARKER.equals(featureType)) {
-			cmd = "select i.marker_key as feature_key, i.acc_id " + 
-				"from marker m, marker_id i " + 
-				"where m.marker_key = i.marker_key " + 
-				"and m.status = 'official' " + 
-				"and m.organism = 'mouse' " + 
-				"and i.private = 0";
-		} else {
-			cmd = "select i.allele_key as feature_key, i.acc_id " + 
-					"from allele_id i, allele a " + 
-					"where i.private = 0 " +
-					"and i.allele_key = a.allele_key " +
-					"and a.is_wild_type = 0";
+	// Add this doc to the batch we're collecting.  If the stack hits our threshold, send it to the server and reset it.
+	private void addDoc(SolrInputDocument doc) {
+		docs.add(doc);
+		if (docs.size() >= solrBatchSize)  {
+			writeDocs(docs);
+			docs = new ArrayList<SolrInputDocument>();
 		}
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of IDs processed
-		while (rs.next()) {
-			ct++;
-			Integer featureKey = rs.getInt("feature_key");
-			String id = rs.getString("acc_id");
-			
-			if (!allIDs.containsKey(featureKey)) {
-				allIDs.put(featureKey, new ArrayList<String>());
-			}
-			allIDs.get(featureKey).add(id);
-		}
-		rs.close();
-		
-		logger.info(" - cached " + ct + " IDs for " + allIDs.size() + " " + featureType + "s");
 	}
 	
-	/* Cache protein domain annotations for markers, populating the proteinDomains object.  If feature type
-	 * is for alleles, just skip this.
-	 */
-	private void cacheProteinDomains(String featureType) throws Exception {
-		proteinDomains = new HashMap<Integer,Set<String>>();
-		if (ALLELE.equals(featureType)) { return; }
+	// Build and return a new SolrInputDocument with the given fields filled in.
+	private SolrInputDocument buildDoc(QSFeature feature, String searchID, String searchTerm, String searchTermDisplay,
+			String searchTermType, Integer searchTermWeight) {
 
-		logger.info(" - caching protein domains for " + featureType);
-
-		String cmd = "select distinct m.marker_key as feature_key, a.term_id as primary_id, a.term "
-			+ "from annotation a, marker_to_annotation mta, marker m "
-			+ "where a.annotation_key = mta.annotation_key "
-			+ "and mta.marker_key = m.marker_key "
-			+ "and a.vocab_name = 'InterPro Domains' ";
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of terms processed
-		while (rs.next()) {
-			ct++;
-			Integer featureKey = rs.getInt("feature_key");
-			
-			if (!proteinDomains.containsKey(featureKey)) {
-				proteinDomains.put(featureKey, new HashSet<String>());
-			}
-			proteinDomains.get(featureKey).add(rs.getString("primary_id"));
-			proteinDomains.get(featureKey).add(rs.getString("term"));
-		}
-		rs.close();
-		
-		logger.info(" - cached " + ct + " protein domains for " + proteinDomains.size() + " " + featureType + "s");
+		SolrInputDocument doc = feature.getNewDocument();
+		if (searchID != null) { doc.addField(IndexConstants.QS_SEARCH_ID, searchID); }
+		if (searchTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM, searchTerm); }
+		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
+		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
+		return doc;
 	}
 	
-	/* Cache and return all synonyms for the given feature type (markers or alleles), populating the synonyms object.
-	 * Note that this caching method is different from the others in that it does not directly modify the object's
-	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
-	 * with alleles.
-	 */
-	private Map<Integer,List<String>> cacheSynonyms(String featureType) throws Exception {
-		logger.info(" - caching synonyms for " + featureType);
-		
-		HashMap<Integer,List<String>> mySynonyms = new HashMap<Integer,List<String>>();
-		
-		String cmd;
-		if (MARKER.equals(featureType)) {
-			cmd = "select s.marker_key as feature_key, s.synonym " + 
-					"from marker_synonym s";
-		} else {
-			cmd = "select s.allele_key as feature_key, s.synonym " + 
-					"from allele_synonym s, allele a " +
-					"where s.allele_key = a.allele_key " +
-					"and a.is_wild_type = 0";
-		}
-		
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of synonyms processed
-		while (rs.next()) {
-			ct++;
-
-			Integer featureKey = rs.getInt("feature_key");
-			String synonym = rs.getString("synonym");
-			
-			if (!mySynonyms.containsKey(featureKey)) {
-				mySynonyms.put(featureKey, new ArrayList<String>());
-			}
-			mySynonyms.get(featureKey).add(synonym);
+	// get the maximum sequence number assigned to markers
+	private long getMaxMarkerSequenceNum() throws Exception {
+		String cmd = "select max(by_symbol) as max_seq_num from marker_sequence_num";
+		ResultSet rs = ex.executeProto(cmd);
+		long maxSeqNum = 0;
+		if (rs.next()) {  
+			maxSeqNum = rs.getLong("max_seq_num");
 		}
 		rs.close();
+		logger.info("Got max marker seq num = " + maxSeqNum);
+		return maxSeqNum;
+	}
+	// For each vocabulary term, we need to know what its high-level ancestors (aka- slim terms) are, so
+	// look them up and cache them.
+	private void cacheHighLevelTerms() throws SQLException {
+		this.highLevelTerms = new HashMap<Integer,Set<Integer>>();
+		
+		String cmd = "select term_key, header_term_key from term_to_header"; 
 
-		logger.info(" - cached " + ct + " synonyms for " + mySynonyms.size() + " " + featureType + "s");
-		return mySynonyms;
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next() ) {
+			Integer termKey = rs.getInt("term_key");
+			if (!highLevelTerms.containsKey(termKey)) {
+				this.highLevelTerms.put(termKey, new HashSet<Integer>());
+			}
+			this.highLevelTerms.get(termKey).add(rs.getInt("header_term_key"));
+		}
+		rs.close();
+		
+		logger.info("Cached ancestors of " + this.highLevelTerms.size() + " terms");
 	}
 	
 	/* cache the chromosomes, coordinates, and strands for objects of the given feature type
@@ -259,9 +213,124 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + ct + " locations for " + chromosome.size() + " " + featureType + "s");
 	}
 	
+	/* Cache accession IDs for the given feature type (marker or allele), populating the allIDs object.
+	 */
+/*	private void cacheIDs(String featureType) throws Exception {
+		logger.info(" - caching IDs for " + featureType);
+
+		allIDs = new HashMap<Integer,List<String>>();
+		String cmd;
+		
+		if (MARKER.equals(featureType)) {
+			cmd = "select i.marker_key as feature_key, i.acc_id " + 
+				"from marker m, marker_id i " + 
+				"where m.marker_key = i.marker_key " + 
+				"and m.status = 'official' " + 
+				"and m.organism = 'mouse' " + 
+				"and i.private = 0";
+		} else {
+			cmd = "select i.allele_key as feature_key, i.acc_id " + 
+					"from allele_id i, allele a " + 
+					"where i.private = 0 " +
+					"and i.allele_key = a.allele_key " +
+					"and a.is_wild_type = 0";
+		}
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of IDs processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("feature_key");
+			String id = rs.getString("acc_id");
+			
+			if (!allIDs.containsKey(featureKey)) {
+				allIDs.put(featureKey, new ArrayList<String>());
+			}
+			allIDs.get(featureKey).add(id);
+		}
+		rs.close();
+		
+		logger.info(" - cached " + ct + " IDs for " + allIDs.size() + " " + featureType + "s");
+	}
+*/	
+	/* Cache protein domain annotations for markers, populating the proteinDomains object.  If feature type
+	 * is for alleles, just skip this.
+	 */
+/*	private void cacheProteinDomains(String featureType) throws Exception {
+		proteinDomains = new HashMap<Integer,Set<String>>();
+		if (ALLELE.equals(featureType)) { return; }
+
+		logger.info(" - caching protein domains for " + featureType);
+
+		String cmd = "select distinct m.marker_key as feature_key, a.term_id as primary_id, a.term "
+			+ "from annotation a, marker_to_annotation mta, marker m "
+			+ "where a.annotation_key = mta.annotation_key "
+			+ "and mta.marker_key = m.marker_key "
+			+ "and a.vocab_name = 'InterPro Domains' ";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of terms processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("feature_key");
+			
+			if (!proteinDomains.containsKey(featureKey)) {
+				proteinDomains.put(featureKey, new HashSet<String>());
+			}
+			proteinDomains.get(featureKey).add(rs.getString("primary_id"));
+			proteinDomains.get(featureKey).add(rs.getString("term"));
+		}
+		rs.close();
+		
+		logger.info(" - cached " + ct + " protein domains for " + proteinDomains.size() + " " + featureType + "s");
+	}
+*/	
+	/* Cache and return all synonyms for the given feature type (markers or alleles), populating the synonyms object.
+	 * Note that this caching method is different from the others in that it does not directly modify the object's
+	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
+	 * with alleles.
+	 */
+/*	private Map<Integer,List<String>> cacheSynonyms(String featureType) throws Exception {
+		logger.info(" - caching synonyms for " + featureType);
+		
+		HashMap<Integer,List<String>> mySynonyms = new HashMap<Integer,List<String>>();
+		
+		String cmd;
+		if (MARKER.equals(featureType)) {
+			cmd = "select s.marker_key as feature_key, s.synonym " + 
+					"from marker_synonym s";
+		} else {
+			cmd = "select s.allele_key as feature_key, s.synonym " + 
+					"from allele_synonym s, allele a " +
+					"where s.allele_key = a.allele_key " +
+					"and a.is_wild_type = 0";
+		}
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of synonyms processed
+		while (rs.next()) {
+			ct++;
+
+			Integer featureKey = rs.getInt("feature_key");
+			String synonym = rs.getString("synonym");
+			
+			if (!mySynonyms.containsKey(featureKey)) {
+				mySynonyms.put(featureKey, new ArrayList<String>());
+			}
+			mySynonyms.get(featureKey).add(synonym);
+		}
+		rs.close();
+
+		logger.info(" - cached " + ct + " synonyms for " + mySynonyms.size() + " " + featureType + "s");
+		return mySynonyms;
+	}
+*/	
 	/* Cache searchable nomenclature (symbol, name, synonyms) for orthologous markers in non-mouse organisms.
 	 */
-	private void cacheOrthologNomenclature(String featureType) throws Exception {
+/*	private void cacheOrthologNomenclature(String featureType) throws Exception {
 		orthologNomen = new HashMap<Integer,Set<String>>();
 		orthologNomenOrg = new HashMap<Integer,Set<String>>();
 
@@ -325,8 +394,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		logger.info(" - cached " + i + " ortholog nomen terms for " + orthologNomen.size() + " " + featureType + "s");
 	}
-	
-	private void addVocabAnnotations(SolrInputDocument doc, Integer featureKey, Map<Integer,Set<Integer>> annotatedTerms,
+*/	
+/*	private void addVocabAnnotations(SolrInputDocument doc, Integer featureKey, Map<Integer,Set<Integer>> annotatedTerms,
 		VocabTermCache termCache, String idField, String termField, String synonymField, String definitionField,
 		String ancestorField) {
 			
@@ -378,20 +447,52 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			}
 		}
 	}
-			
-	/* Process the features of the given type, generating documents and sending them to Solr.
-	 * Assumes cacheIDs, cacheLocations, and cacheSynonyms have been run for this featureType.
-	 */
-	private void processFeatures(String featureType) throws Exception {
-		logger.info(" - loading " + featureType + "s");
+*/			
+	
+	
+	
+	private void indexAnnotations(String featureType) throws Exception {
+		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 		
-		Map<Integer,List<String>> markerSynonyms = null;
+	}
+	
+	private void indexSynonyms(String featureType) throws Exception {
+		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
+
+/*		Map<Integer,List<String>> markerSynonyms = null;
 		if (ALLELE.equals(featureType)) {
 			markerSynonyms = cacheSynonyms(MARKER);
 		}
+			// TODO -- marker synonyms for alleles
 
-		String uriPrefix = uriPrefixes.get(featureType);
+		// TBD
+			if (synonyms.containsKey(featureKey)) {
+				for (String s : synonyms.get(featureKey)) {
+					doc.addField(IndexConstants.QS_SYNONYM, s);
+				}
+			}
+*/			
+	}
 
+	
+	
+	
+	
+	
+	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
+	 * Assumes cacheLocations has been run for this featureType.
+	 */
+	private void buildInitialDocs(String featureType) throws Exception {
+		logger.info(" - loading " + featureType + "s");
+
+/*		Map<Integer, Set<String>> goProcessFacetCache = this.getAnnotationFacets();
+		Map<Integer, Set<String>> goFunctionFacetCache = this.getAnnotationFacets();
+		Map<Integer, Set<String>> goComponentFacetCache = this.getAnnotationFacets();
+*/		
+		this.features = new HashMap<Integer,QSFeature>();
+		
+		long padding = 0;	// amount of initial padding before sequence numbers should begin
+		
 		String cmd;
 		if (MARKER.equals(featureType)) { 
 			cmd = "select m.marker_key as feature_key, m.primary_id, m.symbol, m.name, m.marker_subtype as subtype, " + 
@@ -408,71 +509,61 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and a.allele_key = mta.allele_key " +
 				"and a.is_wild_type = 0 " +
 				"and mta.marker_key = m.marker_key";
+
+			// Start allele sequence numbers after marker ones, so we prefer markers to alleles in each star-tier of returns.
+			padding = getMaxMarkerSequenceNum();
 		}
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
 		int i = 0;		// counter and sequence number for terms
-		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		while (rs.next())  {  
 			i++;
 			Integer featureKey = rs.getInt("feature_key");
 
-			// start building the solr document 
-			SolrInputDocument doc = new SolrInputDocument();
-
-			doc.addField(IndexConstants.QS_PRIMARY_ID, rs.getString("primary_id"));
-			doc.addField(IndexConstants.QS_SYMBOL, rs.getString("symbol"));
-			doc.addField(IndexConstants.QS_NAME, rs.getString("name"));
-			doc.addField(IndexConstants.QS_SEQUENCE_NUM, rs.getInt("sequence_num"));
-			doc.addField(IndexConstants.QS_FEATURE_TYPE, rs.getString("subtype"));
-
+			//--- prepare the new feature object
+			
+			QSFeature feature = new QSFeature(featureKey);
+			features.put(featureKey, feature);
+			
+			feature.primaryID = rs.getString("primary_id");
+			feature.symbol = rs.getString("symbol");
+			feature.name = rs.getString("name");
+			feature.sequenceNum = padding + rs.getLong("sequence_num");	
+			feature.featureType = rs.getString("subtype");
+			
 			if (MARKER.equals(featureType)) {
-				doc.addField(IndexConstants.QS_IS_MARKER, 1);		// feature is a marker
+				feature.isMarker = 1;
 			} else {
-				doc.addField(IndexConstants.QS_IS_MARKER, 0);		// feature is an allele
+				feature.isMarker = 0;
 			}
 			
-			if (uriPrefix != null) {
-				doc.addField(IndexConstants.QS_DETAIL_URI, uriPrefix + rs.getString("primary_id"));
-			}
+/*			if (goProcessFacetCache.containsKey(featureKey)) { feature.goProcessFacets = goProcessFacetCache.get(featureKey); }
+			if (goFunctionFacetCache.containsKey(featureKey)) { feature.goFunctionFacets = goFunctionFacetCache.get(featureKey); }
+			if (goComponentFacetCache.containsKey(featureKey)) { feature.goComponentFacets = goComponentFacetCache.get(featureKey); }
+*/			
+			// TODO -- add when constructing QSFeature object
+			// public List<String> diseaseFacets;
+			// public List<String> phenotypeFacets;
+			// public List<String> markerTypeFacets;
 
-			if (allIDs.containsKey(featureKey)) {
-				for (String id : allIDs.get(featureKey)) {
-					doc.addField(IndexConstants.QS_ACC_ID, id);
-				}
-			}
+			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
-			if (synonyms.containsKey(featureKey)) {
-				for (String s : synonyms.get(featureKey)) {
-					doc.addField(IndexConstants.QS_SYNONYM, s);
-				}
-			}
-			
+			addDoc(buildDoc(feature, feature.primaryID, null, feature.primaryID, "ID", PRIMARY_ID_WEIGHT));
+			addDoc(buildDoc(feature, null, feature.symbol, feature.symbol, "Symbol", SYMBOL_WEIGHT));
+			addDoc(buildDoc(feature, null, feature.name, feature.name, "Name", NAME_WEIGHT));
+
 			// For alleles, we also need to consider the nomenclature of each one's associated marker.
 			if (ALLELE.equals(featureType)) { 
-				doc.addField(IndexConstants.QS_MARKER_SYMBOL, rs.getString("marker_symbol"));
-				doc.addField(IndexConstants.QS_MARKER_NAME, rs.getString("marker_name"));
-				if ((markerSynonyms != null) && (markerSynonyms.containsKey(featureKey))) {
-					for (String s : markerSynonyms.get(featureKey)) {
-						doc.addField(IndexConstants.QS_MARKER_SYNONYM, s);
-					}
-				}
+				String markerSymbol = rs.getString("marker_symbol");
+				String markerName = rs.getString("marker_name");
+				addDoc(buildDoc(feature, null, markerSymbol, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
+				addDoc(buildDoc(feature, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
 			}
 		
-			if (chromosome.containsKey(featureKey)) {
-				doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(featureKey));
-			}
-			
-			if (startCoord.containsKey(featureKey)) {
-				doc.addField(IndexConstants.QS_START_COORD, startCoord.get(featureKey));
-
-				if (endCoord.containsKey(featureKey)) {
-					doc.addField(IndexConstants.QS_END_COORD, endCoord.get(featureKey));
-				}
-
-				if (strand.containsKey(featureKey)) {
-					doc.addField(IndexConstants.QS_STRAND, strand.get(featureKey));
+/*			if (allIDs.containsKey(featureKey)) {
+				for (String id : allIDs.get(featureKey)) {
+					doc.addField(IndexConstants.QS_ACC_ID, id);
 				}
 			}
 			
@@ -507,18 +598,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					IndexConstants.QS_COMPONENT_ANNOTATIONS_SYNONYM, IndexConstants.QS_COMPONENT_ANNOTATIONS_DEFINITION,
 					IndexConstants.QS_GO_COMPONENT_FACETS);
 			}
-			
-			// Add this doc to the batch we're collecting.  If the stack hits our
-			// threshold, send it to the server and reset it.
-			docs.add(doc);
-			if (docs.size() >= solrBatchSize)  {
-				writeDocs(docs);
-				docs = new ArrayList<SolrInputDocument>();
-			}
+*/			
 		}
 
-		// any leftover docs to send to the server?  (likely yes)
-		writeDocs(docs);
 		rs.close();
 
 		logger.info("done processing " + i + " " + featureType + "s");
@@ -528,7 +610,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	 * that each feature key maps to all the term keys that are annotated to it (excluding NOT annotations
 	 * or those with a ND evidence code).
 	 */
-	private Map<Integer,Set<Integer>> cacheVocabAnnotations(String featureType, String annotType, String dagName) throws SQLException {
+/*	private Map<Integer,Set<Integer>> cacheVocabAnnotations(String featureType, String annotType, String dagName) throws SQLException {
 		Map<Integer,Set<Integer>> map = new HashMap<Integer,Set<Integer>>();
 		
 		if (MARKER.equals(featureType)) {
@@ -556,15 +638,22 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("Cached " + annotType + " annotations for " + map.size() + " " + featureType + "s");
 		return map;
 	}
-	
+*/	
 	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
 	private void processFeatureType(String featureType) throws Exception {
 		logger.info("beginning " + featureType);
 		
+		cacheLocations(featureType);
+		buildInitialDocs(featureType);
+
+/*		indexSynonyms(featureType);
+		indexIDs(featureType);
+		indexOrthologNomenclature(featureType);
+		indexProteinDomains(featureType);
+		
 		cacheIDs(featureType);
 		this.synonyms = cacheSynonyms(featureType);
-		cacheLocations(featureType);
 		cacheOrthologNomenclature(featureType);
 		cacheProteinDomains(featureType);
 
@@ -581,28 +670,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 
 		processFeatures(featureType);
-		
+*/		
 		logger.info("finished " + featureType);
-	}
-	
-	// For each vocabulary term, we need to know what its high-level ancestors (aka- slim terms) are, so
-	// look them up and cache them.
-	private void cacheHighLevelTerms() throws SQLException {
-		this.highLevelTerms = new HashMap<Integer,Set<Integer>>();
-		
-		String cmd = "select term_key, header_term_key from term_to_header"; 
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		while (rs.next() ) {
-			Integer termKey = rs.getInt("term_key");
-			if (!highLevelTerms.containsKey(termKey)) {
-				this.highLevelTerms.put(termKey, new HashSet<Integer>());
-			}
-			this.highLevelTerms.get(termKey).add(rs.getInt("header_term_key"));
-		}
-		rs.close();
-		
-		logger.info("Cached ancestors of " + this.highLevelTerms.size() + " terms");
 	}
 	
 	/*----------------------*/
@@ -621,7 +690,74 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		processFeatureType(MARKER);
 		processFeatureType(ALLELE);
 		
-		// commit all the changes to Solr
+		// send any remaining documents and commit all the changes to Solr
+		if (docs.size() > 0) {
+			writeDocs(docs);
+		}
 		commit();
+	}
+	
+	// private class for caching marker or allele data that will be re-used across multiple documents
+	private class QSFeature {
+		private Integer featureKey;
+		private Integer isMarker;
+		public String featureType;
+		public String symbol;
+		public String primaryID;
+		public String name;
+		public Long sequenceNum;
+		public Set<String> goProcessFacets;
+		public Set<String> goFunctionFacets;
+		public Set<String> goComponentFacets;
+		public Set<String> diseaseFacets;
+		public Set<String> phenotypeFacets;
+		public Set<String> markerTypeFacets;
+
+		// constructor
+		public QSFeature(Integer featureKey) {
+			this.featureKey = featureKey;
+		}
+		
+		// compose and return a new SolrInputDocument including the fields for this feature
+		public SolrInputDocument getNewDocument() {
+			SolrInputDocument doc = new SolrInputDocument();
+			String uriPrefix = null;
+
+			if (this.isMarker != null) {
+				doc.addField(IndexConstants.QS_IS_MARKER, this.isMarker);
+
+				if (this.isMarker.equals(1)) {
+					uriPrefix = uriPrefixes.get(MARKER);
+				} else {
+					uriPrefix = uriPrefixes.get(ALLELE);
+				}
+			}
+
+			if (this.primaryID != null) {
+				doc.addField(IndexConstants.QS_PRIMARY_ID, this.primaryID);
+				if (uriPrefix != null) {
+					doc.addField(IndexConstants.QS_DETAIL_URI, uriPrefix + this.primaryID);
+				}
+			}
+
+			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType); }
+			if (this.symbol != null) { doc.addField(IndexConstants.QS_SYMBOL, this.symbol); }
+			if (this.name != null) { doc.addField(IndexConstants.QS_NAME, this.name); }
+			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
+
+			if (chromosome.containsKey(this.featureKey)) { doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(featureKey)); }
+			if (startCoord.containsKey(this.featureKey)) { doc.addField(IndexConstants.QS_START_COORD, startCoord.get(featureKey)); }
+			if (endCoord.containsKey(this.featureKey)) { doc.addField(IndexConstants.QS_END_COORD, endCoord.get(featureKey)); }
+			if (strand.containsKey(this.featureKey)) { doc.addField(IndexConstants.QS_STRAND, strand.get(featureKey)); }
+				
+			if (this.goProcessFacets != null) { doc.addField(IndexConstants.QS_GO_PROCESS_FACETS, this.goProcessFacets); }
+			if (this.goFunctionFacets != null) { doc.addField(IndexConstants.QS_GO_FUNCTION_FACETS, this.goFunctionFacets); }
+			if (this.goComponentFacets != null) { doc.addField(IndexConstants.QS_GO_COMPONENT_FACETS, this.goComponentFacets); }
+			if (this.diseaseFacets != null) { doc.addField(IndexConstants.QS_DISEASE_FACETS, this.diseaseFacets); }
+			if (this.phenotypeFacets != null) { doc.addField(IndexConstants.QS_PHENOTYPE_FACETS, this.phenotypeFacets); }
+			if (this.markerTypeFacets != null) { doc.addField(IndexConstants.QS_MARKER_TYPE_FACETS, this.markerTypeFacets); }
+
+			return doc;
+		}
 	}
 }
