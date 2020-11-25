@@ -37,6 +37,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int MARKER_NAME_WEIGHT = 75;
 	private static int SYNONYM_WEIGHT = 70;
 	private static int MARKER_SYNONYM_WEIGHT = 65;
+	private static int PROTEIN_DOMAIN_WEIGHT = 60;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -72,7 +73,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
 	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
 	private Map<Integer,Set<String>> diseaseAnnotations;		// marker or allele key : annotated DO term, ID, synonym
-	private Map<Integer,Set<String>> proteinDomains;			// marker or allele key : annotated protein domains, ID (no synonyms)
 	private Map<Integer,Set<String>> gxdAnnotations;			// marker or allele key : annotated EMAPA structure, ID, synonym
 	private Map<Integer,Set<String>> gxdAnnotationsWithTS;		// marker or allele key : annotated EMAPA structure, ID, synonym, with TS prepended
 
@@ -259,14 +259,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " IDs for " + featureType + "s");
 	}
 
-	/* Cache protein domain annotations for markers, populating the proteinDomains object.  If feature type
-	 * is for alleles, just skip this.
-	 */
-/*	private void cacheProteinDomains(String featureType) throws Exception {
-		proteinDomains = new HashMap<Integer,Set<String>>();
+	// Index protein domain annotations for markers.  If feature type is for alleles, just skip this.
+	private void indexProteinDomains(String featureType) throws Exception {
 		if (ALLELE.equals(featureType)) { return; }
-
-		logger.info(" - caching protein domains for " + featureType);
+		logger.info(" - indexing protein domains for " + featureType);
 
 		String cmd = "select distinct m.marker_key as feature_key, a.term_id as primary_id, a.term "
 			+ "from annotation a, marker_to_annotation mta, marker m "
@@ -280,18 +276,20 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		while (rs.next()) {
 			ct++;
 			Integer featureKey = rs.getInt("feature_key");
+			String termID = rs.getString("primary_id");
+			String term = rs.getString("term");
 			
-			if (!proteinDomains.containsKey(featureKey)) {
-				proteinDomains.put(featureKey, new HashSet<String>());
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, termID, null, term + " (" + termID + ")", "Protein Domain", PROTEIN_DOMAIN_WEIGHT));
+				addDoc(buildDoc(feature, null, term, term, "Protein Domain", PROTEIN_DOMAIN_WEIGHT));
 			}
-			proteinDomains.get(featureKey).add(rs.getString("primary_id"));
-			proteinDomains.get(featureKey).add(rs.getString("term"));
 		}
 		rs.close();
 		
-		logger.info(" - cached " + ct + " protein domains for " + proteinDomains.size() + " " + featureType + "s");
+		logger.info(" - indexed " + ct + " protein domains for markers");
 	}
-*/	
+
 	/* Cache and return all synonyms for the given feature type (markers or alleles), populating the synonyms object.
 	 * Note that this caching method is different from the others in that it does not directly modify the object's
 	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
@@ -595,12 +593,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 			
-			if (proteinDomains.containsKey(featureKey)) {
-				for (String domain : proteinDomains.get(featureKey).toArray(new String[0])) {
-					doc.addField(IndexConstants.QS_PROTEIN_DOMAINS, domain);
-				}
-			}
-			
 			if (orthologNomen.containsKey(featureKey)) {
 				for (String term : orthologNomen.get(featureKey).toArray(new String[0])) {
 					doc.addField(IndexConstants.QS_ORTHOLOG_NOMEN, term);
@@ -676,12 +668,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		buildInitialDocs(featureType);
 		indexIDs(featureType);
 		indexSynonyms(featureType);
+		indexProteinDomains(featureType);
 /*		
 		indexOrthologNomenclature(featureType);
-		indexProteinDomains(featureType);
 		
 		cacheOrthologNomenclature(featureType);
-		cacheProteinDomains(featureType);
 
 		// need to do annotations
 		
