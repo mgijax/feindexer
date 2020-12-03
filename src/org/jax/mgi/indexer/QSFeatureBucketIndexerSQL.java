@@ -220,13 +220,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		String cmd;
 		
 		if (MARKER.equals(featureType)) {
+			// include both marker IDs and their related sequence IDs
 			cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db " + 
 				"from marker m, marker_id i " + 
 				"where m.marker_key = i.marker_key " + 
 				"and m.status = 'official' " + 
 				"and m.organism = 'mouse' " + 
 				"and m.primary_id != i.acc_id " +
-				"and i.private = 0";
+				"and i.private = 0 " +
+				"union " +
+				"select mts.marker_key, i.acc_id, i.logical_db " + 
+				"from marker_to_sequence mts, sequence_id i " + 
+				"where mts.sequence_key = i.sequence_key";
 		} else {
 			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db " + 
 					"from allele_id i, allele a " + 
