@@ -70,6 +70,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private Map<Integer,Set<Integer>> goProcessAnnotations;		// marker key : annotated term key from GO Process DAG
 	private Map<Integer,Set<Integer>> goFunctionAnnotations;	// marker key : annotated term key from GO Function DAG
 	private Map<Integer,Set<Integer>> goComponentAnnotations;	// marker key : annotated term key from GO Component DAG
+
+	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
+	private VocabTermCache goFunctionCache;
+	private VocabTermCache goComponentCache;
+
 	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
 	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
 	private Map<Integer,Set<String>> diseaseAnnotations;		// marker or allele key : annotated DO term, ID, synonym
@@ -78,9 +83,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	private Map<Integer,Set<Integer>> highLevelTerms;		// maps from a term key to the keys of its high-level ancestors
 	
-	private VocabTermCache goProcessCache;
-	private VocabTermCache goFunctionCache;
-	private VocabTermCache goComponentCache;
 	
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -408,6 +410,43 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + i + " ortholog nomen terms for " + featureType + "s");
 	}
 	
+	// Build a cache of facets (high-level slim terms) for each marker.  Currently uses slimgrid tables for efficiency.
+	// dagAbbrev should be a value from grid_name_abbreviation field in marker_grid_heading table.
+	public Map<Integer,Set<String>> getFacetValues(String featureType, String dagAbbrev) throws SQLException {
+		Map<Integer,Set<String>> keyToFacets = new HashMap<Integer,Set<String>>();
+		String cmd = null;
+
+		// only work with markers for now
+		if (!MARKER.equals(featureType)) { return keyToFacets; }
+	 	
+		// can handles GO, Anatomy, and MP facets for now
+		if ("C".equals(dagAbbrev) || "F".equals(dagAbbrev) || "P".equals(dagAbbrev) || "Anatomy".equals(dagAbbrev) || "MP".equals(dagAbbrev)) {
+			cmd = "select c.marker_key as feature_key, t.term " + 
+				"from marker_grid_cell c, marker_grid_heading h, marker_grid_heading_to_term ht, term t " + 
+				"where c.value > 0 " + 
+				"and c.heading_key = h.heading_key " + 
+				"and h.heading_key = ht.heading_key " + 
+				"and trim(h.grid_name_abbreviation) = '" + dagAbbrev + "' " +
+				"and ht.term_key = t.term_key";
+		}
+		
+		if (cmd != null) {
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next()) {
+				Integer key = rs.getInt("feature_key");
+				
+				if (!keyToFacets.containsKey(key)) {
+					keyToFacets.put(key, new HashSet<String>());
+				}
+				keyToFacets.get(key).add(rs.getString("term"));
+			}
+			rs.close();
+			logger.info("Collected " + dagAbbrev + " facets for " + keyToFacets.size() + " markers");
+		}
+		
+		return keyToFacets;
+	}
+	
 /*	private void addVocabAnnotations(SolrInputDocument doc, Integer featureKey, Map<Integer,Set<Integer>> annotatedTerms,
 		VocabTermCache termCache, String idField, String termField, String synonymField, String definitionField,
 		String ancestorField) {
@@ -521,11 +560,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private void buildInitialDocs(String featureType) throws Exception {
 		logger.info(" - loading " + featureType + "s");
 
-/*		Map<Integer, Set<String>> goProcessFacetCache = this.getAnnotationFacets();
-		Map<Integer, Set<String>> goFunctionFacetCache = this.getAnnotationFacets();
-		Map<Integer, Set<String>> goComponentFacetCache = this.getAnnotationFacets();
-*/		
-		this.features = new HashMap<Integer,QSFeature>();
+		Map<Integer, Set<String>> goProcessFacetCache = this.getFacetValues(featureType, "P");
+		Map<Integer, Set<String>> goFunctionFacetCache = this.getFacetValues(featureType, "F");
+		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues(featureType, "C");
+		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues(featureType, "MP");
+		
+		features = new HashMap<Integer,QSFeature>();
 		
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
@@ -574,14 +614,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				feature.isMarker = 0;
 			}
 			
-/*			if (goProcessFacetCache.containsKey(featureKey)) { feature.goProcessFacets = goProcessFacetCache.get(featureKey); }
+			if (goProcessFacetCache.containsKey(featureKey)) { feature.goProcessFacets = goProcessFacetCache.get(featureKey); }
 			if (goFunctionFacetCache.containsKey(featureKey)) { feature.goFunctionFacets = goFunctionFacetCache.get(featureKey); }
 			if (goComponentFacetCache.containsKey(featureKey)) { feature.goComponentFacets = goComponentFacetCache.get(featureKey); }
-*/			
-			// TODO -- add when constructing QSFeature object
-			// public List<String> diseaseFacets;
-			// public List<String> phenotypeFacets;
-			// public List<String> markerTypeFacets;
+			if (phenotypeFacetCache.containsKey(featureKey)) { feature.phenotypeFacets = phenotypeFacetCache.get(featureKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
@@ -597,20 +633,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				addDoc(buildDoc(feature, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
 			}
 		
-/*			if (allIDs.containsKey(featureKey)) {
-				for (String id : allIDs.get(featureKey)) {
-					doc.addField(IndexConstants.QS_ACC_ID, id);
-				}
-			}
-			
-			if (orthologNomen.containsKey(featureKey)) {
-				for (String term : orthologNomen.get(featureKey).toArray(new String[0])) {
-					doc.addField(IndexConstants.QS_ORTHOLOG_NOMEN, term);
-				}
-				for (String term : orthologNomenOrg.get(featureKey).toArray(new String[0])) {
-					doc.addField(IndexConstants.QS_ORTHOLOG_NOMEN_ORG, term);
-				}
-			}
+/*			
 			
 			if (MARKER.contentEquals(featureType)) {
 				addVocabAnnotations(doc, featureKey, goFunctionAnnotations, goFunctionCache,
