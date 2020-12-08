@@ -527,10 +527,10 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				}
 			}
 
-			// will need to expand these for facets beyond the GO vocabulary
-			if (GO_CC.equals(this.facetField)) { doc.addField(IndexConstants.QS_GO_COMPONENT_FACETS, this.facetValues); }
-			if (GO_BP.equals(this.facetField)) { doc.addField(IndexConstants.QS_GO_PROCESS_FACETS, this.facetValues); }
-			if (GO_MF.equals(this.facetField)) { doc.addField(IndexConstants.QS_GO_FUNCTION_FACETS, this.facetValues); }
+			// If we have vocabulary-based facets, add them.
+			if ((this.facetField != null) && (this.facetValues != null) && (this.facetValues.size() > 0)) {
+				doc.addField(this.facetField, this.facetValues);
+			}
 
 			return doc;
 		}
