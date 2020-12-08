@@ -359,7 +359,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"    'related synonym', 'old name',  " + 
 				"    'rat symbol', 'rat synonym', 'chimpanzee symbol',  " + 
 				"    'cattle symbol', 'chicken symbol', 'dog symbol',  " + 
-				"    'rhesus macaque symbol', 'western clawed frog symbol',  " + 
+				"    'macaque, rhesus symbol', 'western clawed frog symbol',  " + 
 				"    'zebrafish symbol') " + 
 				" and n.marker_key = m.marker_key " +
 				"order by 1, 4, 2";						// sorting by marker, preference, then term
