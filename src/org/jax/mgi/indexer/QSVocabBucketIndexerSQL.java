@@ -381,7 +381,6 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
 		int i = 0;		// counter and sequence number for terms
-		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		while (rs.next())  {  
 			i++;
 			
