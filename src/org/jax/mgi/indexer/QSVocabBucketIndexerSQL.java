@@ -2,6 +2,9 @@ package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
+import org.jax.mgi.shr.fe.util.EasyStemmer;
+import org.jax.mgi.shr.fe.util.StopwordRemover;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -123,6 +126,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	
 	private Map<String, QSTerm> terms;				// term's primary ID : QSTerm object
 	
+	private EasyStemmer stemmer = new EasyStemmer();
+	private StopwordRemover stopwordRemover = new StopwordRemover();
+	
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -145,12 +151,14 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
-	private SolrInputDocument buildDoc(QSTerm term, String searchID, String searchTerm, String searchTermDisplay,
+	private SolrInputDocument buildDoc(QSTerm term, String exactTerm, String stemmedTerm, String searchTermDisplay,
 			String searchTermType, Integer searchTermWeight) {
 
 		SolrInputDocument doc = term.getNewDocument();
-		if (searchID != null) { doc.addField(IndexConstants.QS_SEARCH_ID, searchID); }
-		if (searchTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM, searchTerm); }
+		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
+		if (stemmedTerm != null) {
+			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
+		}
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);

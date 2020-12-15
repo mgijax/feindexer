@@ -14,6 +14,8 @@ import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.VocabTerm;
 import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.util.EasyStemmer;
+import org.jax.mgi.shr.fe.util.StopwordRemover;
 
 /* Is: an indexer that builds the index supporting the quick search's feature (marker + allele) bucket (aka- bucket 1).
  * 		Each document in the index represents a single searchable data element (e.g.- symbol, name, synonym, annotated
@@ -83,6 +85,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	private Map<Integer,Set<Integer>> highLevelTerms;		// maps from a term key to the keys of its high-level ancestors
 	
+	private EasyStemmer stemmer = new EasyStemmer();
+	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -106,12 +110,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
-	private SolrInputDocument buildDoc(QSFeature feature, String searchID, String searchTerm, String searchTermDisplay,
+	private SolrInputDocument buildDoc(QSFeature feature, String exactTerm, String stemmedTerm, String searchTermDisplay,
 			String searchTermType, Integer searchTermWeight) {
 
 		SolrInputDocument doc = feature.getNewDocument();
-		if (searchID != null) { doc.addField(IndexConstants.QS_SEARCH_ID, searchID); }
-		if (searchTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM, searchTerm); }
+		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
+		if (stemmedTerm != null) {
+			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
+		}
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
@@ -395,12 +401,20 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				if (features.containsKey(markerKey)) {
 					QSFeature feature = features.get(markerKey);
 
+					// Symbols and synonyms go in the exact-match field, names get stemmed.
 					int weight = 0;
-					if (termType.contains("symbol")) { weight = ORTHOLOG_SYMBOL_WEIGHT; }
-					else if (termType.contains("name")) { weight = ORTHOLOG_NAME_WEIGHT; }
-					else if (termType.contains("synonym")) { weight = ORTHOLOG_SYNONYM_WEIGHT; }
-
-					addDoc(buildDoc(feature, null, termLower, term, termType, weight));
+					if (termType.contains("symbol")) {
+						weight = ORTHOLOG_SYMBOL_WEIGHT;
+						addDoc(buildDoc(feature, termLower, null, term, termType, weight));
+					}
+					else if (termType.contains("name")) {
+						weight = ORTHOLOG_NAME_WEIGHT;
+						addDoc(buildDoc(feature, null, termLower, term, termType, weight));
+					}
+					else if (termType.contains("synonym")) {
+						weight = ORTHOLOG_SYNONYM_WEIGHT;
+						addDoc(buildDoc(feature, termLower, null, term, termType, weight));
+					}
 					i++; 
 				}
 			}
@@ -622,14 +636,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
 			addDoc(buildDoc(feature, feature.primaryID, null, feature.primaryID, "ID", PRIMARY_ID_WEIGHT));
-			addDoc(buildDoc(feature, null, feature.symbol, feature.symbol, "Symbol", SYMBOL_WEIGHT));
+			addDoc(buildDoc(feature, feature.symbol, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
 			addDoc(buildDoc(feature, null, feature.name, feature.name, "Name", NAME_WEIGHT));
 
 			// For alleles, we also need to consider the nomenclature of each one's associated marker.
 			if (ALLELE.equals(featureType)) { 
 				String markerSymbol = rs.getString("marker_symbol");
 				String markerName = rs.getString("marker_name");
-				addDoc(buildDoc(feature, null, markerSymbol, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
+				addDoc(buildDoc(feature, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 				addDoc(buildDoc(feature, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
 			}
 		
