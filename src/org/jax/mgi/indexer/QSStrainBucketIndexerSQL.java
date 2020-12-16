@@ -10,7 +10,6 @@ import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
-import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
 
 /* Is: an indexer that builds the index supporting the quick search's vocab bucket (aka- bucket 2).
@@ -44,7 +43,6 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	
 	private Map<String, QSStrain> strains;				// term's primary ID : QSTerm object
 	
-	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
 	/*--------------------*/
@@ -69,13 +67,13 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
-	private SolrInputDocument buildDoc(QSStrain strain, String exactTerm, String stemmedTerm, String searchTermDisplay,
+	private SolrInputDocument buildDoc(QSStrain strain, String exactTerm, String inexactTerm, String searchTermDisplay,
 			String searchTermType, Integer searchTermWeight) {
 
 		SolrInputDocument doc = strain.getNewDocument();
 		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
-		if (stemmedTerm != null) {
-			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
+		if (inexactTerm != null) {
+			doc.addField(IndexConstants.QS_SEARCH_TERM_INEXACT, stopwordRemover.remove(inexactTerm));
 	 	}
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
@@ -140,7 +138,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			if (strains.containsKey(primaryID)) {
 				QSStrain qst = strains.get(primaryID);
 				if (synonym != null) {
-					addDoc(buildDoc(qst, synonym, null, synonym, "synonym", SYNONYM_WEIGHT));
+					addDoc(buildDoc(qst, null, synonym, synonym, "synonym", SYNONYM_WEIGHT));
 				}
 			}
 		}
@@ -268,7 +266,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			// now build and save our initial documents for this strain
 
 			addDoc(buildDoc(qst, qst.primaryID, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
-			addDoc(buildDoc(qst, qst.name, null, qst.name, "Name", NAME_WEIGHT));
+			addDoc(buildDoc(qst, null, qst.name, qst.name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();
