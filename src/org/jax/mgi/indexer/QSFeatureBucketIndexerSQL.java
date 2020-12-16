@@ -34,12 +34,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int PRIMARY_ID_WEIGHT = 100;
 	private static int SECONDARY_ID_WEIGHT = 95;
 	private static int SYMBOL_WEIGHT = 90;
+	private static int HUMAN_ID_WEIGHT = 88;
 	private static int NAME_WEIGHT = 85;
 	private static int MARKER_SYMBOL_WEIGHT = 80;
 	private static int MARKER_NAME_WEIGHT = 75;
 	private static int SYNONYM_WEIGHT = 70;
 	private static int MARKER_SYNONYM_WEIGHT = 65;
 	private static int PROTEIN_DOMAIN_WEIGHT = 60;
+	private static int PROTEIN_FAMILY_WEIGHT = 58;
 	private static int ORTHOLOG_SYMBOL_WEIGHT = 55;
 	private static int ORTHOLOG_NAME_WEIGHT = 50;
 	private static int ORTHOLOG_SYNONYM_WEIGHT = 45;
@@ -270,6 +272,85 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		rs.close();
 		
 		logger.info(" - indexed " + ct + " IDs for " + featureType + "s");
+	}
+	
+	// Index human ortholog IDs for markers.  If feature type is for alleles, just skip this.
+	private void indexHumanOrthologIDs(String featureType) throws Exception {
+		if (ALLELE.equals(featureType)) { return; }
+		logger.info(" - human ortholog IDs for " + featureType);
+
+		String cmd = "select distinct m.marker_key, ha.logical_db, ha.acc_id " + 
+				"from marker h, marker_id ha, " + 
+				"  homology_cluster_organism_to_marker hm, " + 
+				"  homology_cluster_organism ho, " + 
+				"  homology_cluster_organism mo, " + 
+				"  homology_cluster_organism_to_marker mm, " + 
+				"  marker m " + 
+				"where h.organism = 'human' " + 
+				"and h.marker_key = ha.marker_key " + 
+				"and h.marker_key = hm.marker_key " + 
+				"and hm.cluster_organism_key = ho.cluster_organism_key " + 
+				"and ho.cluster_key = mo.cluster_key " + 
+				"and mo.cluster_organism_key = mm.cluster_organism_key " + 
+				"and mm.marker_key= m.marker_key " + 
+				"and m.organism = 'mouse' " + 
+				"and m.status = 'official'";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of IDs processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("marker_key");
+			String orthologID = rs.getString("acc_id");
+			String logicalDB = rs.getString("logical_db");
+			
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, orthologID, null, orthologID + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
+
+				// For OMIM IDs we also need to index them without the prefix.
+				if (orthologID.startsWith("OMIM:")) {
+					String noPrefix = orthologID.replaceAll("OMIM:", "");
+					addDoc(buildDoc(feature, noPrefix, null, noPrefix + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
+				}
+			}
+		}
+		rs.close();
+		
+		logger.info(" - indexed " + ct + " human ortholog IDs for markers");
+	}
+
+	// Index protein family annotations for markers.  If feature type is for alleles, just skip this.
+	private void indexProteinFamilies(String featureType) throws Exception {
+		if (ALLELE.equals(featureType)) { return; }
+		logger.info(" - indexing protein families for " + featureType);
+
+		String cmd = "select mta.marker_key, a.term, a.term_id " + 
+			"from annotation a, marker_to_annotation mta, marker m " + 
+			"where a.annotation_key = mta.annotation_key " + 
+			"and mta.annotation_type = 'PIRSF/Marker' " + 
+			"and mta.marker_key = m.marker_key " + 
+			"and m.organism = 'mouse'";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of terms processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("marker_key");
+			String termID = rs.getString("term_id");
+			String term = rs.getString("term");
+			
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, termID, null, term + " (" + termID + ")", "Protein Family", PROTEIN_FAMILY_WEIGHT));
+				addDoc(buildDoc(feature, null, term, term, "Protein Domain", PROTEIN_FAMILY_WEIGHT));
+			}
+		}
+		rs.close();
+		
+		logger.info(" - indexed " + ct + " protein domains for markers");
 	}
 
 	// Index protein domain annotations for markers.  If feature type is for alleles, just skip this.
@@ -716,7 +797,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexIDs(featureType);
 		indexSynonyms(featureType);
 		indexProteinDomains(featureType);
+		indexProteinFamilies(featureType);
 		indexOrthologNomenclature(featureType);
+		indexHumanOrthologIDs(featureType);
 /*		
 		// need to do annotations
 		
