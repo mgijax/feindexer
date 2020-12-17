@@ -518,7 +518,19 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			
 			if (this.rawVocabName != null) { doc.addField(IndexConstants.QS_RAW_VOCAB_NAME, this.rawVocabName); }
 			if (this.vocabName != null) { doc.addField(IndexConstants.QS_VOCAB_NAME, this.vocabName); }
-			if (this.term != null) { doc.addField(IndexConstants.QS_TERM, this.term); }
+			if (this.term != null) {
+				// For EMAPS terms, we also need to display the Theiler Stage along with the term itself.  We
+				// can recognize these by vocab name, then pull off the final two characters of the primary ID
+				// to identify the stage.
+				String toDisplay = this.term;
+				if ("EMAPS".equals(this.rawVocabName)) {
+					if ((this.primaryID != null) && (this.primaryID.length() >= 2)) {
+						String ts = this.primaryID.substring(this.primaryID.length() - 2);
+						toDisplay = "TS" + ts + ": " + this.term;
+					}
+				}
+				doc.addField(IndexConstants.QS_TERM, toDisplay);
+			}
 			if (this.termType != null) { doc.addField(IndexConstants.QS_TERM_TYPE, this.termType); }
 			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
 
