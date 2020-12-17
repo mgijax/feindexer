@@ -290,12 +290,15 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		annotationLabel = new HashMap<String,String>();
 
 		String cmd;
+
+		// The term_annotation_counts table only contains data for these first four vocabs.
 		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			cmd = "select t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
 				+ "and t.is_obsolete = 0 "
 				+ "and t.vocab_name = '" + vocabName + "'";
+
 		} else if (INTERPRO_DOMAINS.equals(vocabName) || PIRSF_VOCAB.equals(vocabName)) {
 			cmd = "select a.term_id as primary_id, "
 				+ "  count(distinct m.marker_key) as object_count_with_descendents, "
