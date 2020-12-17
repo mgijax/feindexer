@@ -460,8 +460,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 		String cmd;
 		if (MARKER.equals(featureType)) {
+			// Do not index synonyms for transgene markers, as their Tg alleles already get done.
 			cmd = "select s.marker_key as feature_key, s.synonym " + 
-					"from marker_synonym s";
+					"from marker_synonym s, marker m " +
+					"where s.marker_key = m.marker_key " +
+					"and m.marker_subtype != 'transgene' ";
 		} else {
 			cmd = "select s.allele_key as feature_key, s.synonym " + 
 					"from allele_synonym s, allele a " +
@@ -781,8 +784,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
 			addDoc(buildDoc(feature, feature.primaryID, null, feature.primaryID, "ID", PRIMARY_ID_WEIGHT));
-			addDoc(buildDoc(feature, feature.symbol, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
 			addDoc(buildDoc(feature, null, feature.name, feature.name, "Name", NAME_WEIGHT));
+			
+			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
+			if (!"transgene".equals(feature.featureType)) {
+				addDoc(buildDoc(feature, feature.symbol, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
+			}
 
 			// For alleles, we also need to consider the nomenclature of each one's associated marker.
 			if (ALLELE.equals(featureType)) { 
