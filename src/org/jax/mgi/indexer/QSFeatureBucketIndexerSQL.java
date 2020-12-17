@@ -33,6 +33,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	// weights to prioritize different types of search terms / IDs
 	private static int PRIMARY_ID_WEIGHT = 100;
 	private static int SECONDARY_ID_WEIGHT = 95;
+	private static int STRAIN_GENE_ID_WEIGHT = 93;
 	private static int SYMBOL_WEIGHT = 90;
 	private static int HUMAN_ID_WEIGHT = 88;
 	private static int NAME_WEIGHT = 85;
@@ -40,6 +41,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int MARKER_NAME_WEIGHT = 75;
 	private static int SYNONYM_WEIGHT = 70;
 	private static int MARKER_SYNONYM_WEIGHT = 65;
+	private static int PROTEOFORM_ID_WEIGHT = 63;
 	private static int PROTEIN_DOMAIN_WEIGHT = 60;
 	private static int PROTEIN_FAMILY_WEIGHT = 58;
 	private static int ORTHOLOG_SYMBOL_WEIGHT = 55;
@@ -230,7 +232,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		String cmd;
 		
 		if (MARKER.equals(featureType)) {
-			// include both marker IDs and their related sequence IDs
+			// include both marker IDs and their related sequence IDs -- but exclude strain gene IDs, so
+			// we can do those in a separate method and format their Best Match output differently
 			cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db " + 
 				"from marker m, marker_id i " + 
 				"where m.marker_key = i.marker_key " + 
@@ -241,7 +244,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"union " +
 				"select mts.marker_key, i.acc_id, i.logical_db " + 
 				"from marker_to_sequence mts, sequence_id i " + 
-				"where mts.sequence_key = i.sequence_key";
+				"where mts.sequence_key = i.sequence_key" +
+				" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project')";
 		} else {
 			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db " + 
 					"from allele_id i, allele a " + 
@@ -319,6 +323,66 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		rs.close();
 		
 		logger.info(" - indexed " + ct + " human ortholog IDs for markers");
+	}
+
+	// Index proteoform IDs for markers.  If feature type is for alleles, just skip this.
+	private void indexProteoformIDs (String featureType) throws Exception {
+		if (ALLELE.equals(featureType)) { return; }
+		logger.info(" - indexing proteoform IDs for " + featureType);
+
+		String cmd = "select mta.marker_key, a.term, a.term_id " + 
+			"from annotation a, marker_to_annotation mta, marker m " + 
+			"where a.annotation_key = mta.annotation_key " + 
+			"and mta.annotation_type = 'Proteoform/Marker' " + 
+			"and mta.marker_key = m.marker_key " + 
+			"and m.organism = 'mouse'";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of IDs processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("marker_key");
+			String accID = rs.getString("term_id");
+			String term = rs.getString("term");
+			
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Proteoform", PROTEOFORM_ID_WEIGHT));
+			}
+		}
+		rs.close();
+		
+		logger.info(" - indexed " + ct + " proteoform IDs for markers");
+	}
+
+	// Index strain gene IDs for markers.  If feature type is for alleles, just skip this.
+	private void indexStrainGenes(String featureType) throws Exception {
+		if (ALLELE.equals(featureType)) { return; }
+		logger.info(" - indexing strain gene IDs for " + featureType);
+
+		String cmd = "select m.marker_key, gm.logical_db, gm.gene_model_id " + 
+			"from marker m, strain_marker sm, strain_marker_gene_model gm " + 
+			"where m.marker_key = sm.canonical_marker_key " + 
+			"and sm.strain_marker_key = gm.strain_marker_key";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of IDs processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("marker_key");
+			String sgID = rs.getString("gene_model_id");
+			String logicalDB = rs.getString("logical_db");
+			
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, sgID, null, sgID + " (" + logicalDB + ")", "ID", STRAIN_GENE_ID_WEIGHT));
+			}
+		}
+		rs.close();
+		
+		logger.info(" - indexed " + ct + " strain gene IDs for markers");
 	}
 
 	// Index protein family annotations for markers.  If feature type is for alleles, just skip this.
@@ -616,7 +680,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
 				for (String synonym : mySynonyms.get(featureKey)) {
-					addDoc(buildDoc(feature, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
+					addDoc(buildDoc(feature, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 				}
 			}
 		}
@@ -640,7 +704,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				if (markerSynonyms.containsKey(markerKey)) {
 					QSFeature feature = features.get(alleleKey);
 					for (String synonym : markerSynonyms.get(markerKey)) {
-						addDoc(buildDoc(feature, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+						addDoc(buildDoc(feature, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
 					}
 				}
 			}
@@ -796,8 +860,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		buildInitialDocs(featureType);
 		indexIDs(featureType);
 		indexSynonyms(featureType);
+		indexStrainGenes(featureType);
 		indexProteinDomains(featureType);
 		indexProteinFamilies(featureType);
+		indexProteoformIDs(featureType);
 		indexOrthologNomenclature(featureType);
 		indexHumanOrthologIDs(featureType);
 /*		
