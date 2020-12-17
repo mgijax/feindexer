@@ -139,6 +139,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 				QSStrain qst = strains.get(primaryID);
 				if (synonym != null) {
 					addDoc(buildDoc(qst, null, synonym, synonym, "synonym", SYNONYM_WEIGHT));
+					
+					// also index it as an exact match, in case of stopwords
+					addDoc(buildDoc(qst, synonym, null, synonym, "synonym", SYNONYM_WEIGHT));
 				}
 			}
 		}
@@ -267,6 +270,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 
 			addDoc(buildDoc(qst, qst.primaryID, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
 			addDoc(buildDoc(qst, null, qst.name, qst.name, "Name", NAME_WEIGHT));
+					
+			// also index it as an exact match, in case of stopwords
+			addDoc(buildDoc(qst, qst.name, null, qst.name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();
