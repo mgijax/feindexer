@@ -70,7 +70,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		annotationUris = new HashMap<String,String>();
 		annotationUris.put(INTERPRO_DOMAINS, "marker/summary?interpro=@@@@");	
 		annotationUris.put(MP_VOCAB, "/mp/annotations/@@@@");
-		annotationUris.put(DO_VOCAB, "/disease/@@@@?openTab=models");
+		annotationUris.put("Disease", "/disease/@@@@?openTab=models");
 		annotationUris.put(PIRSF_VOCAB, "/vocab/pirsf/@@@@");
 		annotationUris.put(EMAPA_VOCAB, "/gxd/structure/@@@@");
 		annotationUris.put(EMAPS_VOCAB, "/gxd/structure/@@@@");
@@ -327,7 +327,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				}
 
 			} else if (DO_VOCAB.equals(vocabName)) {
-				annotationLabel.put(termID, "view human &amp; mouse annotations");
+				if (objectCount > 1) {
+					annotationLabel.put(termID, objectCount + " mouse models");
+				} else {
+					annotationLabel.put(termID, objectCount + " mouse model");
+				}
 
 			} else if (HPO_VOCAB.equals(vocabName)) {
 				annotationLabel.put(termID, objectCount + " diseases with annotations");
@@ -540,7 +544,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 					doc.addField(IndexConstants.QS_ANNOTATION_COUNT, annotationCount);
 					if (annotationCount > 0L) {
 						if (annotationUris.containsKey(this.vocabName) && (this.primaryID != null)) {
-							String uri = annotationUris.get(primaryID);
+							String uri = annotationUris.get(this.vocabName);
 							if (uri != null) {
 								doc.addField(IndexConstants.QS_ANNOTATION_URI, uri.replace("@@@@", this.primaryID));
 							}
