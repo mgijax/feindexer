@@ -72,8 +72,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		annotationUris.put(MP_VOCAB, "/mp/annotations/@@@@");
 		annotationUris.put("Disease", "/disease/@@@@?openTab=models");
 		annotationUris.put(PIRSF_VOCAB, "/vocab/pirsf/@@@@");
-		annotationUris.put(EMAPA_VOCAB, "/gxd/structure/@@@@");
-		annotationUris.put(EMAPS_VOCAB, "/gxd/structure/@@@@");
+		annotationUris.put("Expression", "/gxd/structure/@@@@");
 		annotationUris.put(HPO_VOCAB, "/diseasePortal?termID=@@@@");
 		annotationUris.put(GO_VOCAB, "/go/term/@@@@");
 		annotationUris.put(GO_BP, "/go/term/@@@@");
@@ -123,6 +122,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private Map<String,String> annotationLabel;			// primary ID : label for annotation link
 	private Map<String,Set<String>> ancestorFacets;		// primary ID : list of ancestor terms for faceting
 	private Map<String,Long> sequenceNum;				// primary ID : sequence num for term (smart-alpha)
+	private Map<String,String> tsTag;					// primary ID : Theiler stages for EMAPA terms
 	
 	private Map<String, QSTerm> terms;				// term's primary ID : QSTerm object
 	
@@ -251,6 +251,32 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " synonyms");
 	}
 	
+	// Retrieve the Theiler Stages for EMAPA terms, build into a string for each term, and cache each.
+	// Note: only works for terms with assigned IDs.
+	private void cacheTheilerStages(String vocabName) throws Exception {
+		logger.info("Loading Theiler Stages");
+		this.tsTag = new HashMap<String,String>();
+		
+		String cmd = "select t.primary_id, e.start_stage, e.end_stage " + 
+				"from term t, term_emap e " + 
+				"where e.term_key = t.term_key " + 
+				"and t.vocab_name in ('" + vocabName + "')";
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		while (rs.next()) {
+			String primaryID = rs.getString("primary_id");
+			String startStage = rs.getString("start_stage");
+			String endStage = rs.getString("end_stage");
+			
+			if ((primaryID != null) && (startStage != null) && (endStage != null)) {
+				tsTag.put(primaryID, "TS" + startStage + "-" + endStage);
+			}
+		}
+				
+		rs.close();
+		logger.info(" - cached " + tsTag.size() + " TS ranges");
+	}
+	
 	// Load terms, sort them in a smart-alpha manner across all vocabs, then assign and cache sequence numbers.
 	// Note: only works for terms with assigned IDs.
 	private void cacheSequenceNum() throws Exception {
@@ -291,8 +317,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 
 		String cmd;
 
-		// The term_annotation_counts table only contains data for these first four vocabs.
-		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
+		// The term_annotation_counts table only contains data for these first six vocabs.
+		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)
+				|| EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
 			cmd = "select t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
@@ -338,6 +365,13 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 
 			} else if (PIRSF_VOCAB.equals(vocabName)) {
 				annotationLabel.put(termID, objectCount + " genes");
+
+			} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
+				if (annotCount > 1) {
+					annotationLabel.put(termID, annotCount + " gene expression results");
+				} else {
+					annotationLabel.put(termID, annotCount + " gene expression result");
+				}
 
 			} else {	// GO_VOCAB
 				annotationLabel.put(termID, objectCount + " genes, " + annotCount + " annotations");
@@ -453,6 +487,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		
 		cacheAnnotations(vocabName);
 		cacheAncestorFacets(vocabName);
+		cacheTheilerStages(vocabName);
 		buildInitialDocs(vocabName);
 
 		indexIDs(vocabName);
@@ -530,8 +565,13 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				if ("EMAPS".equals(this.rawVocabName)) {
 					if ((this.primaryID != null) && (this.primaryID.length() >= 2)) {
 						String ts = this.primaryID.substring(this.primaryID.length() - 2);
+						if (ts.startsWith("0")) {
+							ts = ts.substring(1);		// trim off leading zero
+						}
 						toDisplay = "TS" + ts + ": " + this.term;
 					}
+				} else if (tsTag.containsKey(this.primaryID)) {
+					toDisplay = this.term + " " + tsTag.get(primaryID);
 				}
 				doc.addField(IndexConstants.QS_TERM, toDisplay);
 			}
