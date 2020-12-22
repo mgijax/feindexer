@@ -47,6 +47,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int ORTHOLOG_SYMBOL_WEIGHT = 55;
 	private static int ORTHOLOG_NAME_WEIGHT = 50;
 	private static int ORTHOLOG_SYNONYM_WEIGHT = 45;
+	private static int DISEASE_ID_WEIGHT = 43;
+	private static int DISEASE_NAME_WEIGHT = 40;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -141,6 +143,29 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("Got max marker seq num = " + maxSeqNum);
 		return maxSeqNum;
 	}
+	
+	// Use the given SQL 'cmd' to retrieve a set of data for caching.  Cache keys are in the given 'keyField',
+	// and values in the given 'valueField'.  Object type is specified by 'objectType'.
+	private Map<String,Set<String>> buildCache(String cmd, String keyField, String valueField, String objectType) throws Exception {
+		logger.debug("Beginning to cache " + objectType + "s");
+		Map<String,Set<String>> cache = new HashMap<String,Set<String>>();
+		
+		int ct = 0;
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next()) {
+			ct++;
+			String key = rs.getString(keyField);
+			if (!cache.containsKey(key)) {
+				cache.put(key, new HashSet<String>());
+			}
+			cache.get(key).add(rs.getString(valueField));
+		}
+		rs.close();
+		
+		logger.debug(" - Finished caching " + ct + " " + objectType + "(s)");
+		return cache;
+	}
+	
 	// For each vocabulary term, we need to know what its high-level ancestors (aka- slim terms) are, so
 	// look them up and cache them.
 	private void cacheHighLevelTerms() throws SQLException {
@@ -323,6 +348,66 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		rs.close();
 		
 		logger.info(" - indexed " + ct + " human ortholog IDs for markers");
+	}
+
+	// Index mouse DO (Disease Ontology) annotations.
+	private void indexMouseDiseaseAnnotations (String featureType) throws Exception {
+		String cmd = null;
+		
+		String synonymCmd = "select t.primary_id, s.synonym " + 
+				"from term t, term_synonym s " + 
+				"where t.vocab_name = 'Disease Ontology' " + 
+				"and t.term_key = s.term_key";
+		Map<String,Set<String>> synonymCache = buildCache(synonymCmd, "primary_id", "synonym", "DO Synonym");
+
+		if (ALLELE.equals(featureType)) {
+			cmd = "select distinct m.allele_key as feature_key, dm.disease, i.acc_id " + 
+				"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r, term_id i " + 
+				"where m.allele_key = mtg.allele_key " + 
+				"and mtg.genotype_key = t.genotype_key " + 
+				"and t.is_disease_model = 1 " + 
+				"and t.genotype_key = dm.genotype_key " + 
+				"and dm.is_not_model = 0 " + 
+				"and dm.disease_id = r.primary_id " + 
+				"and r.term_key = i.term_key ";
+		} else {
+			cmd = "select distinct m.marker_key as feature_key, dm.disease, i.acc_id " + 
+				"from marker m, marker_to_genotype mtg, genotype t, disease_model dm, term r, term_id i " + 
+				"where m.marker_key = mtg.marker_key " + 
+				"and mtg.genotype_key = t.genotype_key " + 
+				"and t.is_disease_model = 1 " + 
+				"and t.genotype_key = dm.genotype_key " + 
+				"and dm.is_not_model = 0 " + 
+				"and dm.disease_id = r.primary_id " + 
+				"and r.term_key = i.term_key";
+		}
+
+		logger.info(" - indexing mouse disease annotations for " + featureType);
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of annotations processed
+		while (rs.next()) {
+			ct++;
+			Integer featureKey = rs.getInt("feature_key");
+			String accID = rs.getString("acc_id");
+			String term = rs.getString("disease");
+			
+			if (features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+				addDoc(buildDoc(feature, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
+				
+				if (synonymCache.containsKey(accID)) {
+					for (String synonym : synonymCache.get(accID)) {
+						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_NAME_WEIGHT));
+					}
+				}
+			}
+		}
+		rs.close();
+		
+		logger.info(" - indexed " + ct + " mouse disease annotations for " + featureType);
 	}
 
 	// Index proteoform IDs for markers.  If feature type is for alleles, just skip this.
@@ -873,6 +958,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexProteoformIDs(featureType);
 		indexOrthologNomenclature(featureType);
 		indexHumanOrthologIDs(featureType);
+		indexMouseDiseaseAnnotations(featureType);
 /*		
 		// need to do annotations
 		
