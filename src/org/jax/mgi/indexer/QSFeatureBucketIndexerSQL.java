@@ -49,6 +49,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int ORTHOLOG_SYNONYM_WEIGHT = 45;
 	private static int DISEASE_ID_WEIGHT = 43;
 	private static int DISEASE_NAME_WEIGHT = 40;
+	private static int DISEASE_ORTHOLOG_WEIGHT = 38;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -408,6 +409,63 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		rs.close();
 		
 		logger.info(" - indexed " + ct + " mouse disease annotations for " + featureType);
+	}
+
+	// Index human ortholog DO (Disease Ontology) annotations.  No-op for alleles.
+	private void indexHumanDiseaseAnnotations (String featureType) throws Exception {
+		if (ALLELE.equals(featureType)) { return; }
+
+		String synonymCmd = "select t.primary_id, s.synonym " + 
+				"from term t, term_synonym s " + 
+				"where t.vocab_name = 'Disease Ontology' " + 
+				"and t.term_key = s.term_key";
+		Map<String,Set<String>> synonymCache = buildCache(synonymCmd, "primary_id", "synonym", "DO Synonym");
+
+		// from mouse marker through orthology tables to human marker, then to human DO annotations
+		String cmd = "select mm.marker_key as mouse_marker_key, a.term_id, a.term " + 
+				"from marker mm, homology_cluster_organism_to_marker cm, " + 
+				"  homology_cluster_organism om, homology_cluster hc, " + 
+				"  homology_cluster_organism oh, homology_cluster_organism_to_marker ch, " + 
+				"  marker mh, marker_to_annotation mta, annotation a " + 
+				"where mm.organism = 'mouse' " + 
+				"  and mm.marker_key = cm.marker_key " + 
+				"  and cm.cluster_organism_key = om.cluster_organism_key " + 
+				"  and om.cluster_key = hc.cluster_key " + 
+				"  and hc.source = 'HomoloGene and HGNC' " + 
+				"  and hc.cluster_key = oh.cluster_key " + 
+				"  and oh.cluster_organism_key = ch.cluster_organism_key " + 
+				"  and ch.marker_key = mh.marker_key " + 
+				"  and mh.organism = 'human' " + 
+				"  and mh.marker_key = mta.marker_key " + 
+				"  and mta.annotation_key = a.annotation_key " + 
+				"  and a.annotation_type = 'DO/Human Marker'";
+
+		logger.info(" - indexing human ortholog disease annotations");
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of annotations processed
+		while (rs.next()) {
+			ct++;
+			Integer mouseMarkerKey = rs.getInt("mouse_marker_key");
+			String accID = rs.getString("term_id");
+			String term = rs.getString("term");
+			
+			if (features.containsKey(mouseMarkerKey)) {
+				QSFeature feature = features.get(mouseMarkerKey);
+				addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+				addDoc(buildDoc(feature, null, term, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+				
+				if (synonymCache.containsKey(accID)) {
+					for (String synonym : synonymCache.get(accID)) {
+						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					}
+				}
+			}
+		}
+		rs.close();
+		
+		logger.info(" - indexed " + ct + " human ortholog disease annotations");
 	}
 
 	// Index proteoform IDs for markers.  If feature type is for alleles, just skip this.
@@ -959,6 +1017,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexOrthologNomenclature(featureType);
 		indexHumanOrthologIDs(featureType);
 		indexMouseDiseaseAnnotations(featureType);
+		indexHumanDiseaseAnnotations(featureType);
 /*		
 		// need to do annotations
 		
