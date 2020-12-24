@@ -52,11 +52,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	static {
 		uriPrefixes = new HashMap<String,String>();
 		uriPrefixes.put(INTERPRO_DOMAINS, null);				// Protein domains intentionally omitted
-		uriPrefixes.put(MP_VOCAB, "/vocab/mp_ontology/");
-		uriPrefixes.put(DO_VOCAB, "/disease/");
+		uriPrefixes.put("Phenotype", "/vocab/mp_ontology/");
+		uriPrefixes.put("Disease Ontology", "/disease/");
 		uriPrefixes.put(PIRSF_VOCAB, "/vocab/pirsf/");
 		uriPrefixes.put("Expression", "/vocab/gxd/anatomy/");
-		uriPrefixes.put(HPO_VOCAB, "/vocab/hp_ontology/");
+		uriPrefixes.put("Human Phenotype", "/vocab/hp_ontology/");
 		uriPrefixes.put(GO_VOCAB, "/vocab/gene_ontology/");
 		uriPrefixes.put(GO_BP, "/vocab/gene_ontology/");
 		uriPrefixes.put(GO_MF, "/vocab/gene_ontology/");
@@ -68,11 +68,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	static {
 		annotationUris = new HashMap<String,String>();
 		annotationUris.put(INTERPRO_DOMAINS, "marker/summary?interpro=@@@@");	
-		annotationUris.put(MP_VOCAB, "/mp/annotations/@@@@");
-		annotationUris.put("Disease", "/disease/@@@@?openTab=models");
+		annotationUris.put("Phenotype", "/mp/annotations/@@@@");
+		annotationUris.put("Disease Ontology", "/disease/@@@@?openTab=models");
 		annotationUris.put(PIRSF_VOCAB, "/vocab/pirsf/@@@@");
 		annotationUris.put("Expression", "/gxd/structure/@@@@");
-		annotationUris.put(HPO_VOCAB, "/diseasePortal?termID=@@@@");
+		annotationUris.put("Human Phenotype", "/diseasePortal?termID=@@@@");
 		annotationUris.put(GO_VOCAB, "/go/term/@@@@");
 		annotationUris.put(GO_BP, "/go/term/@@@@");
 		annotationUris.put(GO_MF, "/go/term/@@@@");

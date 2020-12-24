@@ -32,26 +32,31 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	// weights to prioritize different types of search terms / IDs
 	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int SECONDARY_ID_WEIGHT = 95;
-	private static int STRAIN_GENE_ID_WEIGHT = 93;
-	private static int SYMBOL_WEIGHT = 90;
+	private static int SECONDARY_ID_WEIGHT = 97;
+	private static int STRAIN_GENE_ID_WEIGHT = 94;
+	private static int SYMBOL_WEIGHT = 91;
 	private static int HUMAN_ID_WEIGHT = 88;
 	private static int NAME_WEIGHT = 85;
-	private static int MARKER_SYMBOL_WEIGHT = 80;
-	private static int MARKER_NAME_WEIGHT = 75;
-	private static int SYNONYM_WEIGHT = 70;
-	private static int MARKER_SYNONYM_WEIGHT = 65;
-	private static int PROTEOFORM_ID_WEIGHT = 63;
-	private static int PROTEIN_DOMAIN_WEIGHT = 60;
-	private static int PROTEIN_FAMILY_WEIGHT = 58;
-	private static int ORTHOLOG_SYMBOL_WEIGHT = 55;
-	private static int ORTHOLOG_NAME_WEIGHT = 50;
-	private static int ORTHOLOG_SYNONYM_WEIGHT = 45;
-	private static int DISEASE_ID_WEIGHT = 43;
-	private static int DISEASE_NAME_WEIGHT = 40;
-	private static int DISEASE_ORTHOLOG_WEIGHT = 38;
-	private static int DISEASE_SYNONYM_WEIGHT = 35;
-	private static int DISEASE_DEFINITION_WEIGHT = 33;
+	private static int MARKER_SYMBOL_WEIGHT = 82;
+	private static int MARKER_NAME_WEIGHT = 79;
+	private static int SYNONYM_WEIGHT = 76;
+	private static int MARKER_SYNONYM_WEIGHT = 73;
+	private static int PROTEOFORM_ID_WEIGHT = 70;
+	private static int PROTEIN_DOMAIN_WEIGHT = 67;
+	private static int PROTEIN_FAMILY_WEIGHT = 64;
+	private static int ORTHOLOG_SYMBOL_WEIGHT = 61;
+	private static int ORTHOLOG_NAME_WEIGHT = 58;
+	private static int ORTHOLOG_SYNONYM_WEIGHT = 55;
+	private static int DISEASE_ID_WEIGHT = 52;
+	private static int DISEASE_NAME_WEIGHT = 49;
+	private static int DISEASE_SYNONYM_WEIGHT = 46;
+	private static int DISEASE_ORTHOLOG_WEIGHT = 43;
+	private static int DISEASE_DEFINITION_WEIGHT = 40;
+	private static int MP_ID_WEIGHT = 37;
+	private static int MP_NAME_WEIGHT = 34;
+	private static int MP_SYNONYM_WEIGHT = 31;
+	private static int MP_ORTHOLOG_WEIGHT = 28;
+	private static int MP_DEFINITION_WEIGHT = 25;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -85,7 +90,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
 	private VocabTermCache goFunctionCache;
 	private VocabTermCache goComponentCache;
-	private VocabTermCache diseaseOntologyCache;	// cache of data for DO DAGs
+	private VocabTermCache diseaseOntologyCache;	// cache of data for DO DAG
+	private VocabTermCache mpOntologyCache;			// cache of data for MP DAG
 
 	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
 	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
@@ -823,62 +829,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		return keyToFacets;
 	}
 	
-/*	private void addVocabAnnotations(SolrInputDocument doc, Integer featureKey, Map<Integer,Set<Integer>> annotatedTerms,
-		VocabTermCache termCache, String idField, String termField, String synonymField, String definitionField,
-		String ancestorField) {
-			
-		// set of ancestor keys already added as facet values
-		Set<Integer> seenIt = new HashSet<Integer>();
-					
-		if (annotatedTerms.containsKey(featureKey)) {
-			for (Integer termKey : annotatedTerms.get(featureKey).toArray(new Integer[0])) {
-				VocabTerm term = termCache.getTerm(termKey);
-
-				if (term != null) {
-					// For this term, we must index not only it but also its ancestor terms.
-					List<VocabTerm> toIndex = new ArrayList<VocabTerm>();
-					toIndex.add(term);
-					if (termCache.getAncestors(termKey) != null) {
-						toIndex.addAll(termCache.getAncestors(termKey));
-					}
-
-					for (VocabTerm iTerm : toIndex) {
-						if (iTerm.getTerm() != null) { doc.addField(termField, iTerm.getTerm()); }
-
-						if (iTerm.getDefinition() != null) { doc.addField(definitionField, iTerm.getDefinition()); }
-
-						if (iTerm.getAllIDs() != null) {
-							for (String accID : iTerm.getAllIDs()) {
-								doc.addField(idField, accID);
-							}
-						}
-
-						if (iTerm.getSynonyms() != null) {
-							for (String synonym : iTerm.getSynonyms()) {
-								doc.addField(synonymField, synonym);
-							}
-						}
-					}
-					
-					if ((ancestorField != null) && this.highLevelTerms.containsKey(termKey)) {
-						for (Integer ancestorKey : this.highLevelTerms.get(termKey)) {
-							if (!seenIt.contains(ancestorKey)) {
-								VocabTerm ancestor = termCache.getTerm(ancestorKey);
-								if (ancestor != null) {
-									doc.addField(ancestorField, ancestor.getTerm());
-								}
-								seenIt.add(ancestorKey);
-							}
-						}
-					}
-				}
-			}
-		}
-	}
-*/			
-	
-	
-	
 	private void indexAnnotations(String featureType) throws Exception {
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 		
@@ -1012,26 +962,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				addDoc(buildDoc(feature, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 				addDoc(buildDoc(feature, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
 			}
-		
-/*			
-			
-			if (MARKER.contentEquals(featureType)) {
-				addVocabAnnotations(doc, featureKey, goFunctionAnnotations, goFunctionCache,
-					IndexConstants.QS_FUNCTION_ANNOTATIONS_ID, IndexConstants.QS_FUNCTION_ANNOTATIONS_TERM,
-					IndexConstants.QS_FUNCTION_ANNOTATIONS_SYNONYM, IndexConstants.QS_FUNCTION_ANNOTATIONS_DEFINITION,
-					IndexConstants.QS_GO_FUNCTION_FACETS);
-			
-				addVocabAnnotations(doc, featureKey, goProcessAnnotations, goProcessCache,
-					IndexConstants.QS_PROCESS_ANNOTATIONS_ID, IndexConstants.QS_PROCESS_ANNOTATIONS_TERM,
-					IndexConstants.QS_PROCESS_ANNOTATIONS_SYNONYM, IndexConstants.QS_PROCESS_ANNOTATIONS_DEFINITION,
-					IndexConstants.QS_GO_PROCESS_FACETS);
-			
-				addVocabAnnotations(doc, featureKey, goComponentAnnotations, goComponentCache,
-					IndexConstants.QS_COMPONENT_ANNOTATIONS_ID, IndexConstants.QS_COMPONENT_ANNOTATIONS_TERM,
-					IndexConstants.QS_COMPONENT_ANNOTATIONS_SYNONYM, IndexConstants.QS_COMPONENT_ANNOTATIONS_DEFINITION,
-					IndexConstants.QS_GO_COMPONENT_FACETS);
-			}
-*/			
 		}
 
 		rs.close();
@@ -1039,39 +969,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("done with basic data for " + i + " " + featureType + "s");
 	}
 	
-	/* Load annotations to vocab terms from the given feature type, then populate and return a cache such
-	 * that each feature key maps to all the term keys that are annotated to it (excluding NOT annotations
-	 * or those with a ND evidence code).
-	 */
-/*	private Map<Integer,Set<Integer>> cacheVocabAnnotations(String featureType, String annotType, String dagName) throws SQLException {
-		Map<Integer,Set<Integer>> map = new HashMap<Integer,Set<Integer>>();
-		
-		if (MARKER.equals(featureType)) {
-			String cmd = "select a.term_key, mta.marker_key " + 
-				"from annotation a, term t, marker_to_annotation mta " +
-				"where a.annotation_type = '" + annotType + "' " +
-				"and a.object_type ilike '" + featureType + "' " + 
-				"and a.term_key = t.term_key " + 
-				"and t.display_vocab_name = '" + dagName + "' " +
-				"and a.annotation_key = mta.annotation_key " + 
-				"and (a.qualifier is null or a.qualifier != 'NOT') " + 
-				"and (a.evidence_code is null or a.evidence_code != 'ND')";
-			
-			ResultSet rs = ex.executeProto(cmd, cursorLimit);
-			while (rs.next() ) {
-				Integer featureKey = rs.getInt("marker_key");
-				if (!map.containsKey(featureKey)) {
-					map.put(featureKey, new HashSet<Integer>());
-				}
-				map.get(featureKey).add(rs.getInt("term_key"));
-			}
-			rs.close();
-		}
-		
-		logger.info("Cached " + annotType + " annotations for " + map.size() + " " + featureType + "s");
-		return map;
-	}
-*/	
 	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
 	private void processFeatureType(String featureType) throws Exception {
@@ -1089,21 +986,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexHumanOrthologIDs(featureType);
 		indexMouseDiseaseAnnotations(featureType);
 		indexHumanDiseaseAnnotations(featureType);
-/*		
-		// need to do annotations
-		
-		if (MARKER.equals(featureType)) {
-			this.goFunctionAnnotations = cacheVocabAnnotations(featureType, "GO/Marker", "Function");
-			this.goProcessAnnotations = cacheVocabAnnotations(featureType, "GO/Marker", "Process");
-			this.goComponentAnnotations = cacheVocabAnnotations(featureType, "GO/Marker", "Component");
-		} else {
-			this.goFunctionAnnotations = new HashMap<Integer,Set<Integer>>();
-			this.goProcessAnnotations = new HashMap<Integer,Set<Integer>>();
-			this.goComponentAnnotations = new HashMap<Integer,Set<Integer>>();
-		}
-
-		processFeatures(featureType);
-*/		
 		logger.info("finished " + featureType);
 	}
 	
@@ -1118,6 +1000,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		goProcessCache = new VocabTermCache("Process", ex);
 		goComponentCache = new VocabTermCache("Component", ex);
 		diseaseOntologyCache = new VocabTermCache("Disease Ontology", ex);
+		mpOntologyCache = new VocabTermCache("Mammalian Phenotype", ex);
 		this.cacheHighLevelTerms();
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
