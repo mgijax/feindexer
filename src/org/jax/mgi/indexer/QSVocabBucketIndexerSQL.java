@@ -55,8 +55,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		uriPrefixes.put(MP_VOCAB, "/vocab/mp_ontology/");
 		uriPrefixes.put(DO_VOCAB, "/disease/");
 		uriPrefixes.put(PIRSF_VOCAB, "/vocab/pirsf/");
-		uriPrefixes.put(EMAPA_VOCAB, "/vocab/gxd/anatomy/");
-		uriPrefixes.put(EMAPS_VOCAB, "/vocab/gxd/anatomy/");
+		uriPrefixes.put("Expression", "/vocab/gxd/anatomy/");
 		uriPrefixes.put(HPO_VOCAB, "/vocab/hp_ontology/");
 		uriPrefixes.put(GO_VOCAB, "/vocab/gene_ontology/");
 		uriPrefixes.put(GO_BP, "/vocab/gene_ontology/");
