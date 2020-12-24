@@ -358,27 +358,38 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private void indexMouseDiseaseAnnotations (String featureType) throws Exception {
 		String cmd = null;
 		
-		// TODO -- need to check that we're considering the roll-up rules (to exclude Gt(ROSA) -- see Richard's email)
-		// TODO -- alter queries to go through disease detail tables (e.g.- disease_row_to_marker)
-		
+		// need to check that we're considering the roll-up rules (to exclude Gt(ROSA), etc.)
 		if (ALLELE.equals(featureType)) {
-			cmd = "select distinct m.allele_key as feature_key, r.primary_id " + 
-				"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r " + 
-				"where m.allele_key = mtg.allele_key " + 
-				"and mtg.genotype_key = t.genotype_key " + 
-				"and t.is_disease_model = 1 " + 
-				"and t.genotype_key = dm.genotype_key " + 
-				"and dm.is_not_model = 0 " + 
-				"and dm.disease_id = r.primary_id ";
+			cmd = "with causative_markers as ( " + 
+					"select distinct m.marker_key, d.primary_id as disease_id " + 
+					"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
+					"where tm.marker_key = m.marker_key " + 
+					"and d.disease_key = g.disease_key " + 
+					"and g.disease_group_key = r.disease_group_key " + 
+					"and r.disease_row_key = tm.disease_row_key " + 
+					"and m.organism = 'mouse' " + 
+					"and tm.is_causative = 1 " + 
+					") " + 
+					"select distinct m.symbol, m.allele_key as feature_key, r.primary_id  " + 
+					"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r, causative_markers cm, marker_to_allele am " + 
+					"where m.allele_key = mtg.allele_key  " + 
+					"and mtg.genotype_key = t.genotype_key  " + 
+					"and t.is_disease_model = 1  " + 
+					"and t.genotype_key = dm.genotype_key  " + 
+					"and dm.is_not_model = 0  " + 
+					"and dm.disease_id = r.primary_id  " + 
+					"and cm.marker_key = am.marker_key " + 
+					"and m.allele_key = am.allele_key " + 
+					"and r.primary_id = cm.disease_id";
 		} else {
-			cmd = "select distinct m.marker_key as feature_key, r.primary_id " + 
-				"from marker m, marker_to_genotype mtg, genotype t, disease_model dm, term r " + 
-				"where m.marker_key = mtg.marker_key " + 
-				"and mtg.genotype_key = t.genotype_key " + 
-				"and t.is_disease_model = 1 " + 
-				"and t.genotype_key = dm.genotype_key " + 
-				"and dm.is_not_model = 0 " + 
-				"and dm.disease_id = r.primary_id ";
+			cmd = "select distinct m.symbol, m.marker_key as feature_key, d.primary_id " + 
+				"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
+				"where tm.marker_key = m.marker_key " + 
+				"and d.disease_key = g.disease_key " + 
+				"and g.disease_group_key = r.disease_group_key " + 
+				"and r.disease_row_key = tm.disease_row_key " + 
+				"and m.organism = 'mouse' " + 
+				"and tm.is_causative = 1";
 		}
 
 		logger.info(" - indexing mouse disease annotations for " + featureType);
