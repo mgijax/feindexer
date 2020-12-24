@@ -18,6 +18,9 @@ public class VocabTermCache {
 	// maps from term key to VocabTerm object
 	Map<Integer,VocabTerm> terms;
 
+	// maps from primary ID to term key
+	Map<String,Integer> idToKey;
+	
 	// logger for this class
 	public Logger logger = LoggerFactory.getLogger(this.getClass());
 
@@ -25,11 +28,23 @@ public class VocabTermCache {
 	public VocabTermCache (String vocabName, SQLExecutor ex) throws SQLException {
 		logger.info("Caching data for " + vocabName);
 		this.terms = new HashMap<Integer,VocabTerm>();
+		this.idToKey = new HashMap<String,Integer>();
 		this.fillTerms(vocabName, ex);
 		this.fillIDs(vocabName, ex);
 		this.fillSynonyms(vocabName, ex);
 		this.fillAncestors(vocabName, ex);
 		logger.info(" - Finished caching " + vocabName);
+	}
+	
+	// retrieve the VocabTerm object with the given primary ID
+	public VocabTerm getTerm(String primaryID) {
+		if (this.idToKey.containsKey(primaryID)) {
+			Integer termKey = this.idToKey.get(primaryID);
+			if (this.terms.containsKey(termKey)) {
+				return this.terms.get(termKey);
+			}
+		}
+		return null;
 	}
 	
 	// retrieve the VocabTerm object with the given key
@@ -79,6 +94,9 @@ public class VocabTermCache {
 			term.setTerm(rs.getString("term"));
 			term.setDefinition(rs.getString("definition"));
 			this.terms.put(term.getTermKey(), term);
+			if (term.getPrimaryID() != null) {
+				this.idToKey.put(term.getPrimaryID(), term.getTermKey());
+			}
 		}
 
 		rs.close();

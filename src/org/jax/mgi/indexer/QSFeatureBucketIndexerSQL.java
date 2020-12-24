@@ -50,6 +50,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int DISEASE_ID_WEIGHT = 43;
 	private static int DISEASE_NAME_WEIGHT = 40;
 	private static int DISEASE_ORTHOLOG_WEIGHT = 38;
+	private static int DISEASE_SYNONYM_WEIGHT = 35;
+	private static int DISEASE_DEFINITION_WEIGHT = 33;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -83,6 +85,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
 	private VocabTermCache goFunctionCache;
 	private VocabTermCache goComponentCache;
+	private VocabTermCache diseaseOntologyCache;	// cache of data for DO DAGs
 
 	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
 	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
@@ -355,32 +358,27 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private void indexMouseDiseaseAnnotations (String featureType) throws Exception {
 		String cmd = null;
 		
-		String synonymCmd = "select t.primary_id, s.synonym " + 
-				"from term t, term_synonym s " + 
-				"where t.vocab_name = 'Disease Ontology' " + 
-				"and t.term_key = s.term_key";
-		Map<String,Set<String>> synonymCache = buildCache(synonymCmd, "primary_id", "synonym", "DO Synonym");
-
+		// TODO -- need to check that we're considering the roll-up rules (to exclude Gt(ROSA) -- see Richard's email)
+		// TODO -- alter queries to go through disease detail tables (e.g.- disease_row_to_marker)
+		
 		if (ALLELE.equals(featureType)) {
-			cmd = "select distinct m.allele_key as feature_key, dm.disease, i.acc_id " + 
-				"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r, term_id i " + 
+			cmd = "select distinct m.allele_key as feature_key, r.primary_id " + 
+				"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r " + 
 				"where m.allele_key = mtg.allele_key " + 
 				"and mtg.genotype_key = t.genotype_key " + 
 				"and t.is_disease_model = 1 " + 
 				"and t.genotype_key = dm.genotype_key " + 
 				"and dm.is_not_model = 0 " + 
-				"and dm.disease_id = r.primary_id " + 
-				"and r.term_key = i.term_key ";
+				"and dm.disease_id = r.primary_id ";
 		} else {
-			cmd = "select distinct m.marker_key as feature_key, dm.disease, i.acc_id " + 
-				"from marker m, marker_to_genotype mtg, genotype t, disease_model dm, term r, term_id i " + 
+			cmd = "select distinct m.marker_key as feature_key, r.primary_id " + 
+				"from marker m, marker_to_genotype mtg, genotype t, disease_model dm, term r " + 
 				"where m.marker_key = mtg.marker_key " + 
 				"and mtg.genotype_key = t.genotype_key " + 
 				"and t.is_disease_model = 1 " + 
 				"and t.genotype_key = dm.genotype_key " + 
 				"and dm.is_not_model = 0 " + 
-				"and dm.disease_id = r.primary_id " + 
-				"and r.term_key = i.term_key";
+				"and dm.disease_id = r.primary_id ";
 		}
 
 		logger.info(" - indexing mouse disease annotations for " + featureType);
@@ -391,17 +389,56 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		while (rs.next()) {
 			ct++;
 			Integer featureKey = rs.getInt("feature_key");
-			String accID = rs.getString("acc_id");
-			String term = rs.getString("disease");
+			VocabTerm vt = diseaseOntologyCache.getTerm(rs.getString("primary_id"));
 			
-			if (features.containsKey(featureKey)) {
+			if (features.containsKey(featureKey) && (vt != null)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
-				addDoc(buildDoc(feature, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
+				String term = vt.getTerm();
 				
-				if (synonymCache.containsKey(accID)) {
-					for (String synonym : synonymCache.get(accID)) {
-						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_NAME_WEIGHT));
+				// For each annotation, we need to index:
+				// 1. term name, primary ID, secondary IDs, definition, and synonyms for that term.
+				// 2. And for each of its ancestors, we also need to index:
+				//    a. term name, primary ID, secondary IDs, definition, and synonyms.
+
+				addDoc(buildDoc(feature, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
+
+				if (vt.getAllIDs() != null) {
+					for (String accID : vt.getAllIDs()) {
+						addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+					}
+				}
+				
+				if (vt.getDefinition() != null) {
+					addDoc(buildDoc(feature, null, vt.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
+				}
+
+				if (vt.getSynonyms() != null) {
+					for (String synonym : vt.getSynonyms()) {
+						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+					}
+				}
+				
+				// ancestors of this vocab term
+				for (Integer ancestorKey : vt.getAncestorKeys()) {
+					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
+					String ancTerm = ancestor.getTerm();
+					
+					addDoc(buildDoc(feature, null, ancTerm, term + " (" + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
+
+					if (ancestor.getAllIDs() != null) {
+						for (String accID : ancestor.getAllIDs()) {
+							addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+						}
+					}
+				
+					if (ancestor.getDefinition() != null) {
+						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
+					}
+
+					if (ancestor.getSynonyms() != null) {
+						for (String synonym : ancestor.getSynonyms()) {
+							addDoc(buildDoc(feature, null, synonym, term + " (" + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+						}
 					}
 				}
 			}
@@ -415,14 +452,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private void indexHumanDiseaseAnnotations (String featureType) throws Exception {
 		if (ALLELE.equals(featureType)) { return; }
 
-		String synonymCmd = "select t.primary_id, s.synonym " + 
-				"from term t, term_synonym s " + 
-				"where t.vocab_name = 'Disease Ontology' " + 
-				"and t.term_key = s.term_key";
-		Map<String,Set<String>> synonymCache = buildCache(synonymCmd, "primary_id", "synonym", "DO Synonym");
-
 		// from mouse marker through orthology tables to human marker, then to human DO annotations
-		String cmd = "select mm.marker_key as mouse_marker_key, a.term_id, a.term " + 
+		String cmd = "select mm.marker_key as mouse_marker_key, a.term_id " + 
 				"from marker mm, homology_cluster_organism_to_marker cm, " + 
 				"  homology_cluster_organism om, homology_cluster hc, " + 
 				"  homology_cluster_organism oh, homology_cluster_organism_to_marker ch, " + 
@@ -448,17 +479,46 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		while (rs.next()) {
 			ct++;
 			Integer mouseMarkerKey = rs.getInt("mouse_marker_key");
-			String accID = rs.getString("term_id");
-			String term = rs.getString("term");
-			
+			VocabTerm vt = diseaseOntologyCache.getTerm(rs.getString("term_id"));
+
 			if (features.containsKey(mouseMarkerKey)) {
 				QSFeature feature = features.get(mouseMarkerKey);
-				addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+				String term = vt.getTerm();
+
 				addDoc(buildDoc(feature, null, term, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+				if (vt.getAllIDs() != null) {
+					for (String accID : vt.getAllIDs()) {
+						addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					}
+				}
 				
-				if (synonymCache.containsKey(accID)) {
-					for (String synonym : synonymCache.get(accID)) {
+				if (vt.getSynonyms() != null) {
+					for (String synonym : vt.getSynonyms()) {
 						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					}
+				}
+				
+				// ancestors of this vocab term
+				for (Integer ancestorKey : vt.getAncestorKeys()) {
+					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
+					String ancTerm = ancestor.getTerm();
+					
+					addDoc(buildDoc(feature, null, ancTerm, term + " (" + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+
+					if (ancestor.getAllIDs() != null) {
+						for (String accID : ancestor.getAllIDs()) {
+							addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						}
+					}
+				
+					if (ancestor.getDefinition() != null) {
+						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					}
+
+					if (ancestor.getSynonyms() != null) {
+						for (String synonym : ancestor.getSynonyms()) {
+							addDoc(buildDoc(feature, null, synonym, term + " (" + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						}
 					}
 				}
 			}
@@ -1043,9 +1103,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	@Override
 	public void index() throws Exception {
 		// cache vocabulary term data
-		this.goFunctionCache = new VocabTermCache("Function", ex);
-		this.goProcessCache = new VocabTermCache("Process", ex);
-		this.goComponentCache = new VocabTermCache("Component", ex);
+		goFunctionCache = new VocabTermCache("Function", ex);
+		goProcessCache = new VocabTermCache("Process", ex);
+		goComponentCache = new VocabTermCache("Component", ex);
+		diseaseOntologyCache = new VocabTermCache("Disease Ontology", ex);
 		this.cacheHighLevelTerms();
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
