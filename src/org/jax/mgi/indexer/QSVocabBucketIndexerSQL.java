@@ -69,7 +69,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		annotationUris = new HashMap<String,String>();
 		annotationUris.put(INTERPRO_DOMAINS, "marker/summary?interpro=@@@@");	
 		annotationUris.put("Phenotype", "/mp/annotations/@@@@");
-		annotationUris.put("Disease Ontology", "/disease/@@@@?openTab=models");
+		annotationUris.put("Disease", "/disease/@@@@?openTab=models");
 		annotationUris.put(PIRSF_VOCAB, "/vocab/pirsf/@@@@");
 		annotationUris.put("Expression", "/gxd/structure/@@@@");
 		annotationUris.put("Human Phenotype", "/diseasePortal?termID=@@@@");
