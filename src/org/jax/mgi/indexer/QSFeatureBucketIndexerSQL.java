@@ -41,6 +41,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int MARKER_NAME_WEIGHT = 79;
 	private static int SYNONYM_WEIGHT = 76;
 	private static int MARKER_SYNONYM_WEIGHT = 73;
+	private static int TRANSGENE_PART_WEIGHT = 72;
 	private static int PROTEOFORM_ID_WEIGHT = 70;
 	private static int PROTEIN_DOMAIN_WEIGHT = 67;
 	private static int PROTEIN_FAMILY_WEIGHT = 64;
@@ -961,6 +962,17 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				String markerName = rs.getString("marker_name");
 				addDoc(buildDoc(feature, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 				addDoc(buildDoc(feature, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
+				
+				// For transgenic alleles, we need to index by the parts of the allele symbol, including those
+				// parts appearing in parentheses.
+				
+				// Strip out parentheses, hyphens, and commas.  Then skip the "Tg" and index the other pieces by exact match.
+				String[] tgParts = feature.symbol.replaceAll("\\(", " ").replaceAll("\\)", " ").replaceAll("-", " ").replaceAll(",", " ").replaceAll("/", " ").split(" ");
+				for (String part : tgParts) {
+					if (!"Tg".equals(part)) {
+						addDoc(buildDoc(feature, part, null, feature.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
+					}
+				}
 			}
 		}
 
@@ -1004,8 +1016,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		this.cacheHighLevelTerms();
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
-		processFeatureType(MARKER);
 		processFeatureType(ALLELE);
+		processFeatureType(MARKER);
 		
 		// send any remaining documents and commit all the changes to Solr
 		if (docs.size() > 0) {
