@@ -53,11 +53,22 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int DISEASE_SYNONYM_WEIGHT = 46;
 	private static int DISEASE_ORTHOLOG_WEIGHT = 43;
 	private static int DISEASE_DEFINITION_WEIGHT = 40;
-	private static int MP_ID_WEIGHT = 37;
-	private static int MP_NAME_WEIGHT = 34;
-	private static int MP_SYNONYM_WEIGHT = 31;
-	private static int MP_ORTHOLOG_WEIGHT = 28;
-	private static int MP_DEFINITION_WEIGHT = 25;
+	private static int GO_ID_WEIGHT = 37;
+	private static int GO_NAME_WEIGHT = 34;
+	private static int GO_SYNONYM_WEIGHT = 31;
+	private static int GO_DEFINITION_WEIGHT = 28;
+	private static int MP_ID_WEIGHT = 25;
+	private static int MP_NAME_WEIGHT = 22;
+	private static int MP_SYNONYM_WEIGHT = 19;
+	private static int MP_DEFINITION_WEIGHT = 16;
+	private static int EMAP_ID_WEIGHT = 25;
+	private static int EMAP_NAME_WEIGHT = 22;
+	private static int EMAP_SYNONYM_WEIGHT = 19;
+	private static int EMAP_DEFINITION_WEIGHT = 16;
+	private static int HPO_ID_WEIGHT = 13;
+	private static int HPO_NAME_WEIGHT = 10;
+	private static int HPO_SYNONYM_WEIGHT = 7;
+	private static int HPO_DEFINITION_WEIGHT = 4;
 	
 	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
 	private static Map<String,String> uriPrefixes;			
@@ -83,22 +94,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private long uniqueKey = 0;						// ascending counter of documents created
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
-
-	private Map<Integer,Set<Integer>> goProcessAnnotations;		// marker key : annotated term key from GO Process DAG
-	private Map<Integer,Set<Integer>> goFunctionAnnotations;	// marker key : annotated term key from GO Function DAG
-	private Map<Integer,Set<Integer>> goComponentAnnotations;	// marker key : annotated term key from GO Component DAG
+	protected int uncommittedBatchLimit = 400;		// number of batches to allow before doing a Solr commit
+	private int uncommittedBatches = 0;				// number of batches sent to Solr and not yet committed
 
 	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
 	private VocabTermCache goFunctionCache;
 	private VocabTermCache goComponentCache;
 	private VocabTermCache diseaseOntologyCache;	// cache of data for DO DAG
 	private VocabTermCache mpOntologyCache;			// cache of data for MP DAG
-
-	private Map<Integer,Set<String>> mpAnnotations;				// marker or allele key : annotated MP term, ID, synonym
-	private Map<Integer,Set<String>> hpoAnnotations;			// marker or allele key : annotated HPO term, ID, synonym
-	private Map<Integer,Set<String>> diseaseAnnotations;		// marker or allele key : annotated DO term, ID, synonym
-	private Map<Integer,Set<String>> gxdAnnotations;			// marker or allele key : annotated EMAPA structure, ID, synonym
-	private Map<Integer,Set<String>> gxdAnnotationsWithTS;		// marker or allele key : annotated EMAPA structure, ID, synonym, with TS prepended
 
 	private Map<Integer,Set<Integer>> highLevelTerms;		// maps from a term key to the keys of its high-level ancestors
 	
@@ -123,6 +126,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		if (docs.size() >= solrBatchSize)  {
 			writeDocs(docs);
 			docs = new ArrayList<SolrInputDocument>();
+			uncommittedBatches++;
+			if (uncommittedBatches >= uncommittedBatchLimit) {
+				commit();
+				uncommittedBatches = 0;
+			}
 		}
 	}
 	
@@ -441,21 +449,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
 					String ancTerm = ancestor.getTerm();
 					
-					addDoc(buildDoc(feature, null, ancTerm, term + " (" + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
+					addDoc(buildDoc(feature, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+							addDoc(buildDoc(feature, accID, null, term + " (subterm of " + ancestor.getTerm() + ", with ID "+ accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
 						}
 					}
 				
 					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
+						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term + "(subterm of " + ancestor.getTerm() + ")", "Disease Model", DISEASE_DEFINITION_WEIGHT));
 					}
 
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
-							addDoc(buildDoc(feature, null, synonym, term + " (" + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+							addDoc(buildDoc(feature, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
 						}
 					}
 				}
@@ -521,21 +529,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
 					String ancTerm = ancestor.getTerm();
 					
-					addDoc(buildDoc(feature, null, ancTerm, term + " (" + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					addDoc(buildDoc(feature, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+							addDoc(buildDoc(feature, accID, null, term + " (subterm of " + ancTerm + ", with ID " + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 						}
 					}
 				
 					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 					}
 
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
-							addDoc(buildDoc(feature, null, synonym, term + " (" + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+							addDoc(buildDoc(feature, null, synonym, term + " (subterm of " + ancTerm + ", with synonym " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 						}
 					}
 				}
@@ -830,11 +838,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		return keyToFacets;
 	}
 	
-	private void indexAnnotations(String featureType) throws Exception {
-		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
-		
-	}
-	
 	// Retrieve synonyms, create documents, and index them.  For markers, do marker synonyms.  For alleles, do both
 	// marker synonyms and allele synonyms.
 	private void indexSynonyms(String featureType) throws Exception {
@@ -878,6 +881,113 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			}
 			rs.close();
 			logger.info("Indexed marker synonyms for alleles");
+		}
+	}
+	
+	// Look up annotations and index according to the given SQL command.  Expected field names: feature_key, primary_id.
+	// The given SQL command must order by the feature_key field to help identify duplicates (including ancestor terms).
+	// VocabTermCache vtc is used to look up data for each vocab term.
+	// The 4 weights are for the four different data pieces to be indexed.
+	private void indexAnnotations (String featureType, String dataType, String cmd, VocabTermCache vtc,
+		Integer nameWeight, Integer idWeight, Integer synonymWeight, Integer definitionWeight) throws SQLException {
+		
+		logger.info(" - indexing " + dataType + " for " + featureType);
+
+		// key of the previous feature we worked with
+		Integer previousFeature = -1;
+		
+		// each term ID indexed for the current feature
+		Set<String> indexedTerms = new HashSet<String>();
+		
+		// counter of indexed items
+		int i = 0;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next())  {  
+			Integer featureKey = rs.getInt("feature_key");
+			String termID = rs.getString("primary_id");
+			
+			// If we see a new feature, clear the set of indexed terms.
+			if (!previousFeature.equals(featureKey)) {
+				indexedTerms.clear();
+				previousFeature = featureKey;
+			}
+
+			if (features.containsKey(featureKey) && vtc.containsKey(termID)) {
+				QSFeature feature = features.get(featureKey);
+				VocabTerm term = vtc.getTerm(termID);
+
+				// need to also index ancestors of the term, to handle down-the-DAG searches...
+				Set<VocabTerm> toIndex = new HashSet<VocabTerm>();
+				if (!indexedTerms.contains(term.getPrimaryID())) {
+					toIndex.add(term);
+					indexedTerms.add(term.getPrimaryID());
+				}
+
+				for (VocabTerm ancestor : vtc.getAncestors(term.getTermKey())) {
+					if (!indexedTerms.contains(ancestor.getPrimaryID())) {
+						toIndex.add(ancestor);
+						indexedTerms.add(ancestor.getPrimaryID());
+					}
+				}
+				
+				for (VocabTerm termToIndex : toIndex) {
+					String name = termToIndex.getTerm();
+					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
+						addDoc(buildDoc(feature, null, name, name, dataType, nameWeight));
+						i++;
+					}
+				
+					String definition = termToIndex.getDefinition();
+					if ((definitionWeight != null) && (definition != null) && (definition.length() > 0)) {
+						addDoc(buildDoc(feature, null, definition, definition, dataType + " Definition", definitionWeight));
+						i++;
+					}
+				
+					List<String> termIDs = termToIndex.getAllIDs();
+					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
+						for (String id : termIDs) {
+							addDoc(buildDoc(feature, id, null, term.getTerm() + " (ID: " + id + ")", dataType, idWeight));
+							i++;
+						}
+					}
+				
+					List<String> synonyms = termToIndex.getSynonyms();
+					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
+						for (String synonym : synonyms) {
+							addDoc(buildDoc(feature, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", dataType, synonymWeight));
+							i++;
+						}
+					}
+				}
+			}
+		}
+		rs.close();
+		
+		logger.info(" - done with " + dataType + " for " + featureType + " (indexed " + i + " items)");
+	}
+	
+	// Index the MP terms for the given feature type.  Assumes caches are loaded.
+	private void indexMP(String featureType) throws SQLException {
+		String cmd = null;
+
+		if (MARKER.equals(featureType)) {
+			cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
+				"from annotation a, marker_to_annotation mta, marker m " + 
+				"where a.annotation_key = mta.annotation_key " + 
+				"and mta.marker_key = m.marker_key " + 
+				"and a.annotation_type = 'Mammalian Phenotype/Marker' " + 
+				"and m.organism = 'mouse' " + 
+				"and a.qualifier is null " +
+				"order by m.marker_key";
+			
+		} else { // feature type is allele
+			
+		}
+
+		if (cmd != null) {
+			indexAnnotations(featureType, "Phenotype", cmd, mpOntologyCache,
+				MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT, MP_DEFINITION_WEIGHT);
 		}
 	}
 	
@@ -988,16 +1098,23 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 		cacheLocations(featureType);
 		buildInitialDocs(featureType);
+
 		indexIDs(featureType);
 		indexSynonyms(featureType);
 		indexStrainGenes(featureType);
+		
 		indexProteinDomains(featureType);
 		indexProteinFamilies(featureType);
 		indexProteoformIDs(featureType);
+
 		indexOrthologNomenclature(featureType);
 		indexHumanOrthologIDs(featureType);
+
 		indexMouseDiseaseAnnotations(featureType);
 		indexHumanDiseaseAnnotations(featureType);
+		
+		indexMP(featureType);
+
 		logger.info("finished " + featureType);
 	}
 	
@@ -1007,6 +1124,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	@Override
 	public void index() throws Exception {
+		this.setSkipOptimizer(true);
+		
 		// cache vocabulary term data
 		goFunctionCache = new VocabTermCache("Function", ex);
 		goProcessCache = new VocabTermCache("Process", ex);
@@ -1016,8 +1135,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		this.cacheHighLevelTerms();
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
-		processFeatureType(ALLELE);
 		processFeatureType(MARKER);
+		processFeatureType(ALLELE);
 		
 		// send any remaining documents and commit all the changes to Solr
 		if (docs.size() > 0) {

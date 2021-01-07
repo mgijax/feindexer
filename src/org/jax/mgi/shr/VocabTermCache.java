@@ -36,6 +36,11 @@ public class VocabTermCache {
 		logger.info(" - Finished caching " + vocabName);
 	}
 	
+	// determine if this cache has a term with the given ID
+	public boolean containsKey(String primaryID) {
+		return this.idToKey.containsKey(primaryID);
+	}
+
 	// retrieve the VocabTerm object with the given primary ID
 	public VocabTerm getTerm(String primaryID) {
 		if (this.idToKey.containsKey(primaryID)) {
