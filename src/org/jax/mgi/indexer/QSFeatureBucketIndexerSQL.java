@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.apache.solr.common.SolrInputField;
 import org.jax.mgi.shr.VocabTerm;
 import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -94,7 +95,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private long uniqueKey = 0;						// ascending counter of documents created
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
-	protected int uncommittedBatchLimit = 400;		// number of batches to allow before doing a Solr commit
+	protected int uncommittedBatchLimit = 1000;		// number of batches to allow before doing a Solr commit
 	private int uncommittedBatches = 0;				// number of batches sent to Solr and not yet committed
 
 	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
@@ -120,17 +121,48 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	/*--- private methods ---*/
 	/*-----------------------*/
 
+	// To minimize the number of documents created for a given feature, we assume that all queries are ordered
+	// by marker/allele, and we keep track of each featureID seen and all the terms indexed for it.  Then
+	// in addDoc() we check that we haven't already indexed the current term for the current ID.  This should
+	//	prevent duplicates within each data type with one point of change (except for query ordering). 
+	Map<String,Set<String>> indexedTerms = new HashMap<String,Set<String>>();
+	
+	// Reset the cache of indexed terms.
+	private void clearIndexedTermCache(String featureType) {
+		logger.info("Clearing cache for " + indexedTerms.size() + " " + featureType + "s");
+		indexedTerms = new HashMap<String,Set<String>>();
+	}
+
 	// Add this doc to the batch we're collecting.  If the stack hits our threshold, send it to the server and reset it.
 	private void addDoc(SolrInputDocument doc) {
-		docs.add(doc);
-		if (docs.size() >= solrBatchSize)  {
-			writeDocs(docs);
-			docs = new ArrayList<SolrInputDocument>();
-			uncommittedBatches++;
-			if (uncommittedBatches >= uncommittedBatchLimit) {
-				commit();
-				uncommittedBatches = 0;
+		// See comments above definition of indexedTerms for explanation of logic.
+		
+		String primaryID = (String) doc.getFieldValue(IndexConstants.QS_PRIMARY_ID);
+		if (!indexedTerms.containsKey(primaryID)) {
+			indexedTerms.put(primaryID, new HashSet<String>());
+		}
+		
+		String term = null;
+		
+		if (doc.containsKey(IndexConstants.QS_SEARCH_TERM_EXACT)) {
+			term = ((String) doc.getFieldValue(IndexConstants.QS_SEARCH_TERM_EXACT)).toLowerCase();
+		}
+		if ((term == null) && (doc.containsKey(IndexConstants.QS_SEARCH_TERM_STEMMED))) {
+			term = ((String) doc.getFieldValue(IndexConstants.QS_SEARCH_TERM_STEMMED)).toLowerCase();
+		}
+		
+		if ((term != null) && !indexedTerms.get(primaryID).contains(term)) {
+			docs.add(doc);
+			if (docs.size() >= solrBatchSize)  {
+				writeDocs(docs);
+				docs = new ArrayList<SolrInputDocument>();
+				uncommittedBatches++;
+				if (uncommittedBatches >= uncommittedBatchLimit) {
+					commit();
+					uncommittedBatches = 0;
+				}
 			}
+			indexedTerms.get(primaryID).add(term);
 		}
 	}
 	
@@ -289,14 +321,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"select mts.marker_key, i.acc_id, i.logical_db " + 
 				"from marker_to_sequence mts, sequence_id i " + 
 				"where mts.sequence_key = i.sequence_key" +
-				" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project')";
+				" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project') " +
+				"order by 1";
 		} else {
 			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db " + 
 					"from allele_id i, allele a " + 
 					"where i.private = 0 " +
 					"and i.allele_key = a.allele_key " +
 					"and a.primary_id != i.acc_id " +
-					"and a.is_wild_type = 0";
+					"and a.is_wild_type = 0 " +
+					"order by 1";
 		}
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -342,7 +376,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and mo.cluster_organism_key = mm.cluster_organism_key " + 
 				"and mm.marker_key= m.marker_key " + 
 				"and m.organism = 'mouse' " + 
-				"and m.status = 'official'";
+				"and m.status = 'official' " +
+				"order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -395,7 +430,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					"and dm.disease_id = r.primary_id  " + 
 					"and cm.marker_key = am.marker_key " + 
 					"and m.allele_key = am.allele_key " + 
-					"and r.primary_id = cm.disease_id";
+					"and r.primary_id = cm.disease_id " +
+					"order by m.allele_key";
 		} else {
 			cmd = "select distinct m.symbol, m.marker_key as feature_key, d.primary_id " + 
 				"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
@@ -404,7 +440,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and g.disease_group_key = r.disease_group_key " + 
 				"and r.disease_row_key = tm.disease_row_key " + 
 				"and m.organism = 'mouse' " + 
-				"and tm.is_causative = 1";
+				"and tm.is_causative = 1 " +
+				"order by m.marker_key";
 		}
 
 		logger.info(" - indexing mouse disease annotations for " + featureType);
@@ -495,7 +532,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"  and mh.organism = 'human' " + 
 				"  and mh.marker_key = mta.marker_key " + 
 				"  and mta.annotation_key = a.annotation_key " + 
-				"  and a.annotation_type = 'DO/Human Marker'";
+				"  and a.annotation_type = 'DO/Human Marker' " +
+				"order by mm.marker_key";
 
 		logger.info(" - indexing human ortholog disease annotations");
 
@@ -564,7 +602,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			"where a.annotation_key = mta.annotation_key " + 
 			"and mta.annotation_type = 'Proteoform/Marker' " + 
 			"and mta.marker_key = m.marker_key " + 
-			"and m.organism = 'mouse'";
+			"and m.organism = 'mouse' " +
+			"order by mta.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -593,7 +632,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		String cmd = "select m.marker_key, gm.logical_db, gm.gene_model_id " + 
 			"from marker m, strain_marker sm, strain_marker_gene_model gm " + 
 			"where m.marker_key = sm.canonical_marker_key " + 
-			"and sm.strain_marker_key = gm.strain_marker_key";
+			"and sm.strain_marker_key = gm.strain_marker_key " +
+			"order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -624,7 +664,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			"where a.annotation_key = mta.annotation_key " + 
 			"and mta.annotation_type = 'PIRSF/Marker' " + 
 			"and mta.marker_key = m.marker_key " + 
-			"and m.organism = 'mouse'";
+			"and m.organism = 'mouse' " +
+			"order by mta.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -655,7 +696,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			+ "from annotation a, marker_to_annotation mta, marker m "
 			+ "where a.annotation_key = mta.annotation_key "
 			+ "and mta.marker_key = m.marker_key "
-			+ "and a.vocab_name = 'InterPro Domains' ";
+			+ "and a.vocab_name = 'InterPro Domains' "
+			+ "order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -693,12 +735,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			cmd = "select s.marker_key as feature_key, s.synonym " + 
 					"from marker_synonym s, marker m " +
 					"where s.marker_key = m.marker_key " +
-					"and m.marker_subtype != 'transgene' ";
+					"and m.marker_subtype != 'transgene' " +
+					"order by s.marker_key";
 		} else {
 			cmd = "select s.allele_key as feature_key, s.synonym " + 
 					"from allele_synonym s, allele a " +
 					"where s.allele_key = a.allele_key " +
-					"and a.is_wild_type = 0";
+					"and a.is_wild_type = 0 " +
+					"order by s.allele_key";
 		}
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -818,7 +862,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and c.heading_key = h.heading_key " + 
 				"and h.heading_key = ht.heading_key " + 
 				"and trim(h.grid_name_abbreviation) = '" + dagAbbrev + "' " +
-				"and ht.term_key = t.term_key";
+				"and ht.term_key = t.term_key " +
+				"order by c.marker_key";
 		}
 		
 		if (cmd != null) {
@@ -865,7 +910,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			String cmd = "select a.allele_key, m.marker_key " + 
 				"from allele a, marker_to_allele m " + 
 				"where a.allele_key = m.allele_key " + 
-				"and a.is_wild_type = 0";
+				"and a.is_wild_type = 0 " +
+				"order by a.allele_key";
 		
 			ResultSet rs = ex.executeProto(cmd, cursorLimit);
 			while (rs.next()) {
@@ -893,12 +939,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 		logger.info(" - indexing " + dataType + " for " + featureType);
 
-		// key of the previous feature we worked with
-		Integer previousFeature = -1;
-		
-		// each term ID indexed for the current feature
-		Set<String> indexedTerms = new HashSet<String>();
-		
 		// counter of indexed items
 		int i = 0;
 		
@@ -907,28 +947,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			Integer featureKey = rs.getInt("feature_key");
 			String termID = rs.getString("primary_id");
 			
-			// If we see a new feature, clear the set of indexed terms.
-			if (!previousFeature.equals(featureKey)) {
-				indexedTerms.clear();
-				previousFeature = featureKey;
-			}
-
 			if (features.containsKey(featureKey) && vtc.containsKey(termID)) {
 				QSFeature feature = features.get(featureKey);
 				VocabTerm term = vtc.getTerm(termID);
 
 				// need to also index ancestors of the term, to handle down-the-DAG searches...
 				Set<VocabTerm> toIndex = new HashSet<VocabTerm>();
-				if (!indexedTerms.contains(term.getPrimaryID())) {
-					toIndex.add(term);
-					indexedTerms.add(term.getPrimaryID());
-				}
+				toIndex.add(term);
 
 				for (VocabTerm ancestor : vtc.getAncestors(term.getTermKey())) {
-					if (!indexedTerms.contains(ancestor.getPrimaryID())) {
-						toIndex.add(ancestor);
-						indexedTerms.add(ancestor.getPrimaryID());
-					}
+					toIndex.add(ancestor);
 				}
 				
 				for (VocabTerm termToIndex : toIndex) {
@@ -1013,7 +1041,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"from marker m, marker_sequence_num s " + 
 				"where m.organism = 'mouse' " + 
 				"and m.marker_key = s.marker_key " +
-				"and m.status = 'official'";
+				"and m.status = 'official' " +
+				"order by m.marker_key";
 		} else {
 			cmd = "select a.allele_key as feature_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
 					"s.by_symbol as sequence_num, m.symbol as marker_symbol, m.name as marker_name " +
@@ -1021,7 +1050,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"where a.allele_key = s.allele_key " +
 				"and a.allele_key = mta.allele_key " +
 				"and a.is_wild_type = 0 " +
-				"and mta.marker_key = m.marker_key";
+				"and mta.marker_key = m.marker_key " +
+				"order by a.allele_key";
 
 			// Start allele sequence numbers after marker ones, so we prefer markers to alleles in each star-tier of returns.
 			padding = getMaxMarkerSequenceNum();
@@ -1099,21 +1129,26 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		cacheLocations(featureType);
 		buildInitialDocs(featureType);
 
-		indexIDs(featureType);
 		indexSynonyms(featureType);
+		indexOrthologNomenclature(featureType);
+		clearIndexedTermCache(featureType);		// only clear once all nomen done
+
+		indexIDs(featureType);
+		indexHumanOrthologIDs(featureType);
 		indexStrainGenes(featureType);
+		indexProteoformIDs(featureType);
+		clearIndexedTermCache(featureType);		// only clear once all IDs done
 		
 		indexProteinDomains(featureType);
 		indexProteinFamilies(featureType);
-		indexProteoformIDs(featureType);
-
-		indexOrthologNomenclature(featureType);
-		indexHumanOrthologIDs(featureType);
+		clearIndexedTermCache(featureType);		// only clear once all protein stuff done
 
 		indexMouseDiseaseAnnotations(featureType);
 		indexHumanDiseaseAnnotations(featureType);
+		clearIndexedTermCache(featureType);		// only clear once all disease data done
 		
 		indexMP(featureType);
+		clearIndexedTermCache(featureType);		// only clear once all phenotype data done
 
 		logger.info("finished " + featureType);
 	}
