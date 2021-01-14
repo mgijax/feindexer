@@ -960,6 +960,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 				
 				for (VocabTerm termToIndex : toIndex) {
+					boolean isAncestor = (!term.getPrimaryID().equals(termToIndex.getPrimaryID()));
+					
 					String name = termToIndex.getTerm();
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
 						addDoc(buildDoc(feature, null, name, name, dataType, nameWeight));
@@ -997,10 +999,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	
 	// Index the MP terms for the given feature type.  Assumes caches are loaded.
 	private void indexMP(String featureType) throws SQLException {
-		String cmd = null;
-
-		if (MARKER.equals(featureType)) {
-			cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
+		// Assume we're looking at markers.
+		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
 				"from annotation a, marker_to_annotation mta, marker m " + 
 				"where a.annotation_key = mta.annotation_key " + 
 				"and mta.marker_key = m.marker_key " + 
@@ -1009,14 +1009,34 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and a.qualifier is null " +
 				"order by m.marker_key";
 			
-		} else { // feature type is allele
-			
+		if (ALLELE.equals(featureType)) {
+			// First find the set of markers and the MP terms rolled up to them; then we can compare
+			// each allele's genotype's annotations to see if they rolled up to that allele's marker.
+			cmd = "with causative_markers as ( " + 
+				"select a.term_id, m.marker_key " + 
+				"from annotation a, marker_to_annotation mta, marker m  " + 
+				"where a.annotation_key = mta.annotation_key  " + 
+				"and mta.marker_key = m.marker_key  " + 
+				"and a.annotation_type = 'Mammalian Phenotype/Marker'  " + 
+				"and m.organism = 'mouse' " + 
+				"and a.qualifier is null  " + 
+				") " + 
+				"select distinct m.allele_key as feature_key, a.term_id as primary_id " + 
+				"from allele m, allele_to_genotype mtg, genotype_to_annotation gta, annotation a, " + 
+				"marker_to_allele mta, causative_markers cm " + 
+				"where m.allele_key = mtg.allele_key   " + 
+				"and mtg.genotype_key = gta.genotype_key " + 
+				"and gta.annotation_key = a.annotation_key " + 
+				"and a.qualifier is null " + 
+				"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
+				"and m.allele_key = mta.allele_key " + 
+				"and mta.marker_key = cm.marker_key " + 
+				"and a.term_id = cm.term_id " + 
+				"order by m.allele_key";
 		}
 
-		if (cmd != null) {
-			indexAnnotations(featureType, "Phenotype", cmd, mpOntologyCache,
-				MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT, MP_DEFINITION_WEIGHT);
-		}
+		indexAnnotations(featureType, "Phenotype", cmd, mpOntologyCache,
+			MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT, MP_DEFINITION_WEIGHT);
 	}
 	
 	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
