@@ -960,24 +960,31 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 				
 				for (VocabTerm termToIndex : toIndex) {
-					boolean isAncestor = (!term.getPrimaryID().equals(termToIndex.getPrimaryID()));
+					String prefix = "";
+					if (!term.getPrimaryID().equals(termToIndex.getPrimaryID())) {
+						prefix = "Subterm ";
+					}
 					
 					String name = termToIndex.getTerm();
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
-						addDoc(buildDoc(feature, null, name, name, dataType, nameWeight));
+						if (!name.equals(term.getTerm())) {
+							addDoc(buildDoc(feature, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight));
+						} else {
+							addDoc(buildDoc(feature, null, name, term.getTerm(), prefix + dataType, nameWeight));
+						}
 						i++;
 					}
 				
 					String definition = termToIndex.getDefinition();
 					if ((definitionWeight != null) && (definition != null) && (definition.length() > 0)) {
-						addDoc(buildDoc(feature, null, definition, definition, dataType + " Definition", definitionWeight));
+						addDoc(buildDoc(feature, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight));
 						i++;
 					}
 				
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
-							addDoc(buildDoc(feature, id, null, term.getTerm() + " (ID: " + id + ")", dataType, idWeight));
+							addDoc(buildDoc(feature, id, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight));
 							i++;
 						}
 					}
@@ -985,7 +992,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					List<String> synonyms = termToIndex.getSynonyms();
 					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
 						for (String synonym : synonyms) {
-							addDoc(buildDoc(feature, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", dataType, synonymWeight));
+							addDoc(buildDoc(feature, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight));
 							i++;
 						}
 					}
