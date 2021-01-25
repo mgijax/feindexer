@@ -961,30 +961,32 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				
 				for (VocabTerm termToIndex : toIndex) {
 					String prefix = "";
+					int directBoost = 1;	// slight preference for direct annotations over subterms
 					if (!term.getPrimaryID().equals(termToIndex.getPrimaryID())) {
 						prefix = "Subterm ";
+						directBoost = 0;
 					}
 					
 					String name = termToIndex.getTerm();
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
 						if (!name.equals(term.getTerm())) {
-							addDoc(buildDoc(feature, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight));
+							addDoc(buildDoc(feature, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
 						} else {
-							addDoc(buildDoc(feature, null, name, term.getTerm(), prefix + dataType, nameWeight));
+							addDoc(buildDoc(feature, null, name, term.getTerm(), prefix + dataType, nameWeight + directBoost));
 						}
 						i++;
 					}
 				
 					String definition = termToIndex.getDefinition();
 					if ((definitionWeight != null) && (definition != null) && (definition.length() > 0)) {
-						addDoc(buildDoc(feature, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight));
+						addDoc(buildDoc(feature, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight + directBoost));
 						i++;
 					}
 				
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
-							addDoc(buildDoc(feature, id, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight));
+							addDoc(buildDoc(feature, id, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight + directBoost));
 							i++;
 						}
 					}
@@ -992,7 +994,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					List<String> synonyms = termToIndex.getSynonyms();
 					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
 						for (String synonym : synonyms) {
-							addDoc(buildDoc(feature, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight));
+							addDoc(buildDoc(feature, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
 							i++;
 						}
 					}
