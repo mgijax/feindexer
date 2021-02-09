@@ -1044,7 +1044,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			// 1. match to full marker<allele> symbol
 			out.add(symbol);
 			
-			if ((out.indexOf("<") >= 0) && (out.indexOf(">") >= 0)) {
+			if ((symbol.indexOf("<") >= 0) && (symbol.indexOf(">") >= 0)) {
 				// 2. match to the markerallele symbol (minus the angle brackets)
 				out.add(symbol.replaceAll("<", "").replaceAll(">", ""));
 
