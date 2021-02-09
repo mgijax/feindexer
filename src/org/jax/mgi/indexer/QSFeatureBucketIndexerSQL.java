@@ -167,11 +167,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
-	private SolrInputDocument buildDoc(QSFeature feature, String exactTerm, String stemmedTerm, String searchTermDisplay,
-			String searchTermType, Integer searchTermWeight) {
+	private SolrInputDocument buildDoc(QSFeature feature, String exactTerm, String inexactTerm, String stemmedTerm,
+			String searchTermDisplay, String searchTermType, Integer searchTermWeight) {
 
 		SolrInputDocument doc = feature.getNewDocument();
 		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
+		if (inexactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, inexactTerm); }
 		if (stemmedTerm != null) {
 			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
 		}
@@ -348,7 +349,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, id, null, id, logicalDB, SECONDARY_ID_WEIGHT));
+				addDoc(buildDoc(feature, id, null, null, id, logicalDB, SECONDARY_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -390,12 +391,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, orthologID, null, orthologID + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
+				addDoc(buildDoc(feature, orthologID, null, null, orthologID + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
 
 				// For OMIM IDs we also need to index them without the prefix.
 				if (orthologID.startsWith("OMIM:")) {
 					String noPrefix = orthologID.replaceAll("OMIM:", "");
-					addDoc(buildDoc(feature, noPrefix, null, noPrefix + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
+					addDoc(buildDoc(feature, noPrefix, null, null, noPrefix + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
 				}
 			}
 		}
@@ -463,21 +464,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				// 2. And for each of its ancestors, we also need to index:
 				//    a. term name, primary ID, secondary IDs, definition, and synonyms.
 
-				addDoc(buildDoc(feature, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
+				addDoc(buildDoc(feature, null, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
 
 				if (vt.getAllIDs() != null) {
 					for (String accID : vt.getAllIDs()) {
-						addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+						addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
 					}
 				}
 				
 				if (vt.getDefinition() != null) {
-					addDoc(buildDoc(feature, null, vt.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
+					addDoc(buildDoc(feature, null, null, vt.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
 				}
 
 				if (vt.getSynonyms() != null) {
 					for (String synonym : vt.getSynonyms()) {
-						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
 					}
 				}
 				
@@ -486,21 +487,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
 					String ancTerm = ancestor.getTerm();
 					
-					addDoc(buildDoc(feature, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
+					addDoc(buildDoc(feature, null, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, term + " (subterm of " + ancestor.getTerm() + ", with ID "+ accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+							addDoc(buildDoc(feature, accID, null, null, term + " (subterm of " + ancestor.getTerm() + ", with ID "+ accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
 						}
 					}
 				
 					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term + "(subterm of " + ancestor.getTerm() + ")", "Disease Model", DISEASE_DEFINITION_WEIGHT));
+						addDoc(buildDoc(feature, null, null, ancestor.getDefinition(), term + "(subterm of " + ancestor.getTerm() + ")", "Disease Model", DISEASE_DEFINITION_WEIGHT));
 					}
 
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
-							addDoc(buildDoc(feature, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
 						}
 					}
 				}
@@ -549,16 +550,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				QSFeature feature = features.get(mouseMarkerKey);
 				String term = vt.getTerm();
 
-				addDoc(buildDoc(feature, null, term, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+				addDoc(buildDoc(feature, null, null, term, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 				if (vt.getAllIDs() != null) {
 					for (String accID : vt.getAllIDs()) {
-						addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 					}
 				}
 				
 				if (vt.getSynonyms() != null) {
 					for (String synonym : vt.getSynonyms()) {
-						addDoc(buildDoc(feature, null, synonym, term + " (synonym: " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 					}
 				}
 				
@@ -567,21 +568,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
 					String ancTerm = ancestor.getTerm();
 					
-					addDoc(buildDoc(feature, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					addDoc(buildDoc(feature, null, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, term + " (subterm of " + ancTerm + ", with ID " + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+							addDoc(buildDoc(feature, accID, null, null, term + " (subterm of " + ancTerm + ", with ID " + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 						}
 					}
 				
 					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, ancestor.getDefinition(), term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						addDoc(buildDoc(feature, null, null, ancestor.getDefinition(), term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 					}
 
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
-							addDoc(buildDoc(feature, null, synonym, term + " (subterm of " + ancTerm + ", with synonym " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancTerm + ", with synonym " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 						}
 					}
 				}
@@ -616,7 +617,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, accID, null, term + " (" + accID + ")", "Proteoform", PROTEOFORM_ID_WEIGHT));
+				addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Proteoform", PROTEOFORM_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -646,7 +647,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, sgID, null, sgID + " (" + logicalDB + ")", "ID", STRAIN_GENE_ID_WEIGHT));
+				addDoc(buildDoc(feature, sgID, null, null, sgID + " (" + logicalDB + ")", "ID", STRAIN_GENE_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -678,8 +679,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, termID, null, term + " (" + termID + ")", "Protein Family", PROTEIN_FAMILY_WEIGHT));
-				addDoc(buildDoc(feature, null, term, term, "Protein Domain", PROTEIN_FAMILY_WEIGHT));
+				addDoc(buildDoc(feature, termID, null, null, term + " (" + termID + ")", "Protein Family", PROTEIN_FAMILY_WEIGHT));
+				addDoc(buildDoc(feature, null, null, term, term, "Protein Domain", PROTEIN_FAMILY_WEIGHT));
 			}
 		}
 		rs.close();
@@ -710,8 +711,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, termID, null, term + " (" + termID + ")", "Protein Domain", PROTEIN_DOMAIN_WEIGHT));
-				addDoc(buildDoc(feature, null, term, term, "Protein Domain", PROTEIN_DOMAIN_WEIGHT));
+				addDoc(buildDoc(feature, termID, null, null, term + " (" + termID + ")", "Protein Domain", PROTEIN_DOMAIN_WEIGHT));
+				addDoc(buildDoc(feature, null, null, term, term, "Protein Domain", PROTEIN_DOMAIN_WEIGHT));
 			}
 		}
 		rs.close();
@@ -826,15 +827,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					int weight = 0;
 					if (termType.contains("symbol")) {
 						weight = ORTHOLOG_SYMBOL_WEIGHT;
-						addDoc(buildDoc(feature, termLower, null, term, termType, weight));
+						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
 					}
 					else if (termType.contains("name")) {
 						weight = ORTHOLOG_NAME_WEIGHT;
-						addDoc(buildDoc(feature, null, termLower, term, termType, weight));
+						addDoc(buildDoc(feature, null, null, termLower, term, termType, weight));
 					}
 					else if (termType.contains("synonym")) {
 						weight = ORTHOLOG_SYNONYM_WEIGHT;
-						addDoc(buildDoc(feature, termLower, null, term, termType, weight));
+						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
 					}
 					i++; 
 				}
@@ -896,7 +897,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
 				for (String synonym : mySynonyms.get(featureKey)) {
-					addDoc(buildDoc(feature, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
+					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 				}
 			}
 		}
@@ -921,7 +922,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				if (markerSynonyms.containsKey(markerKey)) {
 					QSFeature feature = features.get(alleleKey);
 					for (String synonym : markerSynonyms.get(markerKey)) {
-						addDoc(buildDoc(feature, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+						addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
 					}
 				}
 			}
@@ -970,23 +971,23 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					String name = termToIndex.getTerm();
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
 						if (!name.equals(term.getTerm())) {
-							addDoc(buildDoc(feature, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
+							addDoc(buildDoc(feature, null, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
 						} else {
-							addDoc(buildDoc(feature, null, name, term.getTerm(), prefix + dataType, nameWeight + directBoost));
+							addDoc(buildDoc(feature, null, null, name, term.getTerm(), prefix + dataType, nameWeight + directBoost));
 						}
 						i++;
 					}
 				
 					String definition = termToIndex.getDefinition();
 					if ((definitionWeight != null) && (definition != null) && (definition.length() > 0)) {
-						addDoc(buildDoc(feature, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight + directBoost));
+						addDoc(buildDoc(feature, null, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight + directBoost));
 						i++;
 					}
 				
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
-							addDoc(buildDoc(feature, id, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight + directBoost));
+							addDoc(buildDoc(feature, id, null, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight + directBoost));
 							i++;
 						}
 					}
@@ -994,7 +995,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					List<String> synonyms = termToIndex.getSynonyms();
 					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
 						for (String synonym : synonyms) {
-							addDoc(buildDoc(feature, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
+							addDoc(buildDoc(feature, null, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
 							i++;
 						}
 					}
@@ -1019,33 +1020,49 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"order by m.marker_key";
 			
 		if (ALLELE.equals(featureType)) {
-			// First find the set of markers and the MP terms rolled up to them; then we can compare
-			// each allele's genotype's annotations to see if they rolled up to that allele's marker.
-			cmd = "with causative_markers as ( " + 
-				"select a.term_id, m.marker_key " + 
-				"from annotation a, marker_to_annotation mta, marker m  " + 
-				"where a.annotation_key = mta.annotation_key  " + 
-				"and mta.marker_key = m.marker_key  " + 
-				"and a.annotation_type = 'Mammalian Phenotype/Marker'  " + 
-				"and m.organism = 'mouse' " + 
-				"and a.qualifier is null  " + 
-				") " + 
-				"select distinct m.allele_key as feature_key, a.term_id as primary_id " + 
-				"from allele m, allele_to_genotype mtg, genotype_to_annotation gta, annotation a, " + 
-				"marker_to_allele mta, causative_markers cm " + 
-				"where m.allele_key = mtg.allele_key   " + 
+			// Find the allele's genotype's annotations (with null qualifiers).
+			cmd = "select distinct m.allele_key as feature_key, a.term_id as primary_id " + 
+				"from allele m, allele_to_genotype mtg, genotype_to_annotation gta, annotation a " + 
+				"where m.allele_key = mtg.allele_key " + 
 				"and mtg.genotype_key = gta.genotype_key " + 
 				"and gta.annotation_key = a.annotation_key " + 
 				"and a.qualifier is null " + 
 				"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
-				"and m.allele_key = mta.allele_key " + 
-				"and mta.marker_key = cm.marker_key " + 
-				"and a.term_id = cm.term_id " + 
 				"order by m.allele_key";
 		}
 
 		indexAnnotations(featureType, "Phenotype", cmd, mpOntologyCache,
 			MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT, MP_DEFINITION_WEIGHT);
+	}
+	
+	/* Get the various parts of the allele symbol that we need to index.
+	 */
+	private List<String> getAlleleSymbolPieces(String symbol) {
+		List<String> out = new ArrayList<String>();
+		
+		if (symbol != null) {
+			// 1. match to full marker<allele> symbol
+			out.add(symbol);
+			
+			if ((out.indexOf("<") >= 0) && (out.indexOf(">") >= 0)) {
+				// 2. match to the markerallele symbol (minus the angle brackets)
+				out.add(symbol.replaceAll("<", "").replaceAll(">", ""));
+
+				// 3. match to just allele symbol, ignoring marker symbol and angle brackets
+				String justAllele = symbol.replaceAll(".*<", "").replaceAll(">.*", "");
+				out.add(justAllele);
+
+				// 4. match delimited parts of the allele symbol (using non-alpha-numerics as delimiters)
+				String[] pieces = justAllele.replaceAll("[^A-Za-z0-9]", " ").split(" ");
+				if (pieces.length > 1) {
+					for (String piece : pieces) {
+						out.add(piece);
+					}
+				}
+			}
+		}
+		
+		return out;
 	}
 	
 	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
@@ -1075,11 +1092,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		} else {
 			cmd = "select a.allele_key as feature_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
 					"s.by_symbol as sequence_num, m.symbol as marker_symbol, m.name as marker_name " +
-				"from allele a, allele_sequence_num s, marker_to_allele mta, marker m " + 
-				"where a.allele_key = s.allele_key " +
-				"and a.allele_key = mta.allele_key " +
-				"and a.is_wild_type = 0 " +
-				"and mta.marker_key = m.marker_key " +
+				"from allele a " +
+				"inner join allele_sequence_num s on (a.allele_key = s.allele_key) " +
+				"left outer join marker_to_allele mta on (a.allele_key = mta.allele_key) " +
+				"left outer join marker m on (mta.marker_key = m.marker_key) " +
+				"where a.is_wild_type = 0 " +
 				"order by a.allele_key";
 
 			// Start allele sequence numbers after marker ones, so we prefer markers to alleles in each star-tier of returns.
@@ -1117,20 +1134,32 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
-			addDoc(buildDoc(feature, feature.primaryID, null, feature.primaryID, "ID", PRIMARY_ID_WEIGHT));
-			addDoc(buildDoc(feature, null, feature.name, feature.name, "Name", NAME_WEIGHT));
+			addDoc(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, "ID", PRIMARY_ID_WEIGHT));
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
-			if (!"transgene".equals(feature.featureType)) {
-				addDoc(buildDoc(feature, feature.symbol, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
+			if (MARKER.equals(featureType) && !"transgene".equals(feature.featureType)) {
+				addDoc(buildDoc(feature, feature.symbol, null, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
 			}
 
 			// For alleles, we also need to consider the nomenclature of each one's associated marker.
 			if (ALLELE.equals(featureType)) { 
 				String markerSymbol = rs.getString("marker_symbol");
 				String markerName = rs.getString("marker_name");
-				addDoc(buildDoc(feature, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
-				addDoc(buildDoc(feature, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
+
+				if (markerSymbol != null) {
+					addDoc(buildDoc(feature, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
+				}
+				if (markerName != null) {
+					addDoc(buildDoc(feature, null, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
+					addDoc(buildDoc(feature, null, null, feature.name, markerName + "; " + feature.name, "Name", NAME_WEIGHT)); 
+				} else {
+					addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT)); 
+				}
+
+				// split allele symbol into relevant pieces that need to be indexed separately
+				for (String piece : getAlleleSymbolPieces(feature.symbol)) {
+					addDoc(buildDoc(feature, piece, null, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
+				}
 				
 				// For transgenic alleles, we need to index by the parts of the allele symbol, including those
 				// parts appearing in parentheses.
@@ -1139,9 +1168,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				String[] tgParts = feature.symbol.replaceAll("\\(", " ").replaceAll("\\)", " ").replaceAll("-", " ").replaceAll(",", " ").replaceAll("/", " ").split(" ");
 				for (String part : tgParts) {
 					if (!"Tg".equals(part)) {
-						addDoc(buildDoc(feature, part, null, feature.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
+						addDoc(buildDoc(feature, part, null, null, feature.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
 					}
 				}
+			} else {
+				// marker name
+				addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT));
 			}
 		}
 
