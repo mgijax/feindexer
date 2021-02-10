@@ -172,7 +172,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		SolrInputDocument doc = feature.getNewDocument();
 		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
-		if (inexactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, inexactTerm); }
+		if (inexactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_INEXACT, inexactTerm); }
 		if (stemmedTerm != null) {
 			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
 		}
@@ -238,7 +238,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("Cached ancestors of " + this.highLevelTerms.size() + " terms");
 	}
 	
-	/* cache the chromosomes, coordinates, and strands for objects of the given feature type
+	/* Cache the chromosomes, coordinates, and strands for objects of the given feature type.
+	 * NOTE: For efficiency's sake, these are not currently used in the fewi.  Instead, it retrieves them
+	 * from the database and caches them.
 	 */
 	private void cacheLocations(String featureType) throws Exception {
 		chromosome = new HashMap<Integer,String>();
@@ -246,11 +248,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		endCoord = new HashMap<Integer,String>();
 		strand = new HashMap<Integer,String>();
 	
-		String cmd;
+		List<String> cmds = new ArrayList<String>();
+		
 		if (MARKER.equals(featureType)) {
 			// may need to pick up chromosome from either coordinates, centimorgans, or cytogenetic band
 			// (in order of preference)
-			cmd = "select m.marker_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
+			cmds.add("select m.marker_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
 				+ " coord.strand, cm.chromosome as cm_chromosome, cyto.chromosome as cyto_chromosome " + 
 				"from marker m " + 
 				"left outer join marker_location coord on (m.marker_key = coord.marker_key "
@@ -260,9 +263,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"left outer join marker_location cm on (m.marker_key = cm.marker_key "
 				+ " and cm.location_type = 'centimorgans') " + 
 				"where m.organism = 'mouse' " + 
-				"and m.status = 'official'";
+				"and m.status = 'official'");
 		} else {
-			cmd = "select a.allele_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
+			// primarily pick up coordinates from the allele's marker
+			cmds.add("select a.allele_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
 				+ " coord.strand, cm.chromosome as cm_chromosome, cyto.chromosome as cyto_chromosome " + 
 				"from allele a " +
 				"inner join marker_to_allele m on (a.allele_key = m.allele_key) " + 
@@ -272,33 +276,44 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				+ " and cyto.location_type = 'cytogenetic') " +
 				"left outer join marker_location cm on (m.marker_key = cm.marker_key "
 				+ " and cm.location_type = 'centimorgans')" +
-				"where a.is_wild_type = 0";
-		}
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of locations processed
-		while (rs.next()) {
-			ct++;
-
-			Integer featureKey = rs.getInt("feature_key");
-			String chrom = rs.getString("chromosome");
+				"where a.is_wild_type = 0");
 			
-			if (chrom == null) {
-				chrom = rs.getString("cm_chromosome");
+			// secondarily pick up coordinates from an allele's sequence (where only one good hit count)
+			cmds.add("select a.allele_key as feature_key, sl.chromosome, sl.start_coordinate, sl.end_coordinate, " +
+					" sl.strand, null as cyto_chromosome, null as cm_chromosome " + 
+					"from allele a, allele_to_sequence t, sequence_gene_trap gt, sequence_location sl " + 
+					"where a.allele_key = t.allele_key " + 
+					"and t.sequence_key = gt.sequence_key " + 
+					"and gt.good_hit_count = 1 " + 
+					"and t.sequence_key = sl.sequence_key " + 
+					"and sl.location_type = 'coordinates' " + 
+					"and sl.chromosome is not null " + 
+					"and not exists (select 1 from marker_to_allele m where a.allele_key = m.allele_key)");
+		}
+		
+		for (String cmd : cmds) { 
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+			while (rs.next()) {
+				Integer featureKey = rs.getInt("feature_key");
+				String chrom = rs.getString("chromosome");
+
 				if (chrom == null) {
-					chrom = rs.getString("cyto_chromosome");
+					chrom = rs.getString("cm_chromosome");
+					if (chrom == null) {
+						chrom = rs.getString("cyto_chromosome");
+					}
 				}
-			}
-			
-			chromosome.put(featureKey, chrom);
-			startCoord.put(featureKey, rs.getString("start_coordinate"));
-			endCoord.put(featureKey, rs.getString("end_coordinate"));
-			strand.put(featureKey, rs.getString("strand"));
-		}
-		rs.close();
 
-		logger.info(" - cached " + ct + " locations for " + chromosome.size() + " " + featureType + "s");
+				if (!chromosome.containsKey(featureKey)) { chromosome.put(featureKey, chrom); }
+				if (!startCoord.containsKey(featureKey)) { startCoord.put(featureKey, rs.getString("start_coordinate")); }
+				if (!endCoord.containsKey(featureKey)) { endCoord.put(featureKey, rs.getString("end_coordinate")); }
+				if (!strand.containsKey(featureKey)) { strand.put(featureKey, rs.getString("strand")); }
+			}
+			rs.close();
+		}
+
+		logger.info(" - cached " + chromosome.size() + " locations for " + chromosome.size() + " " + featureType + "s");
 	}
 	
 	// Load accession IDs for the given feature type (marker or allele) and create Solr documents for them.
@@ -898,6 +913,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				QSFeature feature = features.get(featureKey);
 				for (String synonym : mySynonyms.get(featureKey)) {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
+					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
 				}
 			}
 		}
@@ -923,6 +939,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					QSFeature feature = features.get(alleleKey);
 					for (String synonym : markerSynonyms.get(markerKey)) {
 						addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+						addDoc(buildDoc(feature, null, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
 					}
 				}
 			}
