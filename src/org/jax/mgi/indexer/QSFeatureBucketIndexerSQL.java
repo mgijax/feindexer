@@ -1144,10 +1144,17 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			feature.primaryID = rs.getString("primary_id");
 			feature.symbol = rs.getString("symbol");
-			feature.name = rs.getString("name");
 			feature.sequenceNum = padding + rs.getLong("sequence_num");	
 			feature.featureType = rs.getString("subtype");
 			
+			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
+			// from the index does not get displayed.
+			if (ALLELE.equals(featureType) && (rs.getString("marker_name") != null)) {
+				feature.name = rs.getString("marker_name") + "; " + rs.getString("name");
+			} else {
+				feature.name = rs.getString("name");
+			}
+
 			if (MARKER.equals(featureType)) {
 				feature.isMarker = 1;
 			} else {
@@ -1168,19 +1175,13 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				addDoc(buildDoc(feature, feature.symbol, null, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
 			}
 
-			// For alleles, we also need to consider the nomenclature of each one's associated marker.
+			// For alleles, we also need to consider the nomenclature of each one's associated marker. (Marker name
+			// is already considered with the allele name.)
 			if (ALLELE.equals(featureType)) { 
 				String markerSymbol = rs.getString("marker_symbol");
-				String markerName = rs.getString("marker_name");
 
 				if (markerSymbol != null) {
 					addDoc(buildDoc(feature, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
-				}
-				if (markerName != null) {
-					addDoc(buildDoc(feature, null, null, markerName, markerName + "; " + feature.name, "Name", MARKER_NAME_WEIGHT));
-					addDoc(buildDoc(feature, null, null, feature.name, markerName + "; " + feature.name, "Name", NAME_WEIGHT)); 
-				} else {
-					addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT)); 
 				}
 
 				// split allele symbol into relevant pieces that need to be indexed separately
@@ -1198,10 +1199,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						addDoc(buildDoc(feature, part, null, null, feature.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
 					}
 				}
-			} else {
-				// marker name
-				addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT));
 			}
+
+			// feature name
+			addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();
@@ -1312,7 +1313,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			}
 
 			String suffix = "";
-			if (ALLELE.equals(this.featureType)) {
+			if (this.isMarker.equals(0)) {
 				suffix = " allele";
 			}
 			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType + suffix); }
