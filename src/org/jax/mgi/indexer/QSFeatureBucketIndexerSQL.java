@@ -36,7 +36,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int SECONDARY_ID_WEIGHT = 97;
 	private static int STRAIN_GENE_ID_WEIGHT = 94;
 	private static int SYMBOL_WEIGHT = 91;
-	private static int HUMAN_ID_WEIGHT = 88;
+	private static int ORTHOLOG_ID_WEIGHT = 88;
 	private static int NAME_WEIGHT = 85;
 	private static int MARKER_SYMBOL_WEIGHT = 82;
 	private static int MARKER_NAME_WEIGHT = 79;
@@ -322,6 +322,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 
 		String cmd;
+		String prefix = "Genome Feature ";
 		
 		if (MARKER.equals(featureType)) {
 			// include both marker IDs and their related sequence IDs -- but exclude strain gene IDs, so
@@ -347,6 +348,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					"and a.primary_id != i.acc_id " +
 					"and a.is_wild_type = 0 " +
 					"order by 1";
+			prefix = "Allele ";
 		}
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -358,8 +360,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
 			
-			if (id.startsWith(logicalDB)) {
-				logicalDB = "ID";
+			if ("MGI".contentEquals(logicalDB)) {
+				logicalDB = prefix + "ID";
+			} else {
+				logicalDB = logicalDB + " ID";
 			}
 
 			if (features.containsKey(featureKey)) {
@@ -372,19 +376,19 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " IDs for " + featureType + "s");
 	}
 	
-	// Index human ortholog IDs for markers.  If feature type is for alleles, just skip this.
-	private void indexHumanOrthologIDs(String featureType) throws Exception {
+	// Index ortholog IDs for markers.  If feature type is for alleles, just skip this.
+	private void indexOrthologIDs(String featureType) throws Exception {
 		if (ALLELE.equals(featureType)) { return; }
-		logger.info(" - human ortholog IDs for " + featureType);
+		logger.info(" - ortholog IDs for " + featureType);
 
-		String cmd = "select distinct m.marker_key, ha.logical_db, ha.acc_id " + 
+		String cmd = "select distinct m.marker_key, ha.logical_db, ha.acc_id, h.organism " + 
 				"from marker h, marker_id ha, " + 
 				"  homology_cluster_organism_to_marker hm, " + 
 				"  homology_cluster_organism ho, " + 
 				"  homology_cluster_organism mo, " + 
 				"  homology_cluster_organism_to_marker mm, " + 
 				"  marker m " + 
-				"where h.organism = 'human' " + 
+				"where h.organism != 'mouse' " + 
 				"and h.marker_key = ha.marker_key " + 
 				"and h.marker_key = hm.marker_key " + 
 				"and hm.cluster_organism_key = ho.cluster_organism_key " + 
@@ -403,21 +407,22 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			Integer featureKey = rs.getInt("marker_key");
 			String orthologID = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
+			String organism = rs.getString("organism");
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, orthologID, null, null, orthologID + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
+				addDoc(buildDoc(feature, orthologID, null, null, orthologID + " (" + organism + ")", logicalDB + " ID", ORTHOLOG_ID_WEIGHT));
 
 				// For OMIM IDs we also need to index them without the prefix.
 				if (orthologID.startsWith("OMIM:")) {
 					String noPrefix = orthologID.replaceAll("OMIM:", "");
-					addDoc(buildDoc(feature, noPrefix, null, null, noPrefix + " (" + logicalDB + " - Human)", "ID", HUMAN_ID_WEIGHT));
+					addDoc(buildDoc(feature, noPrefix, null, null, noPrefix + " (" + organism + ")", logicalDB + " ID", ORTHOLOG_ID_WEIGHT));
 				}
 			}
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " human ortholog IDs for markers");
+		logger.info(" - indexed " + ct + " ortholog IDs for markers");
 	}
 
 	// Index mouse DO (Disease Ontology) annotations.
@@ -662,7 +667,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, sgID, null, null, sgID + " (" + logicalDB + ")", "ID", STRAIN_GENE_ID_WEIGHT));
+				addDoc(buildDoc(feature, sgID, null, null, sgID + " (" + logicalDB + ")", "Strain Gene ID", STRAIN_GENE_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -1093,6 +1098,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues(featureType, "C");
 		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues(featureType, "MP");
 		
+		String prefix = "Genome Feature ";
+		if (ALLELE.equals(featureType)) {
+			prefix = "Allele ";
+		}
+
 		features = new HashMap<Integer,QSFeature>();
 		
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
@@ -1151,7 +1161,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
-			addDoc(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, "ID", PRIMARY_ID_WEIGHT));
+			addDoc(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
 			if (MARKER.equals(featureType) && !"transgene".equals(feature.featureType)) {
@@ -1167,7 +1177,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					addDoc(buildDoc(feature, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 				}
 				if (markerName != null) {
-					addDoc(buildDoc(feature, null, null, markerName, markerName, "Marker Name", MARKER_NAME_WEIGHT));
+					addDoc(buildDoc(feature, null, null, markerName, markerName + "; " + feature.name, "Name", MARKER_NAME_WEIGHT));
 					addDoc(buildDoc(feature, null, null, feature.name, markerName + "; " + feature.name, "Name", NAME_WEIGHT)); 
 				} else {
 					addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT)); 
@@ -1212,7 +1222,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		clearIndexedTermCache(featureType);		// only clear once all nomen done
 
 		indexIDs(featureType);
-		indexHumanOrthologIDs(featureType);
+		indexOrthologIDs(featureType);
 		indexStrainGenes(featureType);
 		indexProteoformIDs(featureType);
 		clearIndexedTermCache(featureType);		// only clear once all IDs done
@@ -1301,7 +1311,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 
-			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType); }
+			String suffix = "";
+			if (ALLELE.equals(this.featureType)) {
+				suffix = " allele";
+			}
+			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType + suffix); }
 			if (this.symbol != null) { doc.addField(IndexConstants.QS_SYMBOL, this.symbol); }
 			if (this.name != null) { doc.addField(IndexConstants.QS_NAME, this.name); }
 			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
