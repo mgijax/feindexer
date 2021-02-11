@@ -1056,6 +1056,29 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexAnnotations(featureType, "Phenotype", cmd, mpOntologyCache,
 			MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT, MP_DEFINITION_WEIGHT);
 	}
+
+	// Index the GO terms for the given feature type.  Assumes caches are loaded.
+	private void indexGO(String featureType) throws SQLException {
+		// bail out for alleles; only index GO annotations for markers
+		if (ALLELE.equals(featureType)) { return; }
+		
+		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
+				"from annotation a, marker_to_annotation mta, marker m " + 
+				"where a.annotation_key = mta.annotation_key " + 
+				"and mta.marker_key = m.marker_key " + 
+				"and a.annotation_type = 'Mammalian Phenotype/Marker' " + 
+				"and m.organism = 'mouse' " + 
+				"and a.qualifier is null " +
+				"and a.dag_name = '<DAG>' " +
+				"order by m.marker_key";
+
+		indexAnnotations(featureType, "Function", cmd.replaceAll("<DAG>", "Molecular Function"), goFunctionCache,
+			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT, GO_DEFINITION_WEIGHT);
+		indexAnnotations(featureType, "Component", cmd.replaceAll("<DAG>", "Cellular Component"), goComponentCache,
+			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT, GO_DEFINITION_WEIGHT);
+		indexAnnotations(featureType, "Process", cmd.replaceAll("<DAG>", "Biological Process"), goProcessCache,
+			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT, GO_DEFINITION_WEIGHT);
+	}
 	
 	/* Get the various parts of the allele symbol that we need to index.
 	 */
@@ -1238,6 +1261,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 		indexMP(featureType);
 		clearIndexedTermCache(featureType);		// only clear once all phenotype data done
+
+		indexGO(featureType);
+		clearIndexedTermCache(featureType);		// only clear once all GO data done
 
 		logger.info("finished " + featureType);
 	}
