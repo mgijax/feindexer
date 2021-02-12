@@ -1066,7 +1066,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"from annotation a, marker_to_annotation mta, marker m " + 
 				"where a.annotation_key = mta.annotation_key " + 
 				"and mta.marker_key = m.marker_key " + 
-				"and a.annotation_type = 'Mammalian Phenotype/Marker' " + 
+				"and a.annotation_type = 'GO/Marker' " + 
 				"and m.organism = 'mouse' " + 
 				"and a.qualifier is null " +
 				"and a.dag_name = '<DAG>' " +
