@@ -103,6 +103,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private VocabTermCache goComponentCache;
 	private VocabTermCache diseaseOntologyCache;	// cache of data for DO DAG
 	private VocabTermCache mpOntologyCache;			// cache of data for MP DAG
+	private VocabTermCache hpoCache;				// cache of data for HPO DAG
 
 	private Map<Integer,Set<Integer>> highLevelTerms;		// maps from a term key to the keys of its high-level ancestors
 	
@@ -1282,6 +1283,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		goComponentCache = new VocabTermCache("Component", ex);
 		diseaseOntologyCache = new VocabTermCache("Disease Ontology", ex);
 		mpOntologyCache = new VocabTermCache("Mammalian Phenotype", ex);
+		hpoCache = new VocabTermCache("Human Phenotype Ontology", ex);
 		this.cacheHighLevelTerms();
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
