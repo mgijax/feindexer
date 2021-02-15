@@ -323,12 +323,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 
 		String cmd;
-		String prefix = "Genome Feature ";
 		
 		if (MARKER.equals(featureType)) {
 			// include both marker IDs and their related sequence IDs -- but exclude strain gene IDs, so
 			// we can do those in a separate method and format their Best Match output differently
-			cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db " + 
+			cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
 				"from marker m, marker_id i " + 
 				"where m.marker_key = i.marker_key " + 
 				"and m.status = 'official' " + 
@@ -336,20 +335,24 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and m.primary_id != i.acc_id " +
 				"and i.private = 0 " +
 				"union " +
-				"select mts.marker_key, i.acc_id, i.logical_db " + 
+				"select mts.marker_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
 				"from marker_to_sequence mts, sequence_id i " + 
 				"where mts.sequence_key = i.sequence_key" +
 				" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project') " +
 				"order by 1";
 		} else {
-			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db " + 
+			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db, 'Allele' as prefix " + 
 					"from allele_id i, allele a " + 
 					"where i.private = 0 " +
 					"and i.allele_key = a.allele_key " +
 					"and a.primary_id != i.acc_id " +
 					"and a.is_wild_type = 0 " +
+					"union " +
+					"select allele_key as feature_key, primary_id as acc_id, logical_db, 'Cell Line' as prefix " + 
+					"from allele_cell_line " + 
+					"where primary_id is not null " + 
+					"and logical_db is not null " + 
 					"order by 1";
-			prefix = "Allele ";
 		}
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -360,16 +363,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			Integer featureKey = rs.getInt("feature_key");
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
+			String prefix = rs.getString("prefix");
+			String suffix = "";
 			
 			if ("MGI".contentEquals(logicalDB)) {
 				logicalDB = prefix + "ID";
+			} else if ("Cell Line".equals(prefix)){
+				suffix = " (" + logicalDB + ")";
+				logicalDB = prefix + " ID";
 			} else {
 				logicalDB = logicalDB + " ID";
 			}
 
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, id, null, null, id, logicalDB, SECONDARY_ID_WEIGHT));
+				addDoc(buildDoc(feature, id, null, null, id + suffix, logicalDB, SECONDARY_ID_WEIGHT));
 			}
 		}
 		rs.close();
