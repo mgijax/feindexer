@@ -601,8 +601,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
 		String cmd = "select a.allele_key as allele_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
-				"m.symbol as marker_symbol, m.name as marker_name " +
+				"m.symbol as marker_symbol, m.name as marker_name, s.by_symbol " +
 			"from allele a " +
+			"inner join allele_sequence_num s on (a.allele_key = s.allele_key) " +
 			"left outer join marker_to_allele mta on (a.allele_key = mta.allele_key) " +
 			"left outer join marker m on (mta.marker_key = m.marker_key) " +
 			"where a.is_wild_type = 0 " +
@@ -624,6 +625,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			allele.primaryID = rs.getString("primary_id");
 			allele.symbol = rs.getString("symbol");
 			allele.alleleType = rs.getString("subtype");
+			allele.sequenceNum = rs.getLong("by_symbol");
 			
 			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
 			// from the index does not get displayed.
@@ -716,6 +718,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		public String symbol;
 		public String primaryID;
 		public String name;
+		public Long sequenceNum;
 		public Set<String> goProcessFacets;
 		public Set<String> goFunctionFacets;
 		public Set<String> goComponentFacets;
@@ -735,6 +738,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			if (this.primaryID != null) { doc.addField(IndexConstants.QS_PRIMARY_ID, this.primaryID); }
 
 			if (this.alleleType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.alleleType + " allele"); }
+			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
 
 			if (chromosome.containsKey(this.alleleKey)) { doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(alleleKey)); }
 			if (startCoord.containsKey(this.alleleKey)) { doc.addField(IndexConstants.QS_START_COORD, startCoord.get(alleleKey)); }
