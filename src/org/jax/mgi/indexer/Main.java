@@ -36,6 +36,7 @@ public class Main {
 		indexerMap.put("qsVocabBucket", new QSVocabBucketIndexerSQL());
 		indexerMap.put("qsStrainBucket", new QSStrainBucketIndexerSQL());
 		indexerMap.put("qsFeatureBucket", new QSFeatureBucketIndexerSQL());
+		indexerMap.put("qsAlleleBucket", new QSAlleleBucketIndexerSQL());
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
@@ -98,6 +99,11 @@ public class Main {
 				} else if ("gxdht".equalsIgnoreCase(arg)) {
 					SPECIFIED_INDEXERS.add("gxdHtSample");
 					SPECIFIED_INDEXERS.add("gxdHtExperiment");
+				} else if ("qs".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("qsAlleleBucket");
+					SPECIFIED_INDEXERS.add("qsFeatureBucket");
+					SPECIFIED_INDEXERS.add("qsStrainBucket");
+					SPECIFIED_INDEXERS.add("qsVocabBucket");
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
 						System.out.println(s);
