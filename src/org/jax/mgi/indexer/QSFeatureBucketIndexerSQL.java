@@ -1296,7 +1296,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processFeatureType(MARKER);
-		processFeatureType(ALLELE);
+//		processFeatureType(ALLELE);
 		
 		// send any remaining documents and commit all the changes to Solr
 		if (docs.size() > 0) {
