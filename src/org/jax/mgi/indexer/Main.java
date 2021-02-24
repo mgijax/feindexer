@@ -33,6 +33,7 @@ public class Main {
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
 		indexerMap.put("marker", new MarkerIndexerSQL());
 		indexerMap.put("image", new ImageIndexerSQL());
+		indexerMap.put("qsLookup", new QSLookupIndexerSQL());
 		indexerMap.put("qsVocabBucket", new QSVocabBucketIndexerSQL());
 		indexerMap.put("qsStrainBucket", new QSStrainBucketIndexerSQL());
 		indexerMap.put("qsFeatureBucket", new QSFeatureBucketIndexerSQL());
@@ -104,6 +105,7 @@ public class Main {
 					SPECIFIED_INDEXERS.add("qsFeatureBucket");
 					SPECIFIED_INDEXERS.add("qsStrainBucket");
 					SPECIFIED_INDEXERS.add("qsVocabBucket");
+					SPECIFIED_INDEXERS.add("qsLocation");
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
 						System.out.println(s);
