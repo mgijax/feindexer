@@ -42,11 +42,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static int DISEASE_ID_WEIGHT = 75;
 	private static int DISEASE_NAME_WEIGHT = 70;
 	private static int DISEASE_SYNONYM_WEIGHT = 67;
-	private static int DISEASE_DEFINITION_WEIGHT = 65;
 	private static int MP_ID_WEIGHT = 60;
 	private static int MP_NAME_WEIGHT = 57;
 	private static int MP_SYNONYM_WEIGHT = 55;
-	private static int MP_DEFINITION_WEIGHT = 50;
 	
 	public static Map<Integer, QSAllele> alleles;			// allele key : QSFeature object
 
@@ -324,9 +322,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				String term = vt.getTerm();
 				
 				// For each annotation, we need to index:
-				// 1. term name, primary ID, secondary IDs, definition, and synonyms for that term.
+				// 1. term name, primary ID, secondary IDs, and synonyms for that term.
 				// 2. And for each of its ancestors, we also need to index:
-				//    a. term name, primary ID, secondary IDs, definition, and synonyms.
+				//    a. term name, primary ID, secondary IDs, and synonyms.
 
 				addDoc(buildDoc(feature, null, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
 
@@ -336,10 +334,6 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					}
 				}
 				
-				if (vt.getDefinition() != null) {
-					addDoc(buildDoc(feature, null, null, vt.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
-				}
-
 				if (vt.getSynonyms() != null) {
 					for (String synonym : vt.getSynonyms()) {
 						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
@@ -359,10 +353,6 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						}
 					}
 				
-					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, null, ancestor.getDefinition(), term + "(subterm of " + ancestor.getTerm() + ")", "Disease Model", DISEASE_DEFINITION_WEIGHT));
-					}
-
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
 							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
@@ -471,7 +461,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	// VocabTermCache vtc is used to look up data for each vocab term.
 	// The 4 weights are for the four different data pieces to be indexed.
 	private void indexAnnotations (String dataType, String cmd, VocabTermCache vtc,
-		Integer nameWeight, Integer idWeight, Integer synonymWeight, Integer definitionWeight) throws SQLException {
+		Integer nameWeight, Integer idWeight, Integer synonymWeight) throws SQLException {
 		
 		logger.info(" - indexing " + dataType + " for alleles");
 
@@ -513,12 +503,6 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						i++;
 					}
 				
-					String definition = termToIndex.getDefinition();
-					if ((definitionWeight != null) && (definition != null) && (definition.length() > 0)) {
-						addDoc(buildDoc(feature, null, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight + directBoost));
-						i++;
-					}
-				
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
@@ -554,8 +538,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
 			"order by m.allele_key";
 
-		indexAnnotations("Phenotype", cmd, mpOntologyCache, MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT,
-			MP_DEFINITION_WEIGHT);
+		indexAnnotations("Phenotype", cmd, mpOntologyCache, MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT);
 	}
 
 	/* Get the various parts of the allele symbol that we need to index.

@@ -11,25 +11,21 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.apache.solr.common.SolrInputField;
 import org.jax.mgi.shr.VocabTerm;
 import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
 
-/* Is: an indexer that builds the index supporting the quick search's feature (marker + allele) bucket (aka- bucket 1).
+/* Is: an indexer that builds the index supporting the quick search's feature (marker) bucket (aka- bucket 1).
  * 		Each document in the index represents a single searchable data element (e.g.- symbol, name, synonym, annotated
- * 		term, etc.) for a marker or allele.
+ * 		term, etc.) for a marker.
  */
 public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	/*--------------------------*/
 	/*--- class variables ---*/
 	/*--------------------------*/
-
-	private static String MARKER = "marker";	// used to indicate we are currently working with markers
-	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
 	// weights to prioritize different types of search terms / IDs
 	private static int PRIMARY_ID_WEIGHT = 100;
@@ -38,11 +34,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int SYMBOL_WEIGHT = 91;
 	private static int ORTHOLOG_ID_WEIGHT = 88;
 	private static int NAME_WEIGHT = 85;
-	private static int MARKER_SYMBOL_WEIGHT = 82;
-	private static int MARKER_NAME_WEIGHT = 79;
 	private static int SYNONYM_WEIGHT = 76;
-	private static int MARKER_SYNONYM_WEIGHT = 73;
-	private static int TRANSGENE_PART_WEIGHT = 72;
 	private static int PROTEOFORM_ID_WEIGHT = 70;
 	private static int PROTEIN_DOMAIN_WEIGHT = 67;
 	private static int PROTEIN_FAMILY_WEIGHT = 64;
@@ -53,38 +45,25 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int DISEASE_NAME_WEIGHT = 49;
 	private static int DISEASE_SYNONYM_WEIGHT = 46;
 	private static int DISEASE_ORTHOLOG_WEIGHT = 43;
-	private static int DISEASE_DEFINITION_WEIGHT = 40;
 	private static int GO_ID_WEIGHT = 37;
 	private static int GO_NAME_WEIGHT = 34;
 	private static int GO_SYNONYM_WEIGHT = 31;
-	private static int GO_DEFINITION_WEIGHT = 28;
 	private static int MP_ID_WEIGHT = 25;
 	private static int MP_NAME_WEIGHT = 22;
 	private static int MP_SYNONYM_WEIGHT = 19;
-	private static int MP_DEFINITION_WEIGHT = 16;
 	private static int EMAP_ID_WEIGHT = 25;
 	private static int EMAP_NAME_WEIGHT = 22;
 	private static int EMAP_SYNONYM_WEIGHT = 19;
-	private static int EMAP_DEFINITION_WEIGHT = 16;
 	private static int HPO_ID_WEIGHT = 13;
 	private static int HPO_NAME_WEIGHT = 10;
 	private static int HPO_SYNONYM_WEIGHT = 7;
-	private static int HPO_DEFINITION_WEIGHT = 4;
 	
-	// what to add between the base fewi URL and marker or allele ID, to link directly to a detail page
-	private static Map<String,String> uriPrefixes;			
-	static {
-		uriPrefixes = new HashMap<String,String>();
-		uriPrefixes.put(MARKER, "/marker/");
-		uriPrefixes.put(ALLELE, "/allele/");
-	}
+	public static Map<Integer, QSFeature> features;			// marker key : QSFeature object
 
-	public static Map<Integer, QSFeature> features;			// marker or allele key : QSFeature object
-
-	public static Map<Integer,String> chromosome;			// marker or allele key : chromosome
-	public static Map<Integer,String> startCoord;			// marker or allele key : start coordinate
-	public static Map<Integer,String> endCoord;				// marker or allele key : end coordinate
-	public static Map<Integer,String> strand;				// marker or allele key : strand
+	public static Map<Integer,String> chromosome;			// marker key : chromosome
+	public static Map<Integer,String> startCoord;			// marker key : start coordinate
+	public static Map<Integer,String> endCoord;				// marker key : end coordinate
+	public static Map<Integer,String> strand;				// marker key : strand
 	
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -95,7 +74,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private long uniqueKey = 0;						// ascending counter of documents created
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
-	protected int uncommittedBatchLimit = 1000;		// number of batches to allow before doing a Solr commit
+	protected int uncommittedBatchLimit = 500;		// number of batches to allow before doing a Solr commit
 	private int uncommittedBatches = 0;				// number of batches sent to Solr and not yet committed
 
 	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
@@ -123,14 +102,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	/*-----------------------*/
 
 	// To minimize the number of documents created for a given feature, we assume that all queries are ordered
-	// by marker/allele, and we keep track of each featureID seen and all the terms indexed for it.  Then
+	// by marker, and we keep track of each featureID seen and all the terms indexed for it.  Then
 	// in addDoc() we check that we haven't already indexed the current term for the current ID.  This should
 	//	prevent duplicates within each data type with one point of change (except for query ordering). 
 	Map<String,Set<String>> indexedTerms = new HashMap<String,Set<String>>();
 	
 	// Reset the cache of indexed terms.
-	private void clearIndexedTermCache(String featureType) {
-		logger.info("Clearing cache for " + indexedTerms.size() + " " + featureType + "s");
+	private void clearIndexedTermCache() {
+		logger.info("Clearing cache for " + indexedTerms.size() + " markers");
 		indexedTerms = new HashMap<String,Set<String>>();
 	}
 
@@ -184,41 +163,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		return doc;
 	}
 	
-	// get the maximum sequence number assigned to markers
-	private long getMaxMarkerSequenceNum() throws Exception {
-		String cmd = "select max(by_symbol) as max_seq_num from marker_sequence_num";
-		ResultSet rs = ex.executeProto(cmd);
-		long maxSeqNum = 0;
-		if (rs.next()) {  
-			maxSeqNum = rs.getLong("max_seq_num");
-		}
-		rs.close();
-		logger.info("Got max marker seq num = " + maxSeqNum);
-		return maxSeqNum;
-	}
-	
-	// Use the given SQL 'cmd' to retrieve a set of data for caching.  Cache keys are in the given 'keyField',
-	// and values in the given 'valueField'.  Object type is specified by 'objectType'.
-	private Map<String,Set<String>> buildCache(String cmd, String keyField, String valueField, String objectType) throws Exception {
-		logger.debug("Beginning to cache " + objectType + "s");
-		Map<String,Set<String>> cache = new HashMap<String,Set<String>>();
-		
-		int ct = 0;
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		while (rs.next()) {
-			ct++;
-			String key = rs.getString(keyField);
-			if (!cache.containsKey(key)) {
-				cache.put(key, new HashSet<String>());
-			}
-			cache.get(key).add(rs.getString(valueField));
-		}
-		rs.close();
-		
-		logger.debug(" - Finished caching " + ct + " " + objectType + "(s)");
-		return cache;
-	}
-	
 	// For each vocabulary term, we need to know what its high-level ancestors (aka- slim terms) are, so
 	// look them up and cache them.
 	private void cacheHighLevelTerms() throws SQLException {
@@ -243,7 +187,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	 * NOTE: For efficiency's sake, these are not currently used in the fewi.  Instead, it retrieves them
 	 * from the database and caches them.
 	 */
-	private void cacheLocations(String featureType) throws Exception {
+	private void cacheLocations() throws Exception {
 		chromosome = new HashMap<Integer,String>();
 		startCoord = new HashMap<Integer,String>();
 		endCoord = new HashMap<Integer,String>();
@@ -251,46 +195,19 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	
 		List<String> cmds = new ArrayList<String>();
 		
-		if (MARKER.equals(featureType)) {
-			// may need to pick up chromosome from either coordinates, centimorgans, or cytogenetic band
-			// (in order of preference)
-			cmds.add("select m.marker_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
-				+ " coord.strand, cm.chromosome as cm_chromosome, cyto.chromosome as cyto_chromosome " + 
-				"from marker m " + 
-				"left outer join marker_location coord on (m.marker_key = coord.marker_key "
-				+ " and coord.location_type = 'coordinates') " + 
-				"left outer join marker_location cyto on (m.marker_key = cyto.marker_key "
-				+ " and cyto.location_type = 'cytogenetic') " + 
-				"left outer join marker_location cm on (m.marker_key = cm.marker_key "
-				+ " and cm.location_type = 'centimorgans') " + 
-				"where m.organism = 'mouse' " + 
-				"and m.status = 'official'");
-		} else {
-			// primarily pick up coordinates from the allele's marker
-			cmds.add("select a.allele_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
-				+ " coord.strand, cm.chromosome as cm_chromosome, cyto.chromosome as cyto_chromosome " + 
-				"from allele a " +
-				"inner join marker_to_allele m on (a.allele_key = m.allele_key) " + 
-				"left outer join marker_location coord on (m.marker_key = coord.marker_key "
-				+ " and coord.location_type = 'coordinates') " + 
-				"left outer join marker_location cyto on (m.marker_key = cyto.marker_key "
-				+ " and cyto.location_type = 'cytogenetic') " +
-				"left outer join marker_location cm on (m.marker_key = cm.marker_key "
-				+ " and cm.location_type = 'centimorgans')" +
-				"where a.is_wild_type = 0");
-			
-			// secondarily pick up coordinates from an allele's sequence (where only one good hit count)
-			cmds.add("select a.allele_key as feature_key, sl.chromosome, sl.start_coordinate, sl.end_coordinate, " +
-					" sl.strand, null as cyto_chromosome, null as cm_chromosome " + 
-					"from allele a, allele_to_sequence t, sequence_gene_trap gt, sequence_location sl " + 
-					"where a.allele_key = t.allele_key " + 
-					"and t.sequence_key = gt.sequence_key " + 
-					"and gt.good_hit_count = 1 " + 
-					"and t.sequence_key = sl.sequence_key " + 
-					"and sl.location_type = 'coordinates' " + 
-					"and sl.chromosome is not null " + 
-					"and not exists (select 1 from marker_to_allele m where a.allele_key = m.allele_key)");
-		}
+		// may need to pick up chromosome from either coordinates, centimorgans, or cytogenetic band
+		// (in order of preference)
+		cmds.add("select m.marker_key as feature_key, coord.chromosome, coord.start_coordinate, coord.end_coordinate, "
+			+ " coord.strand, cm.chromosome as cm_chromosome, cyto.chromosome as cyto_chromosome " + 
+			"from marker m " + 
+			"left outer join marker_location coord on (m.marker_key = coord.marker_key "
+			+ " and coord.location_type = 'coordinates') " + 
+			"left outer join marker_location cyto on (m.marker_key = cyto.marker_key "
+			+ " and cyto.location_type = 'cytogenetic') " + 
+			"left outer join marker_location cm on (m.marker_key = cm.marker_key "
+			+ " and cm.location_type = 'centimorgans') " + 
+			"where m.organism = 'mouse' " + 
+			"and m.status = 'official'");
 		
 		for (String cmd : cmds) { 
 			ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -314,46 +231,29 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			rs.close();
 		}
 
-		logger.info(" - cached " + chromosome.size() + " locations for " + chromosome.size() + " " + featureType + "s");
+		logger.info(" - cached " + chromosome.size() + " locations");
 	}
 	
-	// Load accession IDs for the given feature type (marker or allele) and create Solr documents for them.
-	private void indexIDs(String featureType) throws Exception {
-		logger.info(" - indexing IDs for " + featureType);
+	// Load accession IDs for the given feature type (marker) and create Solr documents for them.
+	private void indexIDs() throws Exception {
+		logger.info(" - indexing IDs");
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 
-		String cmd;
-		
-		if (MARKER.equals(featureType)) {
-			// include both marker IDs and their related sequence IDs -- but exclude strain gene IDs, so
-			// we can do those in a separate method and format their Best Match output differently
-			cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
-				"from marker m, marker_id i " + 
-				"where m.marker_key = i.marker_key " + 
-				"and m.status = 'official' " + 
-				"and m.organism = 'mouse' " + 
-				"and m.primary_id != i.acc_id " +
-				"and i.private = 0 " +
-				"union " +
-				"select mts.marker_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
-				"from marker_to_sequence mts, sequence_id i " + 
-				"where mts.sequence_key = i.sequence_key" +
-				" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project') " +
-				"order by 1";
-		} else {
-			cmd = "select i.allele_key as feature_key, i.acc_id, i.logical_db, 'Allele' as prefix " + 
-					"from allele_id i, allele a " + 
-					"where i.private = 0 " +
-					"and i.allele_key = a.allele_key " +
-					"and a.primary_id != i.acc_id " +
-					"and a.is_wild_type = 0 " +
-					"union " +
-					"select allele_key as feature_key, primary_id as acc_id, logical_db, 'Cell Line' as prefix " + 
-					"from allele_cell_line " + 
-					"where primary_id is not null " + 
-					"and logical_db is not null " + 
-					"order by 1";
-		}
+		// include both marker IDs and their related sequence IDs -- but exclude strain gene IDs, so
+		// we can do those in a separate method and format their Best Match output differently
+		String cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
+			"from marker m, marker_id i " + 
+			"where m.marker_key = i.marker_key " + 
+			"and m.status = 'official' " + 
+			"and m.organism = 'mouse' " + 
+			"and m.primary_id != i.acc_id " +
+			"and i.private = 0 " +
+			"union " +
+			"select mts.marker_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
+			"from marker_to_sequence mts, sequence_id i " + 
+			"where mts.sequence_key = i.sequence_key" +
+			" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project') " +
+			"order by 1";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -382,13 +282,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " IDs for " + featureType + "s");
+		logger.info(" - indexed " + ct + " IDs");
 	}
 	
-	// Index ortholog IDs for markers.  If feature type is for alleles, just skip this.
-	private void indexOrthologIDs(String featureType) throws Exception {
-		if (ALLELE.equals(featureType)) { return; }
-		logger.info(" - ortholog IDs for " + featureType);
+	// Index ortholog IDs.
+	private void indexOrthologIDs() throws Exception {
+		logger.info(" - ortholog IDs");
 
 		String cmd = "select distinct m.marker_key, ha.logical_db, ha.acc_id, h.organism " + 
 				"from marker h, marker_id ha, " + 
@@ -431,50 +330,23 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " ortholog IDs for markers");
+		logger.info(" - indexed " + ct + " ortholog IDs");
 	}
 
 	// Index mouse DO (Disease Ontology) annotations.
-	private void indexMouseDiseaseAnnotations (String featureType) throws Exception {
-		String cmd = null;
-		
+	private void indexMouseDiseaseAnnotations () throws Exception {
 		// need to check that we're considering the roll-up rules (to exclude Gt(ROSA), etc.)
-		if (ALLELE.equals(featureType)) {
-			cmd = "with causative_markers as ( " + 
-					"select distinct m.marker_key, d.primary_id as disease_id " + 
-					"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
-					"where tm.marker_key = m.marker_key " + 
-					"and d.disease_key = g.disease_key " + 
-					"and g.disease_group_key = r.disease_group_key " + 
-					"and r.disease_row_key = tm.disease_row_key " + 
-					"and m.organism = 'mouse' " + 
-					"and tm.is_causative = 1 " + 
-					") " + 
-					"select distinct m.symbol, m.allele_key as feature_key, r.primary_id  " + 
-					"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r, causative_markers cm, marker_to_allele am " + 
-					"where m.allele_key = mtg.allele_key  " + 
-					"and mtg.genotype_key = t.genotype_key  " + 
-					"and t.is_disease_model = 1  " + 
-					"and t.genotype_key = dm.genotype_key  " + 
-					"and dm.is_not_model = 0  " + 
-					"and dm.disease_id = r.primary_id  " + 
-					"and cm.marker_key = am.marker_key " + 
-					"and m.allele_key = am.allele_key " + 
-					"and r.primary_id = cm.disease_id " +
-					"order by m.allele_key";
-		} else {
-			cmd = "select distinct m.symbol, m.marker_key as feature_key, d.primary_id " + 
-				"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
-				"where tm.marker_key = m.marker_key " + 
-				"and d.disease_key = g.disease_key " + 
-				"and g.disease_group_key = r.disease_group_key " + 
-				"and r.disease_row_key = tm.disease_row_key " + 
-				"and m.organism = 'mouse' " + 
-				"and tm.is_causative = 1 " +
-				"order by m.marker_key";
-		}
+		String cmd = "select distinct m.symbol, m.marker_key as feature_key, d.primary_id " + 
+			"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
+			"where tm.marker_key = m.marker_key " + 
+			"and d.disease_key = g.disease_key " + 
+			"and g.disease_group_key = r.disease_group_key " + 
+			"and r.disease_row_key = tm.disease_row_key " + 
+			"and m.organism = 'mouse' " + 
+			"and tm.is_causative = 1 " +
+			"order by m.marker_key";
 
-		logger.info(" - indexing mouse disease annotations for " + featureType);
+		logger.info(" - indexing mouse disease annotations");
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -489,9 +361,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				String term = vt.getTerm();
 				
 				// For each annotation, we need to index:
-				// 1. term name, primary ID, secondary IDs, definition, and synonyms for that term.
+				// 1. term name, primary ID, secondary IDs, synonyms for that term.
 				// 2. And for each of its ancestors, we also need to index:
-				//    a. term name, primary ID, secondary IDs, definition, and synonyms.
+				//    a. term name, primary ID, secondary IDs, and synonyms.
 
 				addDoc(buildDoc(feature, null, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
 
@@ -501,10 +373,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					}
 				}
 				
-				if (vt.getDefinition() != null) {
-					addDoc(buildDoc(feature, null, null, vt.getDefinition(), term, "Disease Model", DISEASE_DEFINITION_WEIGHT));
-				}
-
 				if (vt.getSynonyms() != null) {
 					for (String synonym : vt.getSynonyms()) {
 						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
@@ -524,10 +392,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						}
 					}
 				
-					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, null, ancestor.getDefinition(), term + "(subterm of " + ancestor.getTerm() + ")", "Disease Model", DISEASE_DEFINITION_WEIGHT));
-					}
-
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
 							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
@@ -538,13 +402,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " mouse disease annotations for " + featureType);
+		logger.info(" - indexed " + ct + " mouse disease annotations");
 	}
 
-	// Index human ortholog DO (Disease Ontology) annotations.  No-op for alleles.
-	private void indexHumanDiseaseAnnotations (String featureType) throws Exception {
-		if (ALLELE.equals(featureType)) { return; }
-
+	// Index human ortholog DO (Disease Ontology) annotations.
+	private void indexHumanDiseaseAnnotations () throws Exception {
 		// from mouse marker through orthology tables to human marker, then to human DO annotations
 		String cmd = "select mm.marker_key as mouse_marker_key, a.term_id " + 
 				"from marker mm, homology_cluster_organism_to_marker cm, " + 
@@ -605,10 +467,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						}
 					}
 				
-					if (ancestor.getDefinition() != null) {
-						addDoc(buildDoc(feature, null, null, ancestor.getDefinition(), term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
-					}
-
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
 							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancTerm + ", with synonym " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
@@ -622,10 +480,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " human ortholog disease annotations");
 	}
 
-	// Index proteoform IDs for markers.  If feature type is for alleles, just skip this.
-	private void indexProteoformIDs (String featureType) throws Exception {
-		if (ALLELE.equals(featureType)) { return; }
-		logger.info(" - indexing proteoform IDs for " + featureType);
+	// Index proteoform IDs.
+	private void indexProteoformIDs () throws Exception {
+		logger.info(" - indexing proteoform IDs");
 
 		String cmd = "select mta.marker_key, a.term, a.term_id " + 
 			"from annotation a, marker_to_annotation mta, marker m " + 
@@ -651,13 +508,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " proteoform IDs for markers");
+		logger.info(" - indexed " + ct + " proteoform IDs");
 	}
 
-	// Index strain gene IDs for markers.  If feature type is for alleles, just skip this.
-	private void indexStrainGenes(String featureType) throws Exception {
-		if (ALLELE.equals(featureType)) { return; }
-		logger.info(" - indexing strain gene IDs for " + featureType);
+	// Index strain gene IDs.
+	private void indexStrainGenes() throws Exception {
+		logger.info(" - indexing strain gene IDs");
 
 		String cmd = "select m.marker_key, gm.logical_db, gm.gene_model_id " + 
 			"from marker m, strain_marker sm, strain_marker_gene_model gm " + 
@@ -681,13 +537,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " strain gene IDs for markers");
+		logger.info(" - indexed " + ct + " strain gene IDs");
 	}
 
-	// Index protein family annotations for markers.  If feature type is for alleles, just skip this.
-	private void indexProteinFamilies(String featureType) throws Exception {
-		if (ALLELE.equals(featureType)) { return; }
-		logger.info(" - indexing protein families for " + featureType);
+	// Index protein family annotations.
+	private void indexProteinFamilies() throws Exception {
+		logger.info(" - indexing protein families");
 
 		String cmd = "select mta.marker_key, a.term, a.term_id " + 
 			"from annotation a, marker_to_annotation mta, marker m " + 
@@ -714,13 +569,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " protein domains for markers");
+		logger.info(" - indexed " + ct + " protein domains");
 	}
 
-	// Index protein domain annotations for markers.  If feature type is for alleles, just skip this.
-	private void indexProteinDomains(String featureType) throws Exception {
-		if (ALLELE.equals(featureType)) { return; }
-		logger.info(" - indexing protein domains for " + featureType);
+	// Index protein domain annotations.
+	private void indexProteinDomains() throws Exception {
+		logger.info(" - indexing protein domains");
 
 		String cmd = "select distinct m.marker_key as feature_key, a.term_id as primary_id, a.term "
 			+ "from annotation a, marker_to_annotation mta, marker m "
@@ -746,34 +600,24 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - indexed " + ct + " protein domains for markers");
+		logger.info(" - indexed " + ct + " protein domains");
 	}
 
-	/* Cache and return all synonyms for the given feature type (markers or alleles), populating the synonyms object.
+	/* Cache and return all synonyms for the given feature type (markers), populating the synonyms object.
 	 * Note that this caching method is different from the others in that it does not directly modify the object's
-	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
-	 * with alleles.
+	 * cache.  Instead, the map produced is returned.
 	 */
-	private Map<Integer,List<String>> cacheSynonyms(String featureType) throws Exception {
-		logger.info(" - caching synonyms for " + featureType);
+	private Map<Integer,List<String>> cacheSynonyms() throws Exception {
+		logger.info(" - caching synonyms");
 		
 		HashMap<Integer,List<String>> mySynonyms = new HashMap<Integer,List<String>>();
 		
-		String cmd;
-		if (MARKER.equals(featureType)) {
-			// Do not index synonyms for transgene markers, as their Tg alleles already get done.
-			cmd = "select s.marker_key as feature_key, s.synonym " + 
-					"from marker_synonym s, marker m " +
-					"where s.marker_key = m.marker_key " +
-					"and m.marker_subtype != 'transgene' " +
-					"order by s.marker_key";
-		} else {
-			cmd = "select s.allele_key as feature_key, s.synonym " + 
-					"from allele_synonym s, allele a " +
-					"where s.allele_key = a.allele_key " +
-					"and a.is_wild_type = 0 " +
-					"order by s.allele_key";
-		}
+		// Do not index synonyms for transgene markers, as their Tg alleles already get done.
+		String cmd = "select s.marker_key as feature_key, s.synonym " + 
+			"from marker_synonym s, marker m " +
+			"where s.marker_key = m.marker_key " +
+			"and m.marker_subtype != 'transgene' " +
+			"order by s.marker_key";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
@@ -791,16 +635,13 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 
-		logger.info(" - cached " + ct + " synonyms for " + mySynonyms.size() + " " + featureType + "s");
+		logger.info(" - cached " + ct + " synonyms for " + mySynonyms.size() + " markers");
 		return mySynonyms;
 	}
 
 	/* Index searchable nomenclature (symbol, name, synonyms) for orthologous markers in non-mouse organisms.
 	 */
-	private void indexOrthologNomenclature(String featureType) throws Exception {
-		// For now, bail out if looking for allele data.
-		if (!MARKER.equals(featureType)) { return; }
-
+	private void indexOrthologNomenclature() throws Exception {
 		// Retrieve terms to be indexed with ortholog nomenclature.  Prefer old mouse nomen, then human,
 		// then rat before all the others.  We can thus prioritize which organisms are shown for which
 		// terms in the "best match" column in the fewi.
@@ -872,19 +713,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 
-		logger.info(" - indexed " + i + " ortholog nomen terms for " + featureType + "s");
+		logger.info(" - indexed " + i + " ortholog nomen terms");
 	}
 	
 	// Build a cache of facets (high-level slim terms) for each marker.  Currently uses slimgrid tables for efficiency.
 	// dagAbbrev should be a value from grid_name_abbreviation field in marker_grid_heading table.
-	public Map<Integer,Set<String>> getFacetValues(String featureType, String dagAbbrev) throws SQLException {
+	public Map<Integer,Set<String>> getFacetValues(String dagAbbrev) throws SQLException {
 		Map<Integer,Set<String>> keyToFacets = new HashMap<Integer,Set<String>>();
 		String cmd = null;
 
-		// only work with markers for now
-		if (!MARKER.equals(featureType)) { return keyToFacets; }
-	 	
-		// can handles GO, Anatomy, and MP facets for now
 		if ("C".equals(dagAbbrev) || "F".equals(dagAbbrev) || "P".equals(dagAbbrev) || "Anatomy".equals(dagAbbrev) || "MP".equals(dagAbbrev)) {
 			cmd = "select c.marker_key as feature_key, t.term " + 
 				"from marker_grid_cell c, marker_grid_heading h, marker_grid_heading_to_term ht, term t " + 
@@ -913,15 +750,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		return keyToFacets;
 	}
 	
-	// Retrieve synonyms, create documents, and index them.  For markers, do marker synonyms.  For alleles, do both
-	// marker synonyms and allele synonyms.
-	private void indexSynonyms(String featureType) throws Exception {
+	// Retrieve synonyms, create documents, and index them.
+	private void indexSynonyms() throws Exception {
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
 
-		// used for either allele synonyms or marker synonyms, depending on featureType
-		Map<Integer,List<String>> mySynonyms = cacheSynonyms(featureType);
+		Map<Integer,List<String>> mySynonyms = cacheSynonyms();
 		
-		// Both markers and alleles have directly-associated synonyms.
 		for (Integer featureKey : mySynonyms.keySet()) {
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
@@ -931,45 +765,17 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 		}
-		logger.info("Indexed synonyms for " + mySynonyms.size() + " " + featureType + "s");
-		
-		// Alleles should also be indexed for the synonyms of their respective markers.
-		if (ALLELE.contentEquals(featureType)) {
-			// used for marker synonyms when the featureType is for alleles
-			Map<Integer,List<String>> markerSynonyms = cacheSynonyms(MARKER);
-
-			String cmd = "select a.allele_key, m.marker_key " + 
-				"from allele a, marker_to_allele m " + 
-				"where a.allele_key = m.allele_key " + 
-				"and a.is_wild_type = 0 " +
-				"order by a.allele_key";
-		
-			ResultSet rs = ex.executeProto(cmd, cursorLimit);
-			while (rs.next()) {
-				Integer alleleKey = rs.getInt("allele_key");
-				Integer markerKey = rs.getInt("marker_key");
-				
-				if (markerSynonyms.containsKey(markerKey)) {
-					QSFeature feature = features.get(alleleKey);
-					for (String synonym : markerSynonyms.get(markerKey)) {
-						addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-						addDoc(buildDoc(feature, null, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-					}
-				}
-			}
-			rs.close();
-			logger.info("Indexed marker synonyms for alleles");
-		}
+		logger.info("Indexed synonyms for " + mySynonyms.size() + " markers");
 	}
 	
 	// Look up annotations and index according to the given SQL command.  Expected field names: feature_key, primary_id.
 	// The given SQL command must order by the feature_key field to help identify duplicates (including ancestor terms).
 	// VocabTermCache vtc is used to look up data for each vocab term.
 	// The 4 weights are for the four different data pieces to be indexed.
-	private void indexAnnotations (String featureType, String dataType, String cmd, VocabTermCache vtc,
-		Integer nameWeight, Integer idWeight, Integer synonymWeight, Integer definitionWeight) throws SQLException {
+	private void indexAnnotations (String dataType, String cmd, VocabTermCache vtc,
+		Integer nameWeight, Integer idWeight, Integer synonymWeight) throws SQLException {
 		
-		logger.info(" - indexing " + dataType + " for " + featureType);
+		logger.info(" - indexing " + dataType + "");
 
 		// counter of indexed items
 		int i = 0;
@@ -1009,12 +815,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						i++;
 					}
 				
-					String definition = termToIndex.getDefinition();
-					if ((definitionWeight != null) && (definition != null) && (definition.length() > 0)) {
-						addDoc(buildDoc(feature, null, null, definition, term.getTerm() + " (" + definition + ")", prefix + dataType + " Definition", definitionWeight + directBoost));
-						i++;
-					}
-				
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
@@ -1035,11 +835,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		
-		logger.info(" - done with " + dataType + " for " + featureType + " (indexed " + i + " items)");
+		logger.info(" - done with " + dataType + " (indexed " + i + " items)");
 	}
 	
 	// Index the MP terms for the given feature type.  Assumes caches are loaded.
-	private void indexMP(String featureType) throws SQLException {
+	private void indexMP() throws SQLException {
 		// Assume we're looking at markers.
 		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
 				"from annotation a, marker_to_annotation mta, marker m " + 
@@ -1050,27 +850,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and a.qualifier is null " +
 				"order by m.marker_key";
 			
-		if (ALLELE.equals(featureType)) {
-			// Find the allele's genotype's annotations (with null qualifiers).
-			cmd = "select distinct m.allele_key as feature_key, a.term_id as primary_id " + 
-				"from allele m, allele_to_genotype mtg, genotype_to_annotation gta, annotation a " + 
-				"where m.allele_key = mtg.allele_key " + 
-				"and mtg.genotype_key = gta.genotype_key " + 
-				"and gta.annotation_key = a.annotation_key " + 
-				"and a.qualifier is null " + 
-				"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
-				"order by m.allele_key";
-		}
 
-		indexAnnotations(featureType, "Phenotype", cmd, mpOntologyCache,
-			MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT, MP_DEFINITION_WEIGHT);
+		indexAnnotations("Phenotype", cmd, mpOntologyCache, MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT);
 	}
 
 	// Index the GO terms for the given feature type.  Assumes caches are loaded.
-	private void indexGO(String featureType) throws SQLException {
-		// bail out for alleles; only index GO annotations for markers
-		if (ALLELE.equals(featureType)) { return; }
-		
+	private void indexGO() throws SQLException {
 		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
 				"from annotation a, marker_to_annotation mta, marker m " + 
 				"where a.annotation_key = mta.annotation_key " + 
@@ -1081,86 +866,38 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and a.dag_name = '<DAG>' " +
 				"order by m.marker_key";
 
-		indexAnnotations(featureType, "Function", cmd.replaceAll("<DAG>", "Molecular Function"), goFunctionCache,
-			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT, GO_DEFINITION_WEIGHT);
-		indexAnnotations(featureType, "Component", cmd.replaceAll("<DAG>", "Cellular Component"), goComponentCache,
-			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT, GO_DEFINITION_WEIGHT);
-		indexAnnotations(featureType, "Process", cmd.replaceAll("<DAG>", "Biological Process"), goProcessCache,
-			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT, GO_DEFINITION_WEIGHT);
-	}
-	
-	/* Get the various parts of the allele symbol that we need to index.
-	 */
-	private List<String> getAlleleSymbolPieces(String symbol) {
-		List<String> out = new ArrayList<String>();
-		
-		if (symbol != null) {
-			// 1. match to full marker<allele> symbol
-			out.add(symbol);
-			
-			if ((symbol.indexOf("<") >= 0) && (symbol.indexOf(">") >= 0)) {
-				// 2. match to the markerallele symbol (minus the angle brackets)
-				out.add(symbol.replaceAll("<", "").replaceAll(">", ""));
-
-				// 3. match to just allele symbol, ignoring marker symbol and angle brackets
-				String justAllele = symbol.replaceAll(".*<", "").replaceAll(">.*", "");
-				out.add(justAllele);
-
-				// 4. match delimited parts of the allele symbol (using non-alpha-numerics as delimiters)
-				String[] pieces = justAllele.replaceAll("[^A-Za-z0-9]", " ").split(" ");
-				if (pieces.length > 1) {
-					for (String piece : pieces) {
-						out.add(piece);
-					}
-				}
-			}
-		}
-		
-		return out;
+		indexAnnotations("Function", cmd.replaceAll("<DAG>", "Molecular Function"), goFunctionCache,
+			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
+		indexAnnotations("Component", cmd.replaceAll("<DAG>", "Cellular Component"), goComponentCache,
+			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
+		indexAnnotations("Process", cmd.replaceAll("<DAG>", "Biological Process"), goProcessCache,
+			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
 	}
 	
 	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
-	 * Assumes cacheLocations has been run for this featureType.
+	 * Assumes cacheLocations has been run.
 	 */
-	private void buildInitialDocs(String featureType) throws Exception {
-		logger.info(" - loading " + featureType + "s");
+	private void buildInitialDocs() throws Exception {
+		logger.info(" - loading markers");
 
-		Map<Integer, Set<String>> goProcessFacetCache = this.getFacetValues(featureType, "P");
-		Map<Integer, Set<String>> goFunctionFacetCache = this.getFacetValues(featureType, "F");
-		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues(featureType, "C");
-		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues(featureType, "MP");
+		Map<Integer, Set<String>> goProcessFacetCache = this.getFacetValues("P");
+		Map<Integer, Set<String>> goFunctionFacetCache = this.getFacetValues("F");
+		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues("C");
+		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
 		
 		String prefix = "Genome Feature ";
-		if (ALLELE.equals(featureType)) {
-			prefix = "Allele ";
-		}
-
 		features = new HashMap<Integer,QSFeature>();
 		
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
-		String cmd;
-		if (MARKER.equals(featureType)) { 
-			cmd = "select m.marker_key as feature_key, m.primary_id, m.symbol, m.name, m.marker_subtype as subtype, " + 
-					"s.by_symbol as sequence_num " +
-				"from marker m, marker_sequence_num s " + 
-				"where m.organism = 'mouse' " + 
-				"and m.marker_key = s.marker_key " +
-				"and m.status = 'official' " +
-				"order by m.marker_key";
-		} else {
-			cmd = "select a.allele_key as feature_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
-					"s.by_symbol as sequence_num, m.symbol as marker_symbol, m.name as marker_name " +
-				"from allele a " +
-				"inner join allele_sequence_num s on (a.allele_key = s.allele_key) " +
-				"left outer join marker_to_allele mta on (a.allele_key = mta.allele_key) " +
-				"left outer join marker m on (mta.marker_key = m.marker_key) " +
-				"where a.is_wild_type = 0 " +
-				"order by a.allele_key";
+		String cmd = "select m.marker_key as feature_key, m.primary_id, m.symbol, m.name, m.marker_subtype as subtype, " + 
+				"s.by_symbol as sequence_num " +
+			"from marker m, marker_sequence_num s " + 
+			"where m.organism = 'mouse' " + 
+			"and m.marker_key = s.marker_key " +
+			"and m.status = 'official' " +
+			"order by m.marker_key";
 
-			// Start allele sequence numbers after marker ones, so we prefer markers to alleles in each star-tier of returns.
-			padding = getMaxMarkerSequenceNum();
-		}
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
@@ -1181,17 +918,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
 			// from the index does not get displayed.
-			if (ALLELE.equals(featureType) && (rs.getString("marker_name") != null)) {
-				feature.name = rs.getString("marker_name") + "; " + rs.getString("name");
-			} else {
-				feature.name = rs.getString("name");
-			}
-
-			if (MARKER.equals(featureType)) {
-				feature.isMarker = 1;
-			} else {
-				feature.isMarker = 0;
-			}
+			feature.name = rs.getString("name");
+			feature.isMarker = 1;
 			
 			if (goProcessFacetCache.containsKey(featureKey)) { feature.goProcessFacets = goProcessFacetCache.get(featureKey); }
 			if (goFunctionFacetCache.containsKey(featureKey)) { feature.goFunctionFacets = goFunctionFacetCache.get(featureKey); }
@@ -1203,34 +931,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			addDoc(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
-			if (MARKER.equals(featureType) && !"transgene".equals(feature.featureType)) {
+			if (!"transgene".equalsIgnoreCase(feature.featureType)) {
 				addDoc(buildDoc(feature, feature.symbol, null, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
-			}
-
-			// For alleles, we also need to consider the nomenclature of each one's associated marker. (Marker name
-			// is already considered with the allele name.)
-			if (ALLELE.equals(featureType)) { 
-				String markerSymbol = rs.getString("marker_symbol");
-
-				if (markerSymbol != null) {
-					addDoc(buildDoc(feature, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
-				}
-
-				// split allele symbol into relevant pieces that need to be indexed separately
-				for (String piece : getAlleleSymbolPieces(feature.symbol)) {
-					addDoc(buildDoc(feature, piece, null, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
-				}
-				
-				// For transgenic alleles, we need to index by the parts of the allele symbol, including those
-				// parts appearing in parentheses.
-				
-				// Strip out parentheses, hyphens, and commas.  Then skip the "Tg" and index the other pieces by exact match.
-				String[] tgParts = feature.symbol.replaceAll("\\(", " ").replaceAll("\\)", " ").replaceAll("-", " ").replaceAll(",", " ").replaceAll("/", " ").split(" ");
-				for (String part : tgParts) {
-					if (!"Tg".equals(part)) {
-						addDoc(buildDoc(feature, part, null, null, feature.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
-					}
-				}
 			}
 
 			// feature name
@@ -1239,42 +941,38 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		rs.close();
 
-		logger.info("done with basic data for " + i + " " + featureType + "s");
+		logger.info("done with basic data for " + i + " markers");
 	}
 	
 	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
-	private void processFeatureType(String featureType) throws Exception {
-		logger.info("beginning " + featureType);
+	private void processFeatureType() throws Exception {
+		cacheLocations();
+		buildInitialDocs();
+
+		indexSynonyms();
+		indexOrthologNomenclature();
+		clearIndexedTermCache();		// only clear once all nomen done
+
+		indexIDs();
+		indexOrthologIDs();
+		indexStrainGenes();
+		indexProteoformIDs();
+		clearIndexedTermCache();		// only clear once all IDs done
 		
-		cacheLocations(featureType);
-		buildInitialDocs(featureType);
+		indexProteinDomains();
+		indexProteinFamilies();
+		clearIndexedTermCache();		// only clear once all protein stuff done
 
-		indexSynonyms(featureType);
-		indexOrthologNomenclature(featureType);
-		clearIndexedTermCache(featureType);		// only clear once all nomen done
-
-		indexIDs(featureType);
-		indexOrthologIDs(featureType);
-		indexStrainGenes(featureType);
-		indexProteoformIDs(featureType);
-		clearIndexedTermCache(featureType);		// only clear once all IDs done
+		indexMouseDiseaseAnnotations();
+		indexHumanDiseaseAnnotations();
+		clearIndexedTermCache();		// only clear once all disease data done
 		
-		indexProteinDomains(featureType);
-		indexProteinFamilies(featureType);
-		clearIndexedTermCache(featureType);		// only clear once all protein stuff done
+		indexMP();
+		clearIndexedTermCache();		// only clear once all phenotype data done
 
-		indexMouseDiseaseAnnotations(featureType);
-		indexHumanDiseaseAnnotations(featureType);
-		clearIndexedTermCache(featureType);		// only clear once all disease data done
-		
-		indexMP(featureType);
-		clearIndexedTermCache(featureType);		// only clear once all phenotype data done
-
-		indexGO(featureType);
-		clearIndexedTermCache(featureType);		// only clear once all GO data done
-
-		logger.info("finished " + featureType);
+		indexGO();
+		clearIndexedTermCache();		// only clear once all GO data done
 	}
 	
 	/*----------------------*/
@@ -1294,9 +992,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		hpoCache = new VocabTermCache("Human Phenotype Ontology", ex);
 		this.cacheHighLevelTerms();
 
-		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
-		processFeatureType(MARKER);
-//		processFeatureType(ALLELE);
+		processFeatureType();
 		
 		// send any remaining documents and commit all the changes to Solr
 		if (docs.size() > 0) {
@@ -1305,7 +1001,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		commit();
 	}
 	
-	// private class for caching marker or allele data that will be re-used across multiple documents
+	// private class for caching marker data that will be re-used across multiple documents
 	private class QSFeature {
 		private Integer featureKey;
 		private Integer isMarker;
@@ -1333,12 +1029,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			if (this.isMarker != null) {
 				doc.addField(IndexConstants.QS_IS_MARKER, this.isMarker);
-
-				if (this.isMarker.equals(1)) {
-					uriPrefix = uriPrefixes.get(MARKER);
-				} else {
-					uriPrefix = uriPrefixes.get(ALLELE);
-				}
+				uriPrefix = "/marker/";
 			}
 
 			if (this.primaryID != null) {
@@ -1348,11 +1039,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 
-			String suffix = "";
-			if (this.isMarker.equals(0)) {
-				suffix = " allele";
-			}
-			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType + suffix); }
+			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType); }
 			if (this.symbol != null) { doc.addField(IndexConstants.QS_SYMBOL, this.symbol); }
 			if (this.name != null) { doc.addField(IndexConstants.QS_NAME, this.name); }
 			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
