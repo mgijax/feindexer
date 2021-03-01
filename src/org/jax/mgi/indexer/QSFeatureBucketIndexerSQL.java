@@ -267,7 +267,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			String suffix = "";
 			
 			if ("MGI".contentEquals(logicalDB)) {
-				logicalDB = prefix + "ID";
+				logicalDB = prefix + " ID";
 			} else if ("Cell Line".equals(prefix)){
 				suffix = " (" + logicalDB + ")";
 				logicalDB = prefix + " ID";
