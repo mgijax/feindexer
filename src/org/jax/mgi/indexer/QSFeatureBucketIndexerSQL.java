@@ -336,7 +336,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	// Index mouse DO (Disease Ontology) annotations.
 	private void indexMouseDiseaseAnnotations () throws Exception {
 		// need to check that we're considering the roll-up rules (to exclude Gt(ROSA), etc.)
-		String cmd = "select distinct m.symbol, m.marker_key as feature_key, d.primary_id " + 
+		String cmd = "select distinct m.marker_key as feature_key, d.primary_id " + 
 			"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
 			"where tm.marker_key = m.marker_key " + 
 			"and d.disease_key = g.disease_key " + 
@@ -905,6 +905,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		while (rs.next())  {  
 			i++;
 			Integer featureKey = rs.getInt("feature_key");
+			String symbol = rs.getString("symbol");
+			String name = rs.getString("name");
 
 			//--- prepare the new feature object
 			
@@ -912,14 +914,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			features.put(featureKey, feature);
 			
 			feature.primaryID = rs.getString("primary_id");
-			feature.symbol = rs.getString("symbol");
 			feature.sequenceNum = padding + rs.getLong("sequence_num");	
 			feature.featureType = rs.getString("subtype");
-			
-			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
-			// from the index does not get displayed.
-			feature.name = rs.getString("name");
-			feature.isMarker = 1;
 			
 			if (goProcessFacetCache.containsKey(featureKey)) { feature.goProcessFacets = goProcessFacetCache.get(featureKey); }
 			if (goFunctionFacetCache.containsKey(featureKey)) { feature.goFunctionFacets = goFunctionFacetCache.get(featureKey); }
@@ -932,11 +928,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
 			if (!"transgene".equalsIgnoreCase(feature.featureType)) {
-				addDoc(buildDoc(feature, feature.symbol, null, null, feature.symbol, "Symbol", SYMBOL_WEIGHT));
+				addDoc(buildDoc(feature, symbol, null, null, symbol, "Symbol", SYMBOL_WEIGHT));
 			}
 
 			// feature name
-			addDoc(buildDoc(feature, null, null, feature.name, feature.name, "Name", NAME_WEIGHT));
+			addDoc(buildDoc(feature, null, null, name, name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();
@@ -1004,11 +1000,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	// private class for caching marker data that will be re-used across multiple documents
 	private class QSFeature {
 		private Integer featureKey;
-		private Integer isMarker;
 		public String featureType;
-		public String symbol;
 		public String primaryID;
-		public String name;
 		public Long sequenceNum;
 		public Set<String> goProcessFacets;
 		public Set<String> goFunctionFacets;
@@ -1025,23 +1018,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		// compose and return a new SolrInputDocument including the fields for this feature
 		public SolrInputDocument getNewDocument() {
 			SolrInputDocument doc = new SolrInputDocument();
-			String uriPrefix = null;
-
-			if (this.isMarker != null) {
-				doc.addField(IndexConstants.QS_IS_MARKER, this.isMarker);
-				uriPrefix = "/marker/";
-			}
 
 			if (this.primaryID != null) {
 				doc.addField(IndexConstants.QS_PRIMARY_ID, this.primaryID);
-				if (uriPrefix != null) {
-					doc.addField(IndexConstants.QS_DETAIL_URI, uriPrefix + this.primaryID);
-				}
 			}
 
 			if (this.featureType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.featureType); }
-			if (this.symbol != null) { doc.addField(IndexConstants.QS_SYMBOL, this.symbol); }
-			if (this.name != null) { doc.addField(IndexConstants.QS_NAME, this.name); }
 			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
 
 			if (chromosome.containsKey(this.featureKey)) { doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(featureKey)); }
