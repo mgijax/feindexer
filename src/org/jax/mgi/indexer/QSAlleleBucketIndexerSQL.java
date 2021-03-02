@@ -301,7 +301,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		while (rs.next()) {
 			ct++;
 			Integer alleleKey = rs.getInt("allele_key");
-			VocabTerm vt = diseaseOntologyCache.getTerm(rs.getString("primary_id"));
+			VocabTerm vt = diseaseOntologyCache.getTerm(rs.getString("disease_id"));
 			
 			if (alleles.containsKey(alleleKey) && (vt != null)) {
 				QSAllele feature = alleles.get(alleleKey);
