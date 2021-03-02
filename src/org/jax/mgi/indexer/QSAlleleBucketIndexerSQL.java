@@ -291,6 +291,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and t.is_disease_model = 1  " + 
 			"and t.genotype_key = dm.genotype_key  " + 
 			"and dm.is_not_model = 0  " + 
+			"and m.symbol not like 'Gt(ROSA)%' " +
 			"order by m.allele_key";
 
 		logger.info(" - indexing mouse disease annotations for alleles");
@@ -521,6 +522,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and mtg.genotype_key = gta.genotype_key " + 
 			"and gta.annotation_key = a.annotation_key " + 
 			"and a.qualifier is null " + 
+			"and m.symbol not like 'Gt(ROSA)%' " +
 			"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
 			"order by m.allele_key";
 
