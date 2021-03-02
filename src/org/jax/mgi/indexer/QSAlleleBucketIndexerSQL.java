@@ -283,8 +283,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private void indexMouseDiseaseAnnotations () throws Exception {
 		String cmd = null;
 		
-		// Note that we do not consider the roll-up rules.
-		cmd = "select distinct m.symbol, m.allele_key as allele_key, dm.disease_id  " + 
+		// Note that we do not consider the roll-up rules.  Second half of the union is for expressed components.
+		cmd = "select distinct m.allele_key as allele_key, dm.disease_id  " + 
 			"from allele m, allele_to_genotype mtg, genotype t, disease_model dm " + 
 			"where m.allele_key = mtg.allele_key  " + 
 			"and mtg.genotype_key = t.genotype_key  " + 
@@ -292,7 +292,23 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and t.genotype_key = dm.genotype_key  " + 
 			"and dm.is_not_model = 0  " + 
 			"and m.symbol not like 'Gt(ROSA)%' " +
-			"order by m.allele_key";
+			"union " +
+			"select a.allele_key, n.term_id " + 
+			"from marker h, marker_id i, allele_arm_property o, allele_arm_property pi, " + 
+			"  allele_related_marker arm, allele a, marker_to_annotation mta, annotation n " + 
+			"where h.marker_key = i.marker_key " + 
+			"and i.acc_id = pi.value " + 
+			"and pi.arm_key = arm.arm_key " + 
+			"and arm.arm_key = o.arm_key " + 
+			"and o.name = 'Non-mouse_Organism' " + 
+			"and o.value = 'Human' " + 
+			"and arm.allele_key = a.allele_key " + 
+			"and a.allele_type in ('Targeted', 'Transgenic') " + 
+			"and h.marker_key = mta.marker_key " + 
+			"and h.organism = 'human' " + 
+			"and mta.annotation_key = n.annotation_key " + 
+			"and n.annotation_type = 'DO/Human Marker' " + 
+			"order by 1";
 
 		logger.info(" - indexing mouse disease annotations for alleles");
 
