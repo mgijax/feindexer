@@ -890,12 +890,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
+		// only current mouse markers, and skip transgenes
 		String cmd = "select m.marker_key as feature_key, m.primary_id, m.symbol, m.name, m.marker_subtype as subtype, " + 
 				"s.by_symbol as sequence_num " +
 			"from marker m, marker_sequence_num s " + 
 			"where m.organism = 'mouse' " + 
 			"and m.marker_key = s.marker_key " +
 			"and m.status = 'official' " +
+			"and m.marker_type != 'Transgene' " +
 			"order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);

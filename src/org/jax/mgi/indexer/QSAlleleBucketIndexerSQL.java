@@ -283,28 +283,14 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private void indexMouseDiseaseAnnotations () throws Exception {
 		String cmd = null;
 		
-		// need to check that we're considering the roll-up rules (to exclude Gt(ROSA), etc.)
-		cmd = "with causative_markers as ( " + 
-			"select distinct m.marker_key, d.primary_id as disease_id " + 
-			"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
-			"where tm.marker_key = m.marker_key " + 
-			"and d.disease_key = g.disease_key " + 
-			"and g.disease_group_key = r.disease_group_key " + 
-			"and r.disease_row_key = tm.disease_row_key " + 
-			"and m.organism = 'mouse' " + 
-			"and tm.is_causative = 1 " + 
-			") " + 
-			"select distinct m.symbol, m.allele_key as allele_key, r.primary_id  " + 
-			"from allele m, allele_to_genotype mtg, genotype t, disease_model dm, term r, causative_markers cm, marker_to_allele am " + 
+		// Note that we do not consider the roll-up rules.
+		cmd = "select distinct m.symbol, m.allele_key as allele_key, dm.disease_id  " + 
+			"from allele m, allele_to_genotype mtg, genotype t, disease_model dm " + 
 			"where m.allele_key = mtg.allele_key  " + 
 			"and mtg.genotype_key = t.genotype_key  " + 
 			"and t.is_disease_model = 1  " + 
 			"and t.genotype_key = dm.genotype_key  " + 
 			"and dm.is_not_model = 0  " + 
-			"and dm.disease_id = r.primary_id  " + 
-			"and cm.marker_key = am.marker_key " + 
-			"and m.allele_key = am.allele_key " + 
-			"and r.primary_id = cm.disease_id " +
 			"order by m.allele_key";
 
 		logger.info(" - indexing mouse disease annotations for alleles");
