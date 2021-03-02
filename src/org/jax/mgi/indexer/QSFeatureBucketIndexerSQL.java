@@ -425,7 +425,23 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"  and mh.marker_key = mta.marker_key " + 
 				"  and mta.annotation_key = a.annotation_key " + 
 				"  and a.annotation_type = 'DO/Human Marker' " +
-				"order by mm.marker_key";
+				"union " +
+				"select h.marker_key, n.term_id " + 
+				"from marker h, marker_id i, allele_arm_property o, allele_arm_property pi, " + 
+				"  allele_related_marker arm, allele a, marker_to_annotation mta, annotation n " + 
+				"where h.marker_key = i.marker_key " + 
+				"  and i.acc_id = pi.value " + 
+				"  and pi.arm_key = arm.arm_key " + 
+				"  and arm.arm_key = o.arm_key " + 
+				"  and o.name = 'Non-mouse_Organism' " + 
+				"  and o.value = 'Human' " + 
+				"  and arm.allele_key = a.allele_key " + 
+				"  and a.allele_type in ('Targeted', 'Transgenic') " + 
+				"  and h.marker_key = mta.marker_key " + 
+				"  and h.organism = 'human' " + 
+				"  and mta.annotation_key = n.annotation_key " + 
+				"  and n.annotation_type = 'DO/Human Marker' " +
+				"order by 1";
 
 		logger.info(" - indexing human ortholog disease annotations");
 
