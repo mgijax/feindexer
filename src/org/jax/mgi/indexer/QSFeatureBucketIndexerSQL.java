@@ -333,81 +333,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " ortholog IDs");
 	}
 
-	// Index mouse DO (Disease Ontology) annotations.
-	private void indexMouseDiseaseAnnotations () throws Exception {
-		// need to check that we're considering the roll-up rules (to exclude Gt(ROSA), etc.)
-		String cmd = "select distinct m.marker_key as feature_key, d.primary_id " + 
-			"from disease d, disease_group g, disease_row r, disease_row_to_marker tm, marker m " + 
-			"where tm.marker_key = m.marker_key " + 
-			"and d.disease_key = g.disease_key " + 
-			"and g.disease_group_key = r.disease_group_key " + 
-			"and r.disease_row_key = tm.disease_row_key " + 
-			"and m.organism = 'mouse' " + 
-			"and tm.is_causative = 1 " +
-			"order by m.marker_key";
-
-		logger.info(" - indexing mouse disease annotations");
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of annotations processed
-		while (rs.next()) {
-			ct++;
-			Integer featureKey = rs.getInt("feature_key");
-			VocabTerm vt = diseaseOntologyCache.getTerm(rs.getString("primary_id"));
-			
-			if (features.containsKey(featureKey) && (vt != null)) {
-				QSFeature feature = features.get(featureKey);
-				String term = vt.getTerm();
-				
-				// For each annotation, we need to index:
-				// 1. term name, primary ID, secondary IDs, synonyms for that term.
-				// 2. And for each of its ancestors, we also need to index:
-				//    a. term name, primary ID, secondary IDs, and synonyms.
-
-				addDoc(buildDoc(feature, null, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
-
-				if (vt.getAllIDs() != null) {
-					for (String accID : vt.getAllIDs()) {
-						addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
-					}
-				}
-				
-				if (vt.getSynonyms() != null) {
-					for (String synonym : vt.getSynonyms()) {
-						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
-					}
-				}
-				
-				// ancestors of this vocab term
-				for (Integer ancestorKey : vt.getAncestorKeys()) {
-					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
-					String ancTerm = ancestor.getTerm();
-					
-					addDoc(buildDoc(feature, null, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
-
-					if (ancestor.getAllIDs() != null) {
-						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, null, term + " (subterm of " + ancestor.getTerm() + ", with ID "+ accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
-						}
-					}
-				
-					if (ancestor.getSynonyms() != null) {
-						for (String synonym : ancestor.getSynonyms()) {
-							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
-						}
-					}
-				}
-			}
-		}
-		rs.close();
-		
-		logger.info(" - indexed " + ct + " mouse disease annotations");
-	}
-
 	// Index human ortholog DO (Disease Ontology) annotations.
 	private void indexHumanDiseaseAnnotations () throws Exception {
-		// from mouse marker through orthology tables to human marker, then to human DO annotations
+		// from mouse marker through orthology tables to human marker, then to human DO annotations.
+		// Lower part of union is to pick up mouse markers where the human ortholog is an expressed
+		// component for a Tg allele.
 		String cmd = "select mm.marker_key as mouse_marker_key, a.term_id " + 
 				"from marker mm, homology_cluster_organism_to_marker cm, " + 
 				"  homology_cluster_organism om, homology_cluster hc, " + 
@@ -854,22 +784,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - done with " + dataType + " (indexed " + i + " items)");
 	}
 	
-	// Index the MP terms for the given feature type.  Assumes caches are loaded.
-	private void indexMP() throws SQLException {
-		// Assume we're looking at markers.
-		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
-				"from annotation a, marker_to_annotation mta, marker m " + 
-				"where a.annotation_key = mta.annotation_key " + 
-				"and mta.marker_key = m.marker_key " + 
-				"and a.annotation_type = 'Mammalian Phenotype/Marker' " + 
-				"and m.organism = 'mouse' " + 
-				"and a.qualifier is null " +
-				"order by m.marker_key";
-			
-
-		indexAnnotations("Phenotype", cmd, mpOntologyCache, MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT);
-	}
-
 	// Index the GO terms for the given feature type.  Assumes caches are loaded.
 	private void indexGO() throws SQLException {
 		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
@@ -978,13 +892,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexProteinFamilies();
 		clearIndexedTermCache();		// only clear once all protein stuff done
 
-		indexMouseDiseaseAnnotations();
 		indexHumanDiseaseAnnotations();
 		clearIndexedTermCache();		// only clear once all disease data done
 		
-		indexMP();
-		clearIndexedTermCache();		// only clear once all phenotype data done
-
 		indexGO();
 		clearIndexedTermCache();		// only clear once all GO data done
 	}
