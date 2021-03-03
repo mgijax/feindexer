@@ -51,10 +51,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private static Map<String,String> uriPrefixes;			
 	static {
 		uriPrefixes = new HashMap<String,String>();
-		uriPrefixes.put(INTERPRO_DOMAINS, null);				// Protein domains intentionally omitted
 		uriPrefixes.put("Phenotype", "/vocab/mp_ontology/");
-		uriPrefixes.put("Disease Ontology", "/disease/");
-		uriPrefixes.put(PIRSF_VOCAB, "/vocab/pirsf/");
+		uriPrefixes.put("Disease", "/disease/");
+		uriPrefixes.put("Protein Family", "/vocab/pirsf/");
 		uriPrefixes.put("Expression", "/vocab/gxd/anatomy/");
 		uriPrefixes.put("Human Phenotype", "/vocab/hp_ontology/");
 		uriPrefixes.put(GO_VOCAB, "/vocab/gene_ontology/");
@@ -67,10 +66,10 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private static Map<String,String> annotationUris;
 	static {
 		annotationUris = new HashMap<String,String>();
-		annotationUris.put(INTERPRO_DOMAINS, "marker/summary?interpro=@@@@");	
+		annotationUris.put("Protein Domain", "/marker/summary?interpro=@@@@");	
 		annotationUris.put("Phenotype", "/mp/annotations/@@@@");
 		annotationUris.put("Disease", "/disease/@@@@?openTab=models");
-		annotationUris.put(PIRSF_VOCAB, "/vocab/pirsf/@@@@");
+		annotationUris.put("Protein Family", "/vocab/pirsf/@@@@");
 		annotationUris.put("Expression", "/gxd/structure/@@@@");
 		annotationUris.put("Human Phenotype", "/diseasePortal?termID=@@@@");
 		annotationUris.put(GO_VOCAB, "/go/term/@@@@");
@@ -308,6 +307,17 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		logger.info(" - assigned sequence numbers for " + this.sequenceNum.size() + " terms");
 	}
 	
+	// Return a singular or plural version of 'noun' based on the given 'count' of items.
+	private String plural(Long count, String noun) {
+		if (count == 1) return noun;
+		return noun + "s";
+	}
+	
+	// Return a singular or plural version of 'noun' based on the given 'count' of items.
+	private String plural(Integer count, String noun) {
+		return plural(new Long(count), noun);
+	}
+	
 	/* Cache annotation data for the given vocabulary name, populating annotationCount and annotationLabel
 	 */
 	private void cacheAnnotations(String vocabName) throws Exception {
@@ -349,31 +359,25 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			annotationCount.put(termID, annotCount);
 			if (MP_VOCAB.equals(vocabName)) {
 				if (!"MP:0000001".equals(termID)) {
-					annotationLabel.put(termID, objectCount + " genotypes, " + annotCount + " annotations");
+					annotationLabel.put(termID, objectCount + plural(objectCount, " genotype") +
+						", " + annotCount + plural(annotCount, " annotation"));
 				}
 
 			} else if (DO_VOCAB.equals(vocabName)) {
-				if (objectCount > 1) {
-					annotationLabel.put(termID, objectCount + " mouse models");
-				} else {
-					annotationLabel.put(termID, objectCount + " mouse model");
-				}
+				annotationLabel.put(termID, objectCount + plural(objectCount, " mouse model"));
 
 			} else if (HPO_VOCAB.equals(vocabName)) {
-				annotationLabel.put(termID, objectCount + " diseases with annotations");
+				annotationLabel.put(termID, objectCount + plural(objectCount, " disease") + " with annotations");
 
 			} else if (PIRSF_VOCAB.equals(vocabName)) {
-				annotationLabel.put(termID, objectCount + " genes");
+				annotationLabel.put(termID, objectCount + plural(objectCount, " gene"));
 
 			} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
-				if (annotCount > 1) {
-					annotationLabel.put(termID, annotCount + " gene expression results");
-				} else {
-					annotationLabel.put(termID, annotCount + " gene expression result");
-				}
+				annotationLabel.put(termID, annotCount + plural(annotCount, " gene expression result"));
 
 			} else {	// GO_VOCAB
-				annotationLabel.put(termID, objectCount + " genes, " + annotCount + " annotations");
+				annotationLabel.put(termID, objectCount + plural(objectCount, " gene") + ", " + annotCount +
+					plural(annotCount, " annotation"));
 			}
 		}
 		rs.close();
