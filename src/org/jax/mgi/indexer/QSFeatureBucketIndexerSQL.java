@@ -234,7 +234,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - cached " + chromosome.size() + " locations");
 	}
 	
-	// Load accession IDs for the given feature type (marker) and create Solr documents for them.
+	// Load accession IDs and create Solr documents for them.
 	private void indexIDs() throws Exception {
 		logger.info(" - indexing IDs");
 		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
@@ -298,6 +298,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"  marker m " + 
 				"where h.organism != 'mouse' " + 
 				"and h.marker_key = ha.marker_key " + 
+				"and ha.logical_db != 'MyGene' " +
 				"and h.marker_key = hm.marker_key " + 
 				"and hm.cluster_organism_key = ho.cluster_organism_key " + 
 				"and ho.cluster_key = mo.cluster_key " + 
@@ -549,7 +550,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " protein domains");
 	}
 
-	/* Cache and return all synonyms for the given feature type (markers), populating the synonyms object.
+	/* Cache and return all marker synonyms, populating the synonyms object.
 	 * Note that this caching method is different from the others in that it does not directly modify the object's
 	 * cache.  Instead, the map produced is returned.
 	 */
@@ -784,7 +785,28 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - done with " + dataType + " (indexed " + i + " items)");
 	}
 	
-	// Index the GO terms for the given feature type.  Assumes caches are loaded.
+	// Index the EMAPS IDs with expression detected either by classical or RNA-Seq experiments.  Assumes caches are loaded.
+	private void indexEMAPS() throws SQLException {
+		VocabTermCache emapsCache = new VocabTermCache("EMAPS", ex);
+		String cmd = "select csm.marker_key as feature_key, t.primary_id " + 
+				"from expression_ht_consolidated_sample_measurement csm, " + 
+				"expression_ht_consolidated_sample cs, term_emap e, term t " + 
+				"and csm.consolidated_sample_key = cs.consolidated_sample_key " + 
+				"and cs.emapa_key = e.emapa_term_key " + 
+				"and cs.theiler_stage = e.stage::text " + 
+				"and e.term_key = t.term_key " + 
+				"and csm.level != 'Below Cutoff' " + 
+				"union " + 
+				"select ers.marker_key as feaure_key, s.primary_id as term_id " + 
+				"from expression_result_summary ers, term s " + 
+				"where ers.is_expressed = 'Yes' " + 
+				"and ers.structure_key = s.term_key " + 
+				"order by 1";
+
+		indexAnnotations("Expression", cmd, emapsCache, null, EMAP_ID_WEIGHT, null);
+	}
+
+	// Index the GO term annotations.  Assumes caches are loaded.
 	private void indexGO() throws SQLException {
 		String cmd = "select a.term_id as primary_id, m.marker_key as feature_key " + 
 				"from annotation a, marker_to_annotation mta, marker m " + 
@@ -892,6 +914,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexProteinFamilies();
 		clearIndexedTermCache();		// only clear once all protein stuff done
 
+		indexEMAPS();
+		clearIndexedTermCache();		// only clear once all EMAPS expression data are done
+		
 		indexHumanDiseaseAnnotations();
 		clearIndexedTermCache();		// only clear once all disease data done
 		
