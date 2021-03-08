@@ -29,12 +29,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	// weights to prioritize different types of search terms / IDs
 	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int STRAIN_GENE_ID_WEIGHT = 94;
-	private static int SYMBOL_WEIGHT = 91;
-	private static int ORTHOLOG_ID_WEIGHT = 88;
-	private static int NAME_WEIGHT = 85;
-	private static int SYNONYM_WEIGHT = 76;
-	private static int SECONDARY_ID_WEIGHT = 73;
+	private static int STRAIN_GENE_ID_WEIGHT = 97;
+	private static int SYMBOL_WEIGHT = 94;
+	private static int NAME_WEIGHT = 88;
+	private static int SYNONYM_WEIGHT = 85;
+	private static int ORTHOLOG_ID_WEIGHT = 80;
+	private static int SECONDARY_ID_WEIGHT = 75;
 	private static int PROTEOFORM_ID_WEIGHT = 70;
 	private static int PROTEIN_DOMAIN_WEIGHT = 67;
 	private static int PROTEIN_FAMILY_WEIGHT = 64;

@@ -601,8 +601,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			
 			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
 			// from the index does not get displayed.
-			if (rs.getString("marker_name") != null) {
-				allele.name = rs.getString("marker_name") + "; " + rs.getString("name");
+			String markerName = rs.getString("marker_name");
+			if ((markerName != null) && (!markerName.equals(allele.name))) {
+				allele.name = markerName + "; " + rs.getString("name");
 			} else {
 				allele.name = rs.getString("name");
 			}
