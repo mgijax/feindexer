@@ -791,7 +791,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		String cmd = "select csm.marker_key as feature_key, t.primary_id " + 
 				"from expression_ht_consolidated_sample_measurement csm, " + 
 				"expression_ht_consolidated_sample cs, term_emap e, term t " + 
-				"and csm.consolidated_sample_key = cs.consolidated_sample_key " + 
+				"where csm.consolidated_sample_key = cs.consolidated_sample_key " + 
 				"and cs.emapa_key = e.emapa_term_key " + 
 				"and cs.theiler_stage = e.stage::text " + 
 				"and e.term_key = t.term_key " + 
