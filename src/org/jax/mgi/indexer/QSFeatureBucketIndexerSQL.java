@@ -785,10 +785,101 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - done with " + dataType + " (indexed " + i + " items)");
 	}
 	
+	// Add to the index documents for the given marker and its directly-annotated set of EMAPS IDs (no
+	// tracing up the DAG yet).
+	private void indexExpressionChunk(Integer markerKey, Set<String> emapsTerms, VocabTermCache emapsCache, VocabTermCache emapaCache) {
+		QSFeature feature = features.get(markerKey);
+		Set<String> emapsSeen = new HashSet<String>();
+		Set<String> emapaSeen = new HashSet<String>();
+		
+		for (String emapsID : emapsTerms) {
+			VocabTerm term = emapsCache.getTerm(emapsID);
+			
+			// First index the EMAPS ID itself (not its term or synonyms).  Boosted for direct annotations.
+			addDoc(buildDoc(feature, emapsID, null, null, term.getTerm() + " (" + emapsID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+			
+			// Then index EMAPS ancestors (IDs but not terms or synonyms) if not already seen for this marker.
+			for (VocabTerm ancestor : emapsCache.getAncestors(term.getTermKey())) {
+				String ancestorID = ancestor.getPrimaryID();
+				if (!emapsSeen.contains(ancestorID)) {
+					emapsSeen.add(ancestorID);
+
+					// No boost, as annotation is percolating upward.
+					addDoc(buildDoc(feature, ancestorID, null, null, term.getTerm() + " (subterm of " + ancestorID + ")", "Expression", EMAP_ID_WEIGHT));
+				}
+			}
+			
+			// And index its EMAPA equivalent (IDs, term, and synonyms), if not seen yet.  Boosted for direct annotation.
+			String emapaID = emapsID.substring(0, emapsID.length() - 2).replaceFirst("EMAPS", "EMAPA");
+			String stage = emapsID.substring(emapsID.length() - 2);
+
+			if (!emapaSeen.contains(emapaID) && emapaCache.containsKey(emapaID)) {
+				VocabTerm emapaTerm = emapaCache.getTerm(emapaID);
+				String name = emapaTerm.getTerm();
+
+				// ID match, boosted because of direct annotation
+				addDoc(buildDoc(feature, emapaID, null, null, name + " (ID: " + emapaID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+
+				// name match, boosted because of direct annotation
+				if (!emapaSeen.contains(name)) {
+					addDoc(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
+					emapaSeen.add(name);
+				}
+
+				// synonym matches, boosted because of direct annotation
+				if ((emapaTerm.getSynonyms() != null) && (emapaTerm.getSynonyms().size() > 0)) {
+					for (String synonym : emapaTerm.getSynonyms()) {
+						if (!emapaSeen.contains(synonym)) {
+							addDoc(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
+							emapaSeen.add(synonym);
+						}
+						
+					}
+				}
+				
+				// And add the ancestor EMAPA terms (IDs, terms, and synonyms), if not yet seen.  No boost, since annotation
+				// is percolating upward.
+				for (VocabTerm ancestor : emapaCache.getAncestors(emapaTerm.getTermKey())) {
+					String ancestorID = ancestor.getPrimaryID();
+					
+					// If we haven't seen this ancestor yet, we need to process it.  ID first.
+					if (!emapaSeen.contains(ancestorID)) {
+						String ancestorName = ancestor.getTerm();
+						addDoc(buildDoc(feature, ancestorID, null, null, name + " (subterm of " + ancestorName + ")", "Expression", EMAP_ID_WEIGHT));
+						emapaSeen.add(ancestorID);
+						
+						if (!emapaSeen.contains(ancestorName)) {
+							addDoc(buildDoc(feature, null, null, ancestorName, "TS" + stage + ": " + name + " (subterm of " + ancestorName + ")", "Expression", EMAP_NAME_WEIGHT));
+							emapaSeen.add(ancestorName);
+						}
+						
+						List<String> ancestorSynonyms = ancestor.getSynonyms();
+						if (ancestorSynonyms != null) {
+							for (String synonym : ancestorSynonyms) {
+								if (!emapaSeen.contains(synonym)) {
+									addDoc(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name + " (subterm of " + ancestorName + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
+									emapaSeen.add(synonym);
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	
 	// Index the EMAPS IDs with expression detected either by classical or RNA-Seq experiments.  Assumes caches are loaded.
-	private void indexEMAPS() throws SQLException {
+	// Also index corresponding EMAPA data.  We base the EMAPA data on the EMAPS relationships to ensure that we only 
+	// follow stage-aware paths as we follow up the DAG.
+	private void indexExpression() throws SQLException {
+		logger.info(" - indexing Expression data");
+
 		VocabTermCache emapsCache = new VocabTermCache("EMAPS", ex);
-		String cmd = "select csm.marker_key as feature_key, t.primary_id " + 
+		VocabTermCache emapaCache = new VocabTermCache("EMAPA", ex);
+
+		// query returns marker keys and EMAPS IDs.  Remember that to convert from an EMAPS ID to its EMAPA
+		// equivalent, just trim the rightmost two characters.
+		String cmd = "select csm.marker_key, t.primary_id " + 
 				"from expression_ht_consolidated_sample_measurement csm, " + 
 				"expression_ht_consolidated_sample cs, term_emap e, term t " + 
 				"where csm.consolidated_sample_key = cs.consolidated_sample_key " + 
@@ -803,7 +894,40 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and ers.structure_key = s.term_key " + 
 				"order by 1";
 
-		indexAnnotations("Expression", cmd, emapsCache, null, EMAP_ID_WEIGHT, null);
+		int rows = 0;					// counter of annotation rows processed
+		int emapsIndexed = 0;			// counter of EMAPS term/marker annotations indexed
+		Integer lastMarkerKey = -1;		// last marker key to be processed
+		Set<String> emapsIDs = new HashSet<String>();	// IDs to index for this marker
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next())  {  
+			Integer markerKey = rs.getInt("marker_key");
+			
+			if (!markerKey.equals(lastMarkerKey)) {
+				if (!emapsIDs.isEmpty()) {
+					indexExpressionChunk(lastMarkerKey, emapsIDs, emapsCache, emapaCache);
+					emapsIndexed = emapsIndexed + emapsIDs.size();
+				}
+				lastMarkerKey = markerKey;
+			}
+			
+			rows++;
+			String emapsID = rs.getString("primary_id");
+
+			if (features.containsKey(markerKey) && emapsCache.containsKey(emapsID)) {
+				emapsIDs.add(emapsID);
+			} // if valid data row
+		} // while processing rows
+
+		rs.close();
+		
+		// index data for last marker
+		if (!emapsIDs.isEmpty()) {
+			indexExpressionChunk(lastMarkerKey, emapsIDs, emapsCache, emapaCache);
+			emapsIndexed = emapsIndexed + emapsIDs.size();
+		}
+
+		logger.info(" - processed " + rows + " Expression rows, indexed " + emapsIndexed + " unique marker/EMAPS pairs");
 	}
 
 	// Index the GO term annotations.  Assumes caches are loaded.
@@ -914,7 +1038,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		indexProteinFamilies();
 		clearIndexedTermCache();		// only clear once all protein stuff done
 
-		indexEMAPS();
+		indexExpression();
 		clearIndexedTermCache();		// only clear once all EMAPS expression data are done
 		
 		indexHumanDiseaseAnnotations();
