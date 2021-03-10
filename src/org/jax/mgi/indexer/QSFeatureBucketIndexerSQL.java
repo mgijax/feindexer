@@ -818,7 +818,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				String name = emapaTerm.getTerm();
 
 				// ID match, boosted because of direct annotation
-				addDoc(buildDoc(feature, emapaID, null, null, name + " (ID: " + emapaID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+				addDoc(buildDoc(feature, emapaID, null, null, "TS" + stage + ": " + name + " (ID: " + emapaID + ")", " Expression", EMAP_ID_WEIGHT + 1));
 
 				// name match, boosted because of direct annotation
 				if (!emapaSeen.contains(name)) {
@@ -845,7 +845,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					// If we haven't seen this ancestor yet, we need to process it.  ID first.
 					if (!emapaSeen.contains(ancestorID)) {
 						String ancestorName = ancestor.getTerm();
-						addDoc(buildDoc(feature, ancestorID, null, null, name + " (subterm of " + ancestorName + ")", "Expression", EMAP_ID_WEIGHT));
+						addDoc(buildDoc(feature, ancestorID, null, null, "TS" + stage + ": " +name + " (subterm of " + ancestorName + ")", "Expression", EMAP_ID_WEIGHT));
 						emapaSeen.add(ancestorID);
 						
 						if (!emapaSeen.contains(ancestorName)) {
