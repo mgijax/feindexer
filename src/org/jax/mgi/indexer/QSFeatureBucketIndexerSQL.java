@@ -907,6 +907,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				if (!emapsIDs.isEmpty()) {
 					indexExpressionChunk(lastMarkerKey, emapsIDs, emapsCache, emapaCache);
 					emapsIndexed = emapsIndexed + emapsIDs.size();
+					emapsIDs.clear();
 				}
 				lastMarkerKey = markerKey;
 			}
@@ -925,6 +926,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		if (!emapsIDs.isEmpty()) {
 			indexExpressionChunk(lastMarkerKey, emapsIDs, emapsCache, emapaCache);
 			emapsIndexed = emapsIndexed + emapsIDs.size();
+			emapsIDs.clear();
 		}
 
 		logger.info(" - processed " + rows + " Expression rows, indexed " + emapsIndexed + " unique marker/EMAPS pairs");
