@@ -326,14 +326,22 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 
 		String cmd;
 
-		// The term_annotation_counts table only contains data for these first six vocabs.
-		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)
-				|| EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
+		// The term_annotation_counts table only contains data for these vocabs.  (Technically it contains EMAPA/EMAPS data too, but
+		// we skip it because it only includes classical data.)
+		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			cmd = "select t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
 				+ "from term t, term_annotation_counts c "
 				+ "where t.term_key = c.term_key "
 				+ "and t.is_obsolete = 0 "
 				+ "and t.vocab_name = '" + vocabName + "'";
+
+		} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
+			// Just collect zeroes for EMAPA/EMAPS terms, as we'll look those up within the fewi (to be able to accurately 
+			// include RNA-Seq data.
+			
+			cmd = "select t.primary_id, 0 as object_count_with_descendents, 0 as annot_count_with_descendents\r\n" + 
+					"from term t\r\n" + 
+					"where vocab_name = '" + vocabName + "' ";
 
 		} else if (INTERPRO_DOMAINS.equals(vocabName) || PIRSF_VOCAB.equals(vocabName)) {
 			cmd = "select a.term_id as primary_id, "
@@ -373,7 +381,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				annotationLabel.put(termID, objectCount + plural(objectCount, " gene"));
 
 			} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
-				annotationLabel.put(termID, annotCount + plural(annotCount, " gene expression result"));
+				annotationLabel.put(termID, "<<gxdCount>>");
 
 			} else {	// GO_VOCAB
 				annotationLabel.put(termID, objectCount + plural(objectCount, " gene") + ", " + annotCount +
@@ -585,7 +593,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.QS_ANNOTATION_TEXT, this.annotationText);
 				if (this.annotationCount != null) {
 					doc.addField(IndexConstants.QS_ANNOTATION_COUNT, annotationCount);
-					if (annotationCount > 0L) {
+					if ((annotationCount > 0L) || this.rawVocabName.startsWith("EMAP")) {
 						if (annotationUris.containsKey(this.vocabName) && (this.primaryID != null)) {
 							String uri = annotationUris.get(this.vocabName);
 							if (uri != null) {
