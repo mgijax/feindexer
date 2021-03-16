@@ -77,13 +77,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	protected int uncommittedBatchLimit = 500;		// number of batches to allow before doing a Solr commit
 	private int uncommittedBatches = 0;				// number of batches sent to Solr and not yet committed
 
-	private VocabTermCache goProcessCache;			// caches of data for various GO DAGs
-	private VocabTermCache goFunctionCache;
-	private VocabTermCache goComponentCache;
-	private VocabTermCache diseaseOntologyCache;	// cache of data for DO DAG
-	private VocabTermCache mpOntologyCache;			// cache of data for MP DAG
-	private VocabTermCache hpoCache;				// cache of data for HPO DAG
-
 	private Map<Integer,Set<Integer>> highLevelTerms;		// maps from a term key to the keys of its high-level ancestors
 	
 	private EasyStemmer stemmer = new EasyStemmer();
@@ -336,6 +329,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	// Index human ortholog DO (Disease Ontology) annotations.
 	private void indexHumanDiseaseAnnotations () throws Exception {
+		VocabTermCache diseaseOntologyCache = new VocabTermCache("Disease Ontology", ex);
+
 		// from mouse marker through orthology tables to human marker, then to human DO annotations.
 		// Lower part of union is to pick up mouse markers where the human ortholog is an expressed
 		// component for a Tg allele.
@@ -944,11 +939,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and a.dag_name = '<DAG>' " +
 				"order by m.marker_key";
 
-		indexAnnotations("Function", cmd.replaceAll("<DAG>", "Molecular Function"), goFunctionCache,
+		indexAnnotations("Function", cmd.replaceAll("<DAG>", "Molecular Function"), new VocabTermCache("Function", ex),
 			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
-		indexAnnotations("Component", cmd.replaceAll("<DAG>", "Cellular Component"), goComponentCache,
+		indexAnnotations("Component", cmd.replaceAll("<DAG>", "Cellular Component"), new VocabTermCache("Component", ex),
 			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
-		indexAnnotations("Process", cmd.replaceAll("<DAG>", "Biological Process"), goProcessCache,
+		indexAnnotations("Process", cmd.replaceAll("<DAG>", "Biological Process"), new VocabTermCache("Process", ex),
 			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
 	}
 	
@@ -1058,13 +1053,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	public void index() throws Exception {
 		this.setSkipOptimizer(true);
 		
-		// cache vocabulary term data
-		goFunctionCache = new VocabTermCache("Function", ex);
-		goProcessCache = new VocabTermCache("Process", ex);
-		goComponentCache = new VocabTermCache("Component", ex);
-		diseaseOntologyCache = new VocabTermCache("Disease Ontology", ex);
-		mpOntologyCache = new VocabTermCache("Mammalian Phenotype", ex);
-		hpoCache = new VocabTermCache("Human Phenotype Ontology", ex);
 		this.cacheHighLevelTerms();
 
 		processFeatureType();
