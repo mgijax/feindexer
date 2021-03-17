@@ -138,6 +138,21 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			indexedTerms.get(primaryID).add(term);
 		}
 	}
+
+	// Add this doc to the batch we're collecting.  If the stack hits our threshold, send it to the server and reset it.
+	// Use this for cases where we don't need to monitor uniqueness.
+	private void addDocUnchecked(SolrInputDocument doc) {
+		docs.add(doc);
+		if (docs.size() >= solrBatchSize)  {
+			writeDocs(docs);
+			docs = new ArrayList<SolrInputDocument>();
+			uncommittedBatches++;
+			if (uncommittedBatches >= uncommittedBatchLimit) {
+				commit();
+				uncommittedBatches = 0;
+			}
+		}
+	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
 	private SolrInputDocument buildDoc(QSFeature feature, String exactTerm, String inexactTerm, String stemmedTerm,
@@ -784,79 +799,102 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	// tracing up the DAG yet).
 	private void indexExpressionChunk(Integer markerKey, Set<String> emapsTerms, VocabTermCache emapsCache, VocabTermCache emapaCache) {
 		QSFeature feature = features.get(markerKey);
-		Set<String> emapsSeen = new HashSet<String>();
-		Set<String> emapaSeen = new HashSet<String>();
+		
+		// First, we'll identify the annotations we need to add, separating them into three additional sets.
+		
+		// EMAPA equivalents of direct annotations (ID to report : ID of annotation)
+		Map<String,String> emapaDirect = new HashMap<String,String>();
+		
+		Map<String,String> emapsAncestors = new HashMap<String,String>();	// ancestor ID : ID of an annotation
+		Map<String,String> emapaAncestors = new HashMap<String,String>();	// ancestor ID : ID of an annotation
 		
 		for (String emapsID : emapsTerms) {
-			VocabTerm term = emapsCache.getTerm(emapsID);
-			
-			// First index the EMAPS ID itself (not its term or synonyms).  Boosted for direct annotations.
-			addDoc(buildDoc(feature, emapsID, null, null, term.getTerm() + " (" + emapsID + ")", " Expression", EMAP_ID_WEIGHT + 1));
-			
-			// Then index EMAPS ancestors (IDs but not terms or synonyms) if not already seen for this marker.
-			for (VocabTerm ancestor : emapsCache.getAncestors(term.getTermKey())) {
-				String ancestorID = ancestor.getPrimaryID();
-				if (!emapsSeen.contains(ancestorID)) {
-					emapsSeen.add(ancestorID);
-
-					// No boost, as annotation is percolating upward.
-					addDoc(buildDoc(feature, ancestorID, null, null, term.getTerm() + " (subterm of " + ancestorID + ")", "Expression", EMAP_ID_WEIGHT));
-				}
+			String directEmapa = emapsID.substring(0, emapsID.length() - 2).replaceFirst("EMAPS", "EMAPA");
+			if (!emapaDirect.containsKey(directEmapa)) {
+				emapaDirect.put(directEmapa, emapsID);
 			}
 			
-			// And index its EMAPA equivalent (IDs, term, and synonyms), if not seen yet.  Boosted for direct annotation.
-			String emapaID = emapsID.substring(0, emapsID.length() - 2).replaceFirst("EMAPS", "EMAPA");
-			String stage = emapsID.substring(emapsID.length() - 2);
-
-			if (!emapaSeen.contains(emapaID) && emapaCache.containsKey(emapaID)) {
-				VocabTerm emapaTerm = emapaCache.getTerm(emapaID);
-				String name = emapaTerm.getTerm();
-
-				// ID match, boosted because of direct annotation
-				addDoc(buildDoc(feature, emapaID, null, null, "TS" + stage + ": " + name + " (ID: " + emapaID + ")", " Expression", EMAP_ID_WEIGHT + 1));
-
-				// name match, boosted because of direct annotation
-				if (!emapaSeen.contains(name)) {
-					addDoc(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
-					emapaSeen.add(name);
-				}
-
-				// synonym matches, boosted because of direct annotation
-				if ((emapaTerm.getSynonyms() != null) && (emapaTerm.getSynonyms().size() > 0)) {
-					for (String synonym : emapaTerm.getSynonyms()) {
-						if (!emapaSeen.contains(synonym)) {
-							addDoc(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
-							emapaSeen.add(synonym);
-						}
-						
+			// To ensure that we follow up the DAG in a stage-aware manner, we traverse using the EMAPS vocabulary and then
+			// look at the corresponding EMAPA terms.
+			
+			List<VocabTerm> emapsAncestorList = emapsCache.getAncestors(emapsCache.getTerm(emapsID).getTermKey());
+			if (emapsAncestorList != null) {
+				for (VocabTerm emapsAncestor : emapsAncestorList) {
+					String emapsAncestorID = emapsAncestor.getPrimaryID();
+					if (!emapsAncestors.containsKey(emapsAncestorID)) {
+						emapsAncestors.put(emapsAncestorID, emapsID);
+					}
+					
+					String emapaAncestorID = emapsAncestorID.substring(0, emapsAncestorID.length() - 2).replaceFirst("EMAPS", "EMAPA");
+					if (!emapaAncestors.containsKey(emapaAncestorID)) {
+						emapaAncestors.put(emapaAncestorID, emapsID);
 					}
 				}
-				
-				// And add the ancestor EMAPA terms (IDs, terms, and synonyms), if not yet seen.  No boost, since annotation
-				// is percolating upward.
-				for (VocabTerm ancestor : emapaCache.getAncestors(emapaTerm.getTermKey())) {
-					String ancestorID = ancestor.getPrimaryID();
-					
-					// If we haven't seen this ancestor yet, we need to process it.  ID first.
-					if (!emapaSeen.contains(ancestorID)) {
-						String ancestorName = ancestor.getTerm();
-						addDoc(buildDoc(feature, ancestorID, null, null, "TS" + stage + ": " +name + " (subterm of " + ancestorName + ")", "Expression", EMAP_ID_WEIGHT));
-						emapaSeen.add(ancestorID);
-						
-						if (!emapaSeen.contains(ancestorName)) {
-							addDoc(buildDoc(feature, null, null, ancestorName, "TS" + stage + ": " + name + " (subterm of " + ancestorName + ")", "Expression", EMAP_NAME_WEIGHT));
-							emapaSeen.add(ancestorName);
-						}
-						
-						List<String> ancestorSynonyms = ancestor.getSynonyms();
-						if (ancestorSynonyms != null) {
-							for (String synonym : ancestorSynonyms) {
-								if (!emapaSeen.contains(synonym)) {
-									addDoc(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name + " (subterm of " + ancestorName + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
-									emapaSeen.add(synonym);
-								}
-							}
-						}
+			}
+		}
+		
+		// So at this point, we have four maps of data to process:
+		//   1. emapsTerms : direct EMAPS annotations, should add tiny boost to score
+		//   2. emapaDirect : EMAPA equivalents of those direct EMAPS annotations, should add tiny boost to score
+		//   3. emapsAncestors : EMAPS ancestors of those EMAPS annotations from #1, with source EMAPS ID so we can display the source
+		//   4. emapaAncestors : EMAPA ancestors of those ancestors from #3, with source EMAPS ID so we can display the source
+		// For each ancestor in #3 and #4, we should check that they're not also in the direct annotation maps (#1 and #2).  If so, we
+		// can skip the ancestor data because it would just be skipped over anyway.
+		
+		// #1 : emapsTerms (see above)
+		for (String emapsID : emapsTerms) {
+			VocabTerm term = emapsCache.getTerm(emapsID);
+
+			// only ID for EMAPS
+			addDocUnchecked(buildDoc(feature, emapsID, null, null, term.getTerm() + " (" + emapsID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+		}
+		
+		// #2 : emapaDirect (see above)
+		for (String emapaID : emapaDirect.keySet()) {
+			VocabTerm term = emapaCache.getTerm(emapaID);
+			VocabTerm source = emapsCache.getTerm(emapaDirect.get(emapaID));
+			String stage = source.getPrimaryID().substring(source.getPrimaryID().length() - 2);
+			String name = term.getTerm();
+			List<String> synonyms = term.getSynonyms();
+			
+			// ID, term name, synonyms for EMAPA
+			addDocUnchecked(buildDoc(feature, emapaID, null, null, "TS" + stage + ": " + name + " (ID: " + emapaID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+			addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
+			if (synonyms != null) {
+				for (String synonym : synonyms) {
+					addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
+				}
+			}
+		}
+		
+		// #3 : emapsAncestors (see above)
+		for (String emapsID : emapsAncestors.keySet()) {
+			if (!emapsTerms.contains(emapsID)) {
+				VocabTerm term = emapsCache.getTerm(emapsID);
+				VocabTerm source = emapsCache.getTerm(emapsAncestors.get(emapsID));
+				String stage = source.getPrimaryID().substring(source.getPrimaryID().length() - 2);
+				String name = term.getTerm();
+			
+				// only ID for EMAPS
+				addDocUnchecked(buildDoc(feature, emapsID, null, null, source.getTerm() + " (subterm of " + term.getPrimaryID() + ")", "Expression", EMAP_ID_WEIGHT));
+			}
+		}
+
+		// #4 : emapaAncestors (see above)
+		for (String emapaID : emapaAncestors.keySet()) {
+			if (!emapaDirect.containsKey(emapaID)) {
+				VocabTerm term = emapaCache.getTerm(emapaID);
+				VocabTerm source = emapsCache.getTerm(emapaAncestors.get(emapaID));
+				String stage = source.getPrimaryID().substring(source.getPrimaryID().length() - 2);
+				String name = source.getTerm();
+				List<String> synonyms = term.getSynonyms();
+			
+				// ID, term name, synonyms for EMAPA
+				addDocUnchecked(buildDoc(feature, emapaID, null, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_ID_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_NAME_WEIGHT));
+				if (synonyms != null) {
+					for (String synonym : synonyms) {
+						addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
 					}
 				}
 			}
@@ -872,9 +910,20 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		VocabTermCache emapsCache = new VocabTermCache("EMAPS", ex);
 		VocabTermCache emapaCache = new VocabTermCache("EMAPA", ex);
 
+		int minKey = 0;
+		int maxKey = 0;
+		
+		String keyCmd = "select min(marker_key) as min_key, max(marker_key) as max_key from marker where organism = 'mouse'";
+		ResultSet krs = ex.executeProto(keyCmd);
+		if (krs.next()) {
+			minKey = krs.getInt("min_key");
+			maxKey = krs.getInt("max_key");
+		}
+		krs.close();
+		
 		// query returns marker keys and EMAPS IDs.  Remember that to convert from an EMAPS ID to its EMAPA
 		// equivalent, just trim the rightmost two characters.
-		String cmd = "select csm.marker_key, t.primary_id " + 
+		String dataCmd = "select csm.marker_key, t.primary_id " + 
 				"from expression_ht_consolidated_sample_measurement csm, " + 
 				"expression_ht_consolidated_sample cs, term_emap e, term t " + 
 				"where csm.consolidated_sample_key = cs.consolidated_sample_key " + 
@@ -882,40 +931,55 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and cs.theiler_stage = e.stage::text " + 
 				"and e.term_key = t.term_key " + 
 				"and csm.level != 'Below Cutoff' " + 
+				"and csm.marker_key >= <<start key>> " +
+				"and csm.marker_key < <<end key>> " +
 				"union " + 
 				"select ers.marker_key as feaure_key, s.primary_id as term_id " + 
 				"from expression_result_summary ers, term s " + 
 				"where ers.is_expressed = 'Yes' " + 
 				"and ers.structure_key = s.term_key " + 
+				"and ers.marker_key >= <<start key>> " +
+				"and ers.marker_key < <<end key>> " +
 				"order by 1";
 
-		int rows = 0;					// counter of annotation rows processed
-		int emapsIndexed = 0;			// counter of EMAPS term/marker annotations indexed
-		Integer lastMarkerKey = -1;		// last marker key to be processed
-		Set<String> emapsIDs = new HashSet<String>();	// IDs to index for this marker
-		
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		while (rs.next())  {  
-			Integer markerKey = rs.getInt("marker_key");
+		int start = minKey;
+		int chunk = 5000;
+		int rows = 0;									// counter of annotation rows processed
+		int emapsIndexed = 0;							// counter of EMAPS term/marker annotations indexed
+		Integer lastMarkerKey = -1;						// last marker key to be processed
+		Set<String> emapsIDs = new HashSet<String>();	// IDs to index for the curent marker
+
+
+		while (start < maxKey) {
+			int end = start + chunk;
+			logger.info("Looking up Expression data for markers " + start + " to " + end);
+			String cmd = dataCmd.replaceAll("<<start key>>", "" + start).replaceAll("<<end key>>", "" + end);
+
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next())  {  
+				Integer markerKey = rs.getInt("marker_key");
 			
-			if (!markerKey.equals(lastMarkerKey)) {
-				if (!emapsIDs.isEmpty()) {
-					indexExpressionChunk(lastMarkerKey, emapsIDs, emapsCache, emapaCache);
-					emapsIndexed = emapsIndexed + emapsIDs.size();
-					emapsIDs.clear();
+				if (!markerKey.equals(lastMarkerKey)) {
+					if (!emapsIDs.isEmpty()) {
+						indexExpressionChunk(lastMarkerKey, emapsIDs, emapsCache, emapaCache);
+						emapsIndexed = emapsIndexed + emapsIDs.size();
+						emapsIDs.clear();
+					}
+					lastMarkerKey = markerKey;
 				}
-				lastMarkerKey = markerKey;
-			}
 			
-			rows++;
-			String emapsID = rs.getString("primary_id");
+				rows++;
+				String emapsID = rs.getString("primary_id");
 
-			if (features.containsKey(markerKey) && emapsCache.containsKey(emapsID)) {
-				emapsIDs.add(emapsID);
-			} // if valid data row
-		} // while processing rows
+				if (features.containsKey(markerKey) && emapsCache.containsKey(emapsID)) {
+					emapsIDs.add(emapsID);
+				} // if valid data row
+			} // while processing rows
 
-		rs.close();
+			rs.close();
+			start = end;
+			logger.info(" - finished");
+		}
 		
 		// index data for last marker
 		if (!emapsIDs.isEmpty()) {
@@ -999,15 +1063,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
-			addDoc(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
+			addDocUnchecked(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
 			if (!"transgene".equalsIgnoreCase(feature.featureType)) {
-				addDoc(buildDoc(feature, symbol, null, null, symbol, "Symbol", SYMBOL_WEIGHT));
+				addDocUnchecked(buildDoc(feature, symbol, null, null, symbol, "Symbol", SYMBOL_WEIGHT));
 			}
 
 			// feature name
-			addDoc(buildDoc(feature, null, null, name, name, "Name", NAME_WEIGHT));
+			addDocUnchecked(buildDoc(feature, null, null, name, name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();
