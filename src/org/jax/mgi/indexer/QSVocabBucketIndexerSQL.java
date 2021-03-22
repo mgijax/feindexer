@@ -28,11 +28,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	/*--------------------------*/
 
 	// weights to prioritize different types of search terms / IDs
-	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int SECONDARY_ID_WEIGHT = 95;
-	private static int TERM_WEIGHT = 90;
-	private static int SYNONYM_WEIGHT = 85;
-	private static int DEFINITION_WEIGHT = 80;
+	private static int PRIMARY_ID_WEIGHT = 1000;
+	private static int SECONDARY_ID_WEIGHT = 950;
+	private static int TERM_WEIGHT = 900;
+	private static int SYNONYM_WEIGHT = 850;
+	private static int DEFINITION_WEIGHT = 800;
 
 	private static String INTERPRO_DOMAINS = "InterPro Domains";	// name of InterPro Domains vocabulary
 	private static String MP_VOCAB = "Mammalian Phenotype";			// name of the MP vocabulary

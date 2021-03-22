@@ -22,10 +22,10 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	/*--------------------------*/
 
 	// weights to prioritize different types of search terms / IDs
-	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int SECONDARY_ID_WEIGHT = 95;
-	private static int NAME_WEIGHT = 90;
-	private static int SYNONYM_WEIGHT = 85;
+	private static int PRIMARY_ID_WEIGHT = 1000;
+	private static int SECONDARY_ID_WEIGHT = 950;
+	private static int NAME_WEIGHT = 900;
+	private static int SYNONYM_WEIGHT = 850;
 
 	/*--------------------------*/
 	/*--- instance variables ---*/

@@ -28,35 +28,35 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	/*--------------------------*/
 
 	// weights to prioritize different types of search terms / IDs
-	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int STRAIN_GENE_ID_WEIGHT = 97;
-	private static int SYMBOL_WEIGHT = 94;
-	private static int NAME_WEIGHT = 88;
-	private static int SYNONYM_WEIGHT = 85;
-	private static int ORTHOLOG_ID_WEIGHT = 80;
-	private static int SECONDARY_ID_WEIGHT = 75;
-	private static int PROTEOFORM_ID_WEIGHT = 70;
-	private static int PROTEIN_DOMAIN_WEIGHT = 67;
-	private static int PROTEIN_FAMILY_WEIGHT = 64;
-	private static int ORTHOLOG_SYMBOL_WEIGHT = 61;
-	private static int ORTHOLOG_NAME_WEIGHT = 58;
-	private static int ORTHOLOG_SYNONYM_WEIGHT = 55;
-	private static int DISEASE_ID_WEIGHT = 52;
-	private static int DISEASE_NAME_WEIGHT = 49;
-	private static int DISEASE_SYNONYM_WEIGHT = 46;
-	private static int DISEASE_ORTHOLOG_WEIGHT = 43;
-	private static int GO_ID_WEIGHT = 37;
-	private static int GO_NAME_WEIGHT = 34;
-	private static int GO_SYNONYM_WEIGHT = 31;
-	private static int MP_ID_WEIGHT = 25;
-	private static int MP_NAME_WEIGHT = 22;
-	private static int MP_SYNONYM_WEIGHT = 19;
-	private static int EMAP_ID_WEIGHT = 25;
-	private static int EMAP_NAME_WEIGHT = 22;
-	private static int EMAP_SYNONYM_WEIGHT = 19;
-	private static int HPO_ID_WEIGHT = 13;
-	private static int HPO_NAME_WEIGHT = 10;
-	private static int HPO_SYNONYM_WEIGHT = 7;
+	private static int PRIMARY_ID_WEIGHT = 1500;
+	private static int STRAIN_GENE_ID_WEIGHT = 1450;
+	private static int SYMBOL_WEIGHT = 1400;
+	private static int NAME_WEIGHT = 1350;
+	private static int SYNONYM_WEIGHT = 1300;
+	private static int ORTHOLOG_ID_WEIGHT = 1250;
+	private static int SECONDARY_ID_WEIGHT = 1200;
+	private static int PROTEOFORM_ID_WEIGHT = 1150;
+	private static int PROTEIN_DOMAIN_WEIGHT = 1100;
+	private static int PROTEIN_FAMILY_WEIGHT = 1050;
+	private static int ORTHOLOG_SYMBOL_WEIGHT = 1000;
+	private static int ORTHOLOG_NAME_WEIGHT = 950;
+	private static int ORTHOLOG_SYNONYM_WEIGHT = 900;
+	private static int DISEASE_ID_WEIGHT = 850;
+	private static int DISEASE_NAME_WEIGHT = 800;
+	private static int DISEASE_SYNONYM_WEIGHT = 750;
+	private static int DISEASE_ORTHOLOG_WEIGHT = 700;
+	private static int GO_ID_WEIGHT = 650;
+	private static int GO_NAME_WEIGHT = 600;
+	private static int GO_SYNONYM_WEIGHT = 550;
+	private static int MP_ID_WEIGHT = 500;
+	private static int MP_NAME_WEIGHT = 450;
+	private static int MP_SYNONYM_WEIGHT = 400;
+	private static int EMAP_ID_WEIGHT = 350;
+	private static int EMAP_NAME_WEIGHT = 300;
+	private static int EMAP_SYNONYM_WEIGHT = 250;
+	private static int HPO_ID_WEIGHT = 200;
+	private static int HPO_NAME_WEIGHT = 150;
+	private static int HPO_SYNONYM_WEIGHT = 100;
 	
 	public static Map<Integer, QSFeature> features;			// marker key : QSFeature object
 

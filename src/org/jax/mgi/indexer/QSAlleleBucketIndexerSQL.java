@@ -31,20 +31,20 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
 	// weights to prioritize different types of search terms / IDs
-	private static int PRIMARY_ID_WEIGHT = 100;
-	private static int SECONDARY_ID_WEIGHT = 97;
-	private static int SYMBOL_WEIGHT = 95;
-	private static int NAME_WEIGHT = 90;
-	private static int MARKER_SYMBOL_WEIGHT = 87;
-	private static int SYNONYM_WEIGHT = 85;
-	private static int MARKER_SYNONYM_WEIGHT = 80;
-	private static int TRANSGENE_PART_WEIGHT = 77;
-	private static int DISEASE_ID_WEIGHT = 75;
-	private static int DISEASE_NAME_WEIGHT = 70;
-	private static int DISEASE_SYNONYM_WEIGHT = 67;
-	private static int MP_ID_WEIGHT = 60;
-	private static int MP_NAME_WEIGHT = 57;
-	private static int MP_SYNONYM_WEIGHT = 55;
+	private static int PRIMARY_ID_WEIGHT = 1000;
+	private static int SECONDARY_ID_WEIGHT = 950;
+	private static int SYMBOL_WEIGHT = 900;
+	private static int NAME_WEIGHT = 850;
+	private static int MARKER_SYMBOL_WEIGHT = 800;
+	private static int SYNONYM_WEIGHT = 750;
+	private static int MARKER_SYNONYM_WEIGHT = 700;
+	private static int TRANSGENE_PART_WEIGHT = 650;
+	private static int DISEASE_ID_WEIGHT = 600;
+	private static int DISEASE_NAME_WEIGHT = 550;
+	private static int DISEASE_SYNONYM_WEIGHT = 500;
+	private static int MP_ID_WEIGHT = 450;
+	private static int MP_NAME_WEIGHT = 400;
+	private static int MP_SYNONYM_WEIGHT = 350;
 	
 	public static Map<Integer, QSAllele> alleles;			// allele key : QSFeature object
 
