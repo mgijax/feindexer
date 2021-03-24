@@ -614,7 +614,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			// is already considered with the allele name.)
 			String markerSymbol = rs.getString("marker_symbol");
 
-			if (markerSymbol != null) {
+			if ((markerSymbol != null) && (!markerSymbol.equals(allele.symbol))) {
 				addDoc(buildDoc(allele, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 			}
 
