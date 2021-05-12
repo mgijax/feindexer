@@ -44,6 +44,9 @@ public abstract class Indexer implements Runnable {
 	public boolean indexPassed = true;
 	public boolean skipOptimizer = false;
 
+	private int docsSinceCommit = 0;				// number of documents since the last commit
+	private int docsSinceCommitThreshold = 100000;	// once we have this many uncommitted docs, do a commit
+
 	// Variables for handling threads
 	private List<Thread> currentThreads =new ArrayList<Thread>();
 	// maxThreads is configurable. When maxThreads is reached, program waits until they are finished.
@@ -141,7 +144,7 @@ public abstract class Indexer implements Runnable {
 		
 		commit(true);
 		if (!this.skipOptimizer) {
-			optimize(true);
+			optimize(false);
 		}
 		logger.info("Solr Documents are flushed to the server shuting down: " + solrIndexName);
 		client.close();
@@ -153,12 +156,8 @@ public abstract class Indexer implements Runnable {
 	
 	public void optimize(boolean wait) {
 		try {
-			logger.info("Waiting for Solr Optimize");
-			if(wait) {
-				client.optimize(wait, wait);
-			} else {
-				client.optimize();
-			}
+			logger.info("Beginning Solr Optimize (wait = " + wait + ")");
+			client.optimize(wait, wait);
 		} catch (SolrServerException | IOException e) {
 			logger.info("Exception in optimize");
 			e.printStackTrace();
@@ -256,6 +255,12 @@ public abstract class Indexer implements Runnable {
 		
 		try {
 			client.add(docs);
+			docsSinceCommit = docsSinceCommit + docs.size();
+			
+			if (docsSinceCommit >= docsSinceCommitThreshold) {
+				commit();
+				docsSinceCommit = 0;
+			}
 		} catch (SolrServerException | IOException e) {
 			logger.info("Exception in writeDocs");
 			e.printStackTrace();

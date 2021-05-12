@@ -52,7 +52,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;		// marker key -> set of ortholog marker keys
-	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> hybrid homology cluster key
+	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> Alliance Clustered homology cluster key
 
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerTerm = null;	// disease ID -> header terms
@@ -756,7 +756,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	}
 
 	/* If we've not already retrieved the homology cluster data from the database,
-	 * get it now.  This pulls the union homology data, including HGNC and HomoloGene.
+	 * get it now.  This pulls the homology data from the Alliance Clustered set.
 	 * The mapping is from (Integer) marker key to (Integer) grid cluster key.
 	 */
 	protected Map<Integer,Integer> getHomologyMap() throws SQLException {
@@ -1035,10 +1035,13 @@ public abstract class HdpIndexerSQL extends Indexer {
 					+ "from homology_cluster_organism o, "
 					+ "  homology_cluster_organism_to_marker otm, "
 					+ "  homology_cluster_organism other_o, "
-					+ "  homology_cluster_organism_to_marker other_otm "
+					+ "  homology_cluster_organism_to_marker other_otm, "
+					+ "  homology_cluster hc "
 					+ "where other_o.cluster_key=o.cluster_key "
 					+ "  and o.cluster_organism_key=otm.cluster_organism_key "
 					+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
+					+ "  and o.cluster_key = hc.cluster_key "
+					+ "  and hc.source = 'Alliance Clustered' "
 					+ "  and otm.marker_key!=other_otm.marker_key";
 
 			ResultSet rs = ex.executeProto(orthologQuery, cursorLimit);
@@ -1493,7 +1496,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return getRelatedTerms(annotationKey, getTerms, getIds, false, true);
 	}
 
-	/* cache the hybrid homology cluster keys for each human and mouse marker that is
+	/* cache the Alliance Clustered homology cluster keys for each human and mouse marker that is
 	 * in a cluster.
 	 */
 	protected void cacheHomologyClusterKeys() throws Exception {
@@ -1504,29 +1507,16 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		markerToHomologyCluster = new HashMap<Integer,Integer>();
 		
-		// need to first hit the hybrid homology to see which source was chosen;
+		// need to first hit the Alliance Clustered homology to see which source was chosen;
 		// then use that info to hit the homology tables again to get the source
 		// cluster key
-		String homologyQuery = "with hybrid as ("
-			+ "  select otm.marker_key, hc.cluster_key, "
-			+ "    case when hc.secondary_source = 'HomoloGene and HGNC' then 'HGNC' "
-			+ "    else hc.secondary_source "
-			+ "    end secondary_source "
+		String homologyQuery = "select distinct otm.marker_key, hc.cluster_key "
 			+ "  from homology_cluster_organism_to_marker otm, "
 			+ "    homology_cluster_organism hco, homology_cluster hc "
 			+ "  where otm.cluster_organism_key = hco.cluster_organism_key "
 			+ "    and hco.organism in ('human', 'mouse') "
 			+ "    and hco.cluster_key = hc.cluster_key " 
-			+ "    and hc.source = 'HomoloGene and HGNC' "
-			+ ")"
-			+ "select otm.marker_key, hc.cluster_key "
-			+ "from hybrid h, homology_cluster_organism_to_marker otm, "
-			+ "  homology_cluster_organism hco, homology_cluster hc "
-			+ "where otm.cluster_organism_key = hco.cluster_organism_key "
-			+ "  and hco.organism in ('human', 'mouse') "
-			+ "  and hco.cluster_key = hc.cluster_key "
-			+ "  and otm.marker_key = h.marker_key "
-			+ "  and h.secondary_source = hc.source";
+			+ "    and hc.source = 'Alliance Clustered' ";
 		
 		ResultSet rs = ex.executeProto(homologyQuery, cursorLimit);
 		
@@ -1537,7 +1527,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("  - retrieved homology clusters for " + markerToHomologyCluster.size() + " markers " + Timer.getElapsedMessage());
 	}
 	
-	/* get the homology cluster key for the given marker (use hybrid homology)
+	/* get the homology cluster key for the given marker (use Alliance Clustered homology)
 	 */
 	protected Integer getHomologyClusterKey(int markerKey) throws Exception {
 		if (markerToHomologyCluster == null) { cacheHomologyClusterKeys(); }

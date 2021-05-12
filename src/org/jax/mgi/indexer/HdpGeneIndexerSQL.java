@@ -389,6 +389,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 	@Override
 	public void index() throws Exception {
+		try {
 		// collect various mappings needed for data lookup
 		getTermSynonymMap();		// term IDs to term synonyms
 		getMarkerSynonymMap();		// marker keys to marker synonyms
@@ -397,5 +398,9 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		getMarkerAllIdMap();		// marker key to searchable marker IDs
 
 		processGenes();
+		} catch (Throwable t) {
+			t.printStackTrace();
+			throw t;
+		}
 	}
 }
