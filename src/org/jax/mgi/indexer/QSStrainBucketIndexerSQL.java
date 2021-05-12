@@ -232,12 +232,58 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info(" - cached phenotype facets for " + phenotypeFacets.size() + " strains");
 	}
 
+	/* Get the largest sequence number for strains, so we can use it later on as padding (in
+	 * concert with the list of preferred strains).
+	 */
+	private long getMaxSequenceNum() throws Exception {
+		String cmd = "select max(by_strain)::bigint as ct " + 
+			"from strain_sequence_num";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		long ct = 0;
+		while (rs.next())  {  
+			ct = rs.getLong("ct");
+		}
+		rs.close();
+		
+		return ct; 
+	}
+	
+	/* Get a Set of strain primary IDs, for those strains that we wish to prefer when sorting.
+	 * Rules:
+	 * 	1. Move strains with only one mutation to the top of the list.
+	 */
+	private Set<String> getPreferredStrains() throws Exception {
+		Set<String> preferred = new HashSet<String>();
+		
+		String cmd ="select s.primary_id, count(distinct q.allele_key) as ct " + 
+			"from strain s, strain_mutation q " + 
+			"where s.strain_key = q.strain_key " + 
+			"group by 1 " + 
+			"having count(distinct q.allele_key) = 1";
+
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			preferred.add(rs.getString("primary_id"));
+		}
+		rs.close();
+		
+		return preferred; 
+	}
+	
 	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
 	 * Assumes cachePhenotypeFacets, cacheReferenceCounts, and cacheAttributes have been called.
 	 */
 	private void buildInitialDocs() throws Exception {
 		logger.info(" - loading strains");
 		strains = new HashMap<String,QSStrain>();
+		
+		long padding = this.getMaxSequenceNum();
+		Set<String> preferred = this.getPreferredStrains();
 		
 		String cmd = "select s.primary_id, s.name, n.by_strain::bigint " + 
 				"from strain s, strain_sequence_num n " + 
@@ -253,7 +299,14 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			
 			QSStrain qst = new QSStrain(primaryID);
 			qst.name = rs.getString("name");
-			qst.sequenceNum = rs.getLong("by_strain");
+			
+			// Keep preferred strains near the top when sorting.  Push non-preferred ones down
+			// to the bottom.
+			if (preferred.contains(primaryID)) {
+				qst.sequenceNum = rs.getLong("by_strain");
+			} else {
+				qst.sequenceNum = padding + rs.getLong("by_strain");
+			}
 			
 			if (this.attributes.containsKey(primaryID)) {
 				qst.attributes = this.attributes.get(primaryID);
