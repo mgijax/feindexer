@@ -73,7 +73,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	
 	/* Load accession IDs, build docs, and send to Solr.
 	 */
-	private void indexIDs() throws Exception {
+/*	private void indexIDs() throws Exception {
 		logger.info(" - indexing strain IDs");
 
 		String cmd = "select distinct t.primary_id, i.logical_db, i.acc_id "
@@ -105,10 +105,10 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		logger.info(" - indexed " + ct + " IDs");
 	}
-
+*/
 	/* Load all synonyms, build docs, and send to Solr.
 	 */
-	private void indexSynonyms() throws Exception {
+/*	private void indexSynonyms() throws Exception {
 		logger.info(" - indexing synonyms");
 		
 		String cmd = "select distinct t.primary_id, s.synonym "
@@ -138,10 +138,10 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 		logger.info(" - indexed " + ct + " synonyms");
 	}
-	
+*/	
 	/* Cache reference count for each strain, populating referenceCounts
 	 */
-	private void cacheReferenceCounts() throws Exception {
+/*	private void cacheReferenceCounts() throws Exception {
 		logger.info(" - caching reference counts");
 
 		referenceCounts = new HashMap<String,Integer>();
@@ -164,10 +164,10 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 		logger.info(" - cached reference counts for " + referenceCounts.size() + " strains");
 	}
-
+*/
 	/* Cache strain attributes
 	 */
-	private void cacheAttributes() throws Exception {
+/*	private void cacheAttributes() throws Exception {
 		logger.info(" - caching attributes");
 
 		attributes = new HashMap<String,Set<String>>();
@@ -192,10 +192,10 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 		logger.info(" - cached attributes for " + attributes.size() + " strains");
 	}
-
+*/
 	/* Load and cache the high-level phenotype (MP) terms that should be used for facets for the strains.
 	 */
-	private void cachePhenotypeFacets() throws Exception {
+/*	private void cachePhenotypeFacets() throws Exception {
 		logger.info(" - loading phenotype facets");
 		phenotypeFacets = new HashMap<String,Set<String>>();
 
@@ -220,11 +220,11 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		rs.close();
 		logger.info(" - cached phenotype facets for " + phenotypeFacets.size() + " strains");
 	}
-
+*/
 	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
 	 * Assumes cachePhenotypeFacets, cacheReferenceCounts, and cacheAttributes have been called.
 	 */
-	private void buildInitialDocs() throws Exception {
+/*	private void buildInitialDocs() throws Exception {
 		logger.info(" - loading strains");
 		strains = new HashMap<String,QSStrain>();
 		
@@ -267,7 +267,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("done processing initial docs for " + strains.size() + " strains");
 	}
-	
+*/	
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
@@ -276,6 +276,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	public void index() throws Exception {
 		logger.info("beginning strains");
 
+/*
 		cacheAttributes();
 		cachePhenotypeFacets();
 		cacheReferenceCounts();
@@ -289,6 +290,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		// commit all the changes to Solr
 		commit();
 		logger.info("finished strains");
+*/
 	}
 
 	// Private class for helping generate Solr documents.  Instantiate with the current object type being worked on.
