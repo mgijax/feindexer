@@ -305,7 +305,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		public SolrInputDocument getNewDocument() {
 			SolrInputDocument doc = new SolrInputDocument();
 
-			if (this.objectType != null) { doc.addField(IndexConstants.QS_OBJECT_TYPE, this.objectType); }
+//			if (this.objectType != null) { doc.addField(IndexConstants.QS_OBJECT_TYPE, this.objectType); }
 			return doc;
 		}
 	}
