@@ -358,7 +358,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"  and mm.marker_key = cm.marker_key " + 
 				"  and cm.cluster_organism_key = om.cluster_organism_key " + 
 				"  and om.cluster_key = hc.cluster_key " + 
-				"  and hc.source = 'HomoloGene and HGNC' " + 
+				"  and hc.source = 'Alliance Direct' " + 
 				"  and hc.cluster_key = oh.cluster_key " + 
 				"  and oh.cluster_organism_key = ch.cluster_organism_key " + 
 				"  and ch.marker_key = mh.marker_key " + 
