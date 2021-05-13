@@ -253,16 +253,22 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	
 	/* Get a Set of strain primary IDs, for those strains that we wish to prefer when sorting.
 	 * Rules:
-	 * 	1. Move strains with only one mutation to the top of the list.
+	 * 	1. Move strains with zero or one mutated alleles to the top of the list.
 	 */
 	private Set<String> getPreferredStrains() throws Exception {
 		Set<String> preferred = new HashSet<String>();
 		
-		String cmd ="select s.primary_id, count(distinct q.allele_key) as ct " + 
-			"from strain s, strain_mutation q " + 
-			"where s.strain_key = q.strain_key " + 
-			"group by 1 " + 
-			"having count(distinct q.allele_key) = 1";
+		String cmd = "with multiples as ( " + 
+			"select s.primary_id, count(distinct q.allele_key) as ct  " + 
+			"from strain s, strain_mutation q  " + 
+			"where s.strain_key = q.strain_key  " + 
+			"group by 1  " + 
+			"having count(distinct q.allele_key) > 1 " + 
+			") " + 
+			"select s.primary_id " + 
+			"from strain s " + 
+			"where not exists (select 1 from multiples m " + 
+			"  where s.primary_id = m.primary_id)";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
