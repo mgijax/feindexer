@@ -92,7 +92,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		termPrefixes.put(GO_VOCAB, "GO Term");
 		termPrefixes.put(GO_BP, "Process");
 		termPrefixes.put(GO_MF, "Function");
-		termPrefixes.put(GO_CC, "Function");
+		termPrefixes.put(GO_CC, "Component");
 	}
 	
 	// which field to use for faceting a given DAG/vocab
