@@ -14,7 +14,7 @@ import org.jax.mgi.shr.fe.util.StopwordRemover;
 
 /* Is: an indexer that builds the index supporting the quick search's other ID bucket (aka- bucket 3).
  * 		Each document in the index represents data for a single object (e.g.- probe, clone, sequence, etc.)
- * 		that is no represented in one of the other QS buckets.
+ * 		that is not represented in one of the other QS buckets.
  */
 public class QSOtherBucketIndexerSQL extends Indexer {
 
@@ -30,6 +30,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	/*--- instance variables ---*/
 	/*--------------------------*/
 
+	private int gcLimit = 250000;					// number of data objects to process before collecting garbage
+	private int gcCount = 0;						// data objects processed since last garbage collection
+	
 	private int cursorLimit = 10000;				// number of records to retrieve at once
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
 
@@ -69,6 +72,25 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
 		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
 		return doc;
+	}
+	
+	/* convenience wrapper, both creating the document and adding it to the index.
+	 */
+	private void buildAndAddDocument (DocBuilder builder, String exactTerm, String searchTermDisplay,
+			String searchTermType, Integer searchTermWeight, String primaryID, Long sequenceNum) {
+		
+		this.addDoc(this.buildDoc(builder, exactTerm, searchTermDisplay, searchTermType,
+			searchTermWeight, primaryID, sequenceNum));
+	}
+	
+	/* Run garbage collection if we've hit the limit since the last time we did.
+	 */
+	private void gc() {
+		this.gcCount++;
+		if (this.gcCount >= this.gcLimit) {
+			System.gc();
+			this.gcCount = 0;
+		}
 	}
 	
 	/* Load accession IDs, build docs, and send to Solr.
@@ -221,16 +243,35 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info(" - cached phenotype facets for " + phenotypeFacets.size() + " strains");
 	}
 */
-	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
-	 * Assumes cachePhenotypeFacets, cacheReferenceCounts, and cacheAttributes have been called.
+
+	/* get the provider string to appear after the ID itself in the Best Match column.
 	 */
-/*	private void buildInitialDocs() throws Exception {
-		logger.info(" - loading strains");
-		strains = new HashMap<String,QSStrain>();
+	private String getDisplayValue(String logicalDB, String accID) {
+		if (accID.startsWith(logicalDB)) {
+			return accID;
+		}
+		return accID + " (" + logicalDB + ")";
+	}
+	
+	/* Add documents to the index for sequences and other objects that should also be returned
+	 * with them.  We're currently seeing about 14.8 million IDs for 13.7 million sequences, so
+	 * only about 8% secondary IDs.
+	 */
+	private void indexSequences() throws Exception {
+		logger.info(" - indexing sequences");
 		
-		String cmd = "select s.primary_id, s.name, n.by_strain::bigint " + 
-				"from strain s, strain_sequence_num n " + 
-				"where s.strain_key = n.strain_key";
+		String cmd = "select s.primary_id, s.logical_db as primary_ldb, s.sequence_type, " + 
+				"  s.description, i.acc_id as other_id, i.logical_db as other_ldb," + 
+				"  n.by_sequence_type " + 
+				"from sequence s " + 
+				"inner join sequence_sequence_num n on (s.sequence_key = n.sequence_key)" + 
+				"left outer join sequence_id i on (s.sequence_key = i.sequence_key" + 
+				"  and i.private = 0)" + 
+				"order by n.by_sequence_type, s.sequence_key";
+		
+		String lastPrimaryID = "";
+		long seqNum = 0;
+		DocBuilder seq = null;
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
@@ -238,44 +279,40 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
 			
-			// need populate and cache each object
-			
-			QSStrain qst = new QSStrain(primaryID);
-			qst.name = rs.getString("name");
-			qst.sequenceNum = rs.getLong("by_strain");
-			
-			if (this.attributes.containsKey(primaryID)) {
-				qst.attributes = this.attributes.get(primaryID);
-			}
-			if (this.phenotypeFacets.containsKey(primaryID)) {
-				qst.phenotypeFacets = this.phenotypeFacets.get(primaryID);
-			}
-			if (this.referenceCounts.containsKey(primaryID)) {
-				qst.referenceCount = this.referenceCounts.get(primaryID);
-			}
-			strains.put(primaryID, qst);
-			
-			// now build and save our initial documents for this strain
+			// If we have a new primary ID, then we have a new sequence.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				seq = new DocBuilder(primaryID, rs.getString("description"), "Sequence",
+					rs.getString("sequence_type"), "/sequence/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(seq, primaryID, this.getDisplayValue(rs.getString("primary_ldb"), primaryID),
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
-			addDoc(buildDoc(qst, qst.primaryID, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
-			addDoc(buildDoc(qst, null, qst.name, qst.name, "Name", NAME_WEIGHT));
-					
-			// also index it as an exact match, in case of stopwords
-			addDoc(buildDoc(qst, qst.name, null, qst.name, "Name", NAME_WEIGHT));
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("other_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum++);
+			}
 		}
 
 		rs.close();
-		logger.info("done processing initial docs for " + strains.size() + " strains");
+		logger.info("done with " + seqNum + "sequences");
 	}
-*/	
+
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
 
 	@Override
 	public void index() throws Exception {
-		logger.info("beginning strains");
-
+		logger.info("beginning other bucket");
+		
+		indexSequences();
 /*
 		cacheAttributes();
 		cachePhenotypeFacets();
@@ -283,29 +320,42 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		buildInitialDocs();
 		indexIDs();
 		indexSynonyms();
-		
+*/	
 		// any leftover docs to send to the server?  (likely yes)
 		if (docs.size() > 0) { writeDocs(docs); }
 
 		// commit all the changes to Solr
 		commit();
-		logger.info("finished strains");
-*/
+
+		logger.info("finished other bucket");
 	}
 
 	// Private class for helping generate Solr documents.  Instantiate with the current object type being worked on.
 	private class DocBuilder {
+		private String primaryID;
+		private String name;
 		private String objectType;
+		private String objectSubType;
+		private String detailUri;
 		
-		private DocBuilder (String objectType, String detailPrefix) {
+		private DocBuilder (String primaryID, String name, String objectType, String objectSubType, String detailUri) {
+			this.primaryID = primaryID;
+			this.name = name;
 			this.objectType = objectType;
+			this.objectSubType = objectSubType;
+			this.detailUri = detailUri;
 		}
 		
 		// compose and return a new SolrInputDocument including the fields for this feature
 		public SolrInputDocument getNewDocument() {
 			SolrInputDocument doc = new SolrInputDocument();
 
-//			if (this.objectType != null) { doc.addField(IndexConstants.QS_OBJECT_TYPE, this.objectType); }
+			if (this.primaryID != null) { doc.addField(IndexConstants.QS_PRIMARY_ID, this.primaryID); }
+			if (this.name != null) { doc.addField(IndexConstants.QS_NAME, this.name); }
+			if (this.objectType != null) { doc.addField(IndexConstants.QS_OBJECT_TYPE, this.objectType); }
+			if (this.objectSubType != null) { doc.addField(IndexConstants.QS_OBJECT_SUBTYPE, this.objectSubType); }
+			if (this.detailUri != null) { doc.addField(IndexConstants.QS_DETAIL_URI, this.detailUri); }
+
 			return doc;
 		}
 	}

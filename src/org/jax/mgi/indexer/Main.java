@@ -35,6 +35,7 @@ public class Main {
 		indexerMap.put("image", new ImageIndexerSQL());
 		indexerMap.put("qsLookup", new QSLookupIndexerSQL());
 		indexerMap.put("qsVocabBucket", new QSVocabBucketIndexerSQL());
+		indexerMap.put("qsOtherBucket", new QSOtherBucketIndexerSQL());
 		indexerMap.put("qsStrainBucket", new QSStrainBucketIndexerSQL());
 		indexerMap.put("qsFeatureBucket", new QSFeatureBucketIndexerSQL());
 		indexerMap.put("qsAlleleBucket", new QSAlleleBucketIndexerSQL());
