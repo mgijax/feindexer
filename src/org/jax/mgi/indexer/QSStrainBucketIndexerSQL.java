@@ -251,14 +251,16 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		return ct; 
 	}
 	
-	/* Get a Set of strain primary IDs, for those strains that we wish to prefer when sorting.
+	/* Get a Map from strain primary IDs to its preference level, for those strains
+	 * that we wish to prefer when sorting.
 	 * Rules:
-	 * 	1. Move strains with zero or one mutated alleles to the top of the list.
+	 *  1. Move inbred strains to the very top of the list.
+	 * 	2. Move strains with zero or one mutated alleles up, but below the inbred strains.
 	 */
-	private Set<String> getPreferredStrains() throws Exception {
-		Set<String> preferred = new HashSet<String>();
+	private Map<String, Integer> getPreferredStrains() throws Exception {
+		Map<String, Integer> preferred = new HashMap<String, Integer>();
 		
-		String cmd = "with multiples as ( " + 
+		String cmd1 = "with multiples as ( " + 
 			"select s.primary_id, count(distinct q.allele_key) as ct  " + 
 			"from strain s, strain_mutation q  " + 
 			"where s.strain_key = q.strain_key  " + 
@@ -270,14 +272,28 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			"where not exists (select 1 from multiples m " + 
 			"  where s.primary_id = m.primary_id)";
 
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - finished query in " + ex.getTimestamp());
+		ResultSet rs1 = ex.executeProto(cmd1, cursorLimit);
+		logger.debug("  - finished mutation query in " + ex.getTimestamp());
 
-		while (rs.next())  {  
-			preferred.add(rs.getString("primary_id"));
+		while (rs1.next())  {  
+			preferred.put(rs1.getString("primary_id"), 2);		// second level preference
 		}
-		rs.close();
+		rs1.close();
 		
+		String cmd2 = "select s.primary_id " + 
+				"from strain s, strain_attribute a " + 
+				"where s.strain_key = a.strain_key " + 
+				"and a.attribute = 'inbred strain'";
+		
+		ResultSet rs2 = ex.executeProto(cmd2, cursorLimit);
+		logger.debug("  - finished inbred strain query in " + ex.getTimestamp());
+
+		while (rs2.next())  {  
+			preferred.put(rs2.getString("primary_id"), 1);		// first level preference
+		}
+		rs2.close();
+
+		logger.info("Returning data for " + preferred.size() + " preferred strains");
 		return preferred; 
 	}
 	
@@ -289,7 +305,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		strains = new HashMap<String,QSStrain>();
 		
 		long padding = this.getMaxSequenceNum();
-		Set<String> preferred = this.getPreferredStrains();
+		Map<String, Integer> preferred = this.getPreferredStrains();
 		
 		String cmd = "select s.primary_id, s.name, n.by_strain::bigint " + 
 				"from strain s, strain_sequence_num n " + 
@@ -306,12 +322,15 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			QSStrain qst = new QSStrain(primaryID);
 			qst.name = rs.getString("name");
 			
-			// Keep preferred strains near the top when sorting.  Push non-preferred ones down
-			// to the bottom.
-			if (preferred.contains(primaryID)) {
+			// Keep preferred strains near the top when sorting, with levels of preference kept
+			// together.  Push non-preferred ones down to the bottom.
+
+			if (preferred.containsKey(primaryID) && (preferred.get(primaryID) == 1)) {
 				qst.sequenceNum = rs.getLong("by_strain");
-			} else {
+			} else if (preferred.containsKey(primaryID) && (preferred.get(primaryID) == 2)) {
 				qst.sequenceNum = padding + rs.getLong("by_strain");
+			} else {
+				qst.sequenceNum = (2 * padding) + rs.getLong("by_strain");
 			}
 			
 			if (this.attributes.containsKey(primaryID)) {
