@@ -37,7 +37,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	protected int solrBatchSize = 5000;				// number of docs to send to solr in each batch
 
 	private Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
-	private long uniqueKey = 0;							// ascending counter of documents created
+	private long uniqueKey = 0;						// ascending counter of documents created
+	private long seqNum = 0;						// sort order for display of objects to users (absent boosting in fewi)
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -93,157 +94,6 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		}
 	}
 	
-	/* Load accession IDs, build docs, and send to Solr.
-	 */
-/*	private void indexIDs() throws Exception {
-		logger.info(" - indexing strain IDs");
-
-		String cmd = "select distinct t.primary_id, i.logical_db, i.acc_id "
-			+ "from strain t, strain_id i "
-			+ "where t.strain_key = i.strain_key "
-			+ "and i.private = 0 "
-			+ "order by 1, 2";
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of IDs processed
-		while (rs.next()) {
-			ct++;
-			String primaryID = rs.getString("primary_id");
-			String id = rs.getString("acc_id");
-			String logicalDB = rs.getString("logical_db");
-			
-			if (strains.containsKey(primaryID)) {
-				QSStrain qst = strains.get(primaryID);
-
-				if (!id.equals(primaryID)) {
-					addDoc(buildDoc(qst, id, null, id, logicalDB, SECONDARY_ID_WEIGHT));
-				} else {
-					addDoc(buildDoc(qst, id, null, id, logicalDB, PRIMARY_ID_WEIGHT));
-				}
-			}
-		}
-		rs.close();
-		
-		logger.info(" - indexed " + ct + " IDs");
-	}
-*/
-	/* Load all synonyms, build docs, and send to Solr.
-	 */
-/*	private void indexSynonyms() throws Exception {
-		logger.info(" - indexing synonyms");
-		
-		String cmd = "select distinct t.primary_id, s.synonym "
-			+ "from strain t, strain_synonym s "
-			+ "where t.strain_key = s.strain_key "
-			+ "order by 1, 2";
-		
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		int ct = 0;							// count of synonyms processed
-		while (rs.next()) {
-			ct++;
-			String primaryID = rs.getString("primary_id");
-			String synonym = rs.getString("synonym");
-			
-			if (strains.containsKey(primaryID)) {
-				QSStrain qst = strains.get(primaryID);
-				if (synonym != null) {
-					addDoc(buildDoc(qst, null, synonym, synonym, "synonym", SYNONYM_WEIGHT));
-					
-					// also index it as an exact match, in case of stopwords
-					addDoc(buildDoc(qst, synonym, null, synonym, "synonym", SYNONYM_WEIGHT));
-				}
-			}
-		}
-		rs.close();
-
-		logger.info(" - indexed " + ct + " synonyms");
-	}
-*/	
-	/* Cache reference count for each strain, populating referenceCounts
-	 */
-/*	private void cacheReferenceCounts() throws Exception {
-		logger.info(" - caching reference counts");
-
-		referenceCounts = new HashMap<String,Integer>();
-
-		String cmd = "select s.primary_id, count(distinct r.reference_key) as refCount " + 
-				"from strain s, strain_to_reference r " + 
-				"where s.strain_key = r.strain_key " + 
-				"group by 1";
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		while (rs.next()) {
-			String strainID = rs.getString("primary_id");
-			Integer refCount = rs.getInt("refCount");
-
-			if (refCount != null) {
-				referenceCounts.put(strainID, refCount);
-			}
-		}
-		rs.close();
-
-		logger.info(" - cached reference counts for " + referenceCounts.size() + " strains");
-	}
-*/
-	/* Cache strain attributes
-	 */
-/*	private void cacheAttributes() throws Exception {
-		logger.info(" - caching attributes");
-
-		attributes = new HashMap<String,Set<String>>();
-
-		String cmd = "select s.primary_id, r.attribute " + 
-				"from strain s, strain_attribute r " + 
-				"where s.strain_key = r.strain_key";
-
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		while (rs.next()) {
-			String strainID = rs.getString("primary_id");
-			String attribute = rs.getString("attribute");
-
-			if (attribute != null) {
-				if (!attributes.containsKey(strainID)) {
-					attributes.put(strainID, new HashSet<String>());
-				}
-				attributes.get(strainID).add(attribute);
-			}
-		}
-		rs.close();
-
-		logger.info(" - cached attributes for " + attributes.size() + " strains");
-	}
-*/
-	/* Load and cache the high-level phenotype (MP) terms that should be used for facets for the strains.
-	 */
-/*	private void cachePhenotypeFacets() throws Exception {
-		logger.info(" - loading phenotype facets");
-		phenotypeFacets = new HashMap<String,Set<String>>();
-
-		String cmd = "select s.primary_id, h.heading as header " + 
-			"from strain s, strain_grid_cell c, strain_grid_heading h " + 
-			"where s.strain_key = c.strain_key " + 
-			"and c.heading_key = h.heading_key " + 
-			"and h.grid_name = 'MP' " + 
-			"and c.value > 0";
-		
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-
-		while (rs.next()) {
-			String strainID = rs.getString("primary_id");
-			String header = rs.getString("header");
-			
-			if (!phenotypeFacets.containsKey(strainID)) {
-				phenotypeFacets.put(strainID, new HashSet<String>());
-			}
-			phenotypeFacets.get(strainID).add(header);
-		}
-		rs.close();
-		logger.info(" - cached phenotype facets for " + phenotypeFacets.size() + " strains");
-	}
-*/
-
 	/* get the provider string to appear after the ID itself in the Best Match column.
 	 */
 	private String getDisplayValue(String logicalDB, String accID) {
@@ -260,6 +110,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	private void indexSequences() throws Exception {
 		logger.info(" - indexing sequences");
 		
+		long startSeqNum = seqNum;
+		
 		String cmd = "select s.primary_id, s.logical_db as primary_ldb, s.sequence_type, " + 
 				"  s.description, i.acc_id as other_id, i.logical_db as other_ldb," + 
 				"  n.by_sequence_type " + 
@@ -270,7 +122,6 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				"order by n.by_sequence_type, s.sequence_key";
 		
 		String lastPrimaryID = "";
-		long seqNum = 0;
 		DocBuilder seq = null;
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
@@ -296,12 +147,63 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			String otherID = rs.getString("other_id");
 			if (!primaryID.equals(otherID)) {
 				this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum++);
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
 		rs.close();
-		logger.info("done with " + seqNum + "sequences");
+		logger.info("done with " + (seqNum - startSeqNum) + " sequences");
+	}
+
+	/* Add documents to the index for mapping experiments. We're currently seeing almost 24,000 experiments.  Of those,
+	 * about half have only 1 ID.  Most of the other half have 2, though some do have 3 and 4.
+	 */
+	private void indexMapping() throws Exception {
+		logger.info(" - indexing mapping");
+		
+		long startSeqNum = seqNum;
+		
+		// Use the reference's mini-citation for display, but strip out any "et al" strings.
+		String cmd = "select s.primary_id, 'MGI' as primary_ldb, s.experiment_type, " + 
+			"	replace(r.mini_citation, 'et al.,', '') as description, " + 
+			"	i.acc_id as other_id, i.logical_db as other_ldb " + 
+			"from mapping_experiment s " + 
+			"inner join reference r on (s.reference_key = r.reference_key) " + 
+			"left outer join mapping_id i on (s.experiment_key = i.experiment_key and i.private = 0) " + 
+			"order by s.primary_id";
+		
+		String lastPrimaryID = "";
+		DocBuilder expt = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new experiment  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				expt = new DocBuilder(primaryID, rs.getString("description"), "Mapping Experiment",
+					rs.getString("experiment_type"), "/mapping/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(expt, primaryID, this.getDisplayValue("MGI", primaryID),
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("other_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(expt, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " mapping experiments");
 	}
 
 	/*----------------------*/
@@ -313,14 +215,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("beginning other bucket");
 		
 		indexSequences();
-/*
-		cacheAttributes();
-		cachePhenotypeFacets();
-		cacheReferenceCounts();
-		buildInitialDocs();
-		indexIDs();
-		indexSynonyms();
-*/	
+		indexMapping();
+//		indexProbes();
+
 		// any leftover docs to send to the server?  (likely yes)
 		if (docs.size() > 0) { writeDocs(docs); }
 
