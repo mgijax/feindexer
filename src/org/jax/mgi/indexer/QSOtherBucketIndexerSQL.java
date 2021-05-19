@@ -91,6 +91,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		if (this.gcCount >= this.gcLimit) {
 			System.gc();
 			this.gcCount = 0;
+			this.commit();		// do explicit commits here to let Solr catch up
 		}
 	}
 	
@@ -206,6 +207,99 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("done with " + (seqNum - startSeqNum) + " mapping experiments");
 	}
 
+	/* Add documents to the index for probes and clones. We're currently seeing almost 2.2 million.
+	 * Over 97% have multiple IDs.  Over 2 million have clone IDs (stored in with other IDs).
+	 */
+	private void indexProbes() throws Exception {
+		logger.info(" - indexing probes and clones");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select p.primary_id, p.name, p.segment_type, p.logical_db, " +
+			"  i.acc_id, i.logical_db as other_ldb, s.by_name " + 
+			"from probe p " + 
+			"inner join probe_sequence_num s on (p.probe_key = s.probe_key) " + 
+			"left outer join probe_id i on (p.probe_key = i.probe_key) " +
+			"order by p.primary_id";
+		
+		String lastPrimaryID = "";
+		DocBuilder probe = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new probe.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				probe = new DocBuilder(primaryID, rs.getString("name"), "Probe/Clone",
+					rs.getString("segment_type"), "/probe/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(probe, primaryID,
+					this.getDisplayValue(rs.getString("logical_db"), primaryID),
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("acc_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(probe, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " probes and clones");
+	}
+
+	/* Add documents to the index for sequences related to probes and clones.  79% of probes have at 
+	 * least one sequence associated.  Most (82%) of those have exactly one sequence, but some have
+	 * up to fifty.
+	 */
+	private void indexSequencesForProbes() throws Exception {
+		logger.info(" - indexing sequences for probes and clones");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select i.acc_id, i.logical_db as other_ldb, s.primary_id as seq_id, s.sequence_type, s.description " + 
+				"from sequence s " + 
+				"inner join probe_to_sequence ps on (ps.sequence_key = s.sequence_key) " + 
+				"left outer join probe_id i on (ps.probe_key = i.probe_key) " + 
+				"order by s.primary_id, i.acc_id ";
+		
+		String lastPrimaryID = "";		// primary ID of sequences (since we're walking through them)
+		DocBuilder seq = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("seq_id");
+			
+			// If we have a new primary ID, then we have a new sequence.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				seq = new DocBuilder(primaryID, rs.getString("description"), "Sequence",
+					rs.getString("sequence_type"), "/sequence/" + primaryID);
+				
+				lastPrimaryID = primaryID;
+				seqNum++;
+				gc();
+			}
+
+			// Now index the probe IDs for the sequence.
+			String otherID = rs.getString("acc_id");
+			this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
+				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " sequences for probes and clones");
+	}
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
@@ -215,8 +309,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("beginning other bucket");
 		
 		indexSequences();
+		indexSequencesForProbes();
+		indexProbes();
 		indexMapping();
-//		indexProbes();
 
 		// any leftover docs to send to the server?  (likely yes)
 		if (docs.size() > 0) { writeDocs(docs); }
