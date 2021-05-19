@@ -385,13 +385,13 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				accID = accID.replace(" (gene)", "");
 			}
 			
-			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_ldb") + " - " + organism, accID),
+			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
 				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
 			
 			// OMIM IDs also get a version without the prefix.
 			if (accID.startsWith("OMIM:")) {
 				accID = accID.replace("OMIM:", "");
-				this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_ldb") + " - " + organism, accID),
+				this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
 					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
@@ -445,12 +445,61 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 			// Index the marker's ID.
 			String accID = rs.getString("acc_id");
-			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_ldb") + " - " + organism, accID),
+			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
 				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
 		logger.info("done with " + (seqNum - startSeqNum) + " homology markers");
+	}
+
+	/* Add documents to the index for AMA terms.  There are currently over 3200 AMA terms, with
+	 * roughly 99% having only 1 ID.
+	 */
+	private void indexAdultMouseAnatomy() throws Exception {
+		logger.info(" - indexing Adult Mouse Anatomy");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select t.primary_id, t.term, i.acc_id, t.vocab_name, s.by_dfs " + 
+				"from term t, term_id i, term_sequence_num s " + 
+				"where t.vocab_name = 'Adult Mouse Anatomy' " + 
+				"and t.term_key = i.term_key " + 
+				"and t.term_key = s.term_key " + 
+				"order by s.by_dfs";
+		
+		String lastPrimaryID = "";
+		DocBuilder term = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new term.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				term = new DocBuilder(primaryID, rs.getString("term"), "MA Browser Detail", null,
+					"/vocab/gxd/ma_ontology/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(term, primaryID, primaryID + " (Adult Mouse Anatomy)",
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("acc_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(term, otherID, otherID + " (Adult Mouse Anatomy)",
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " AMA terms");
 	}
 
 	/*----------------------*/
@@ -467,6 +516,12 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		indexMapping();
 		indexHomologyMarkers();
 		indexHomologyClasses();
+		indexAdultMouseAnatomy();
+//		indexReferences();
+//		indexGenotypes();
+//		indexAntibodies();
+//		indexImages();
+//		indexGxdAssays();
 
 		// any leftover docs to send to the server?  (likely yes)
 		if (docs.size() > 0) { writeDocs(docs); }
