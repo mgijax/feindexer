@@ -301,6 +301,158 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("done with " + (seqNum - startSeqNum) + " sequences for probes and clones");
 	}
+
+	/* Generate string to describe homology class based on given counts.
+	 */
+	private String getHomologyClassDescription(int mouseCount, int humanCount, int ratCount, int zebrafishCount) {
+		StringBuffer sb = new StringBuffer("Class with ");
+		String spacer = "";		// no spacer needed for first present organism
+		String comma = ", ";
+		
+		if (humanCount > 0) {
+			sb.append(spacer);
+			sb.append(humanCount + " human");
+			spacer = comma;
+		}
+		if (mouseCount > 0) {
+			sb.append(spacer);
+			sb.append(mouseCount + " mouse");
+			spacer = comma;
+		}
+		if (ratCount > 0) {
+			sb.append(spacer);
+			sb.append(ratCount + " rat");
+			spacer = comma;
+		}
+		if (zebrafishCount > 0) {
+			sb.append(spacer);
+			sb.append(zebrafishCount + " zebrafish");
+			spacer = comma;
+		}
+
+		return sb.toString();
+	}
+	
+	/* Add documents to the index for homology clusters. There are currently almost 21,000 of these.  These have
+	 * no IDs of their own, but should be returned by non-mouse marker IDs.  For OMIM IDs, we should index both
+	 * with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)" suffix that can be removed.
+	 */
+	private void indexHomologyClasses() throws Exception {
+		logger.info(" - indexing homology clusters");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select c.cluster_key, ct.mouse_marker_count, ct.human_marker_count, " + 
+				"  ct.rat_marker_count, ct.zebrafish_marker_count, i.acc_id, i.logical_db, hco.organism " + 
+				"from homology_cluster c, homology_cluster_counts ct, marker_id i, " + 
+				"  homology_cluster_organism hco, homology_cluster_organism_to_marker hm " + 
+				"where c.source = 'Alliance Direct' " + 
+				"  and c.cluster_key = ct.cluster_key " + 
+				"  and c.cluster_key = hco.cluster_key " + 
+				"  and hco.organism in ('rat', 'human', 'zebrafish') " + 
+				"  and hco.cluster_organism_key = hm.cluster_organism_key " + 
+				"  and hm.marker_key = i.marker_key " + 
+				"  and i.private = 0 " +
+				"order by c.cluster_key, hco.organism, i.acc_id";
+		
+		String lastPrimaryID = "";
+		String description = "";
+		DocBuilder cluster = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("cluster_key");
+			String organism = rs.getString("organism");
+			
+			// If we have a new primary ID, then we have a new homology class  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				description = this.getHomologyClassDescription(rs.getInt("mouse_marker_count"),
+					rs.getInt("human_marker_count"), rs.getInt("rat_marker_count"), rs.getInt("zebrafish_marker_count"));
+				cluster = new DocBuilder(primaryID, description, "Homology", null, "/homology/cluster/key/" + primaryID);
+				
+				seqNum++;
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Index the organism's ID.
+			String accID = rs.getString("acc_id");
+			
+			// tweak for some MyGene IDs
+			if (accID.endsWith(" (gene)")) {
+				accID = accID.replace(" (gene)", "");
+			}
+			
+			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_ldb") + " - " + organism, accID),
+				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
+			
+			// OMIM IDs also get a version without the prefix.
+			if (accID.startsWith("OMIM:")) {
+				accID = accID.replace("OMIM:", "");
+				this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_ldb") + " - " + organism, accID),
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " homology clusters");
+	}
+
+	/* Add documents to the index for non-mouse markers in homology clusters. These IDs for non-mouse markers should also
+	 * return a non-mouse marker line (in addition to the Homology class line), which will give symbol and name.
+	 * For OMIM IDs, we should index both with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)"
+	 * suffix that can be removed.
+	 */
+	private void indexHomologyMarkers() throws Exception {
+		logger.info(" - indexing homology markers");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select c.cluster_key, i.acc_id, i.logical_db, hco.organism, m.symbol, m.name " + 
+				"from homology_cluster c,  " + 
+				"  homology_cluster_organism hco, homology_cluster_organism_to_marker hm, " + 
+				"  marker_id i, marker m " + 
+				"where c.source = 'Alliance Direct' " + 
+				"and c.cluster_key = hco.cluster_key " + 
+				"and hco.organism in ('rat', 'human', 'zebrafish') " + 
+				"and hco.cluster_organism_key = hm.cluster_organism_key " + 
+				"and hm.marker_key = i.marker_key " + 
+				"and hm.marker_key = m.marker_key " + 
+				"and i.private = 0 " +
+				"order by c.cluster_key, hco.organism, i.acc_id";
+		
+		String lastPrimaryID = "";
+		DocBuilder cluster = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("cluster_key");
+			String organism = rs.getString("organism");
+			
+			// If we have a new primary ID, then we have a new homology class  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				cluster = new DocBuilder(primaryID, rs.getString("symbol") + ", " + rs.getString("name"),
+					"Homolog", null, "/homology/cluster/key/" + primaryID);
+				
+				seqNum++;
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Index the marker's ID.
+			String accID = rs.getString("acc_id");
+			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_ldb") + " - " + organism, accID),
+				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " homology markers");
+	}
+
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
@@ -313,12 +465,14 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		indexSequencesForProbes();
 		indexProbes();
 		indexMapping();
+		indexHomologyMarkers();
+		indexHomologyClasses();
 
 		// any leftover docs to send to the server?  (likely yes)
 		if (docs.size() > 0) { writeDocs(docs); }
 
 		// commit all the changes to Solr
-		commit();
+		commit(false);
 
 		logger.info("finished other bucket");
 	}
