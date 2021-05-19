@@ -71,6 +71,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
+		doc.addField(IndexConstants.QS_SEQUENCE_NUM, sequenceNum);
 		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
 		return doc;
 	}
