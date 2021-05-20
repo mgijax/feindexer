@@ -502,6 +502,213 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("done with " + (seqNum - startSeqNum) + " AMA terms");
 	}
 
+	/* Add documents to the index for references.  There are currently almost 300k references, with
+	 * over 1m references.
+	 */
+	private void indexReferences() throws Exception {
+		logger.info(" - indexing references");
+		
+		long startSeqNum = seqNum;
+		
+		// description has a couple tweaks to remove "et al." and to insert "()" between ";:"
+		String cmd = "select r.jnum_id as primary_id, i.logical_db, i.acc_id, s.by_primary_id, " + 
+				"  replace(replace(r.mini_citation, 'et al.,', ''), ';:', ';():') as description " + 
+				"from reference r, reference_sequence_num s, reference_id i " + 
+				"where r.reference_key = s.reference_key " + 
+				"  and r.reference_key = i.reference_key " + 
+				"order by s.by_primary_id";
+		
+		String lastPrimaryID = "";
+		DocBuilder ref = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new reference.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				ref = new DocBuilder(primaryID, rs.getString("description"), "Reference", null,
+					"/reference/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(ref, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("acc_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(ref, otherID, otherID, "ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " references");
+	}
+
+	/* Add documents to the index for genotypes with phenotype and/or disease data.  There are currently 
+	 * over 61k of such genotypes.  All have only 1 ID.
+	 */
+	private void indexGenotypes() throws Exception {
+		logger.info(" - indexing genotypes");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select g.primary_id " + 
+				"from genotype g " + 
+				"where exists (select 1 from hdp_annotation r where g.genotype_key = r.genotype_key) "+
+				"order by g.primary_id";
+		
+		DocBuilder term = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			term = new DocBuilder(primaryID, primaryID, "Genotype", null, "/accession/" + primaryID);
+				
+			this.buildAndAddDocument(term, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+			gc();
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " genotypes");
+	}
+
+	/* Add documents to the index for antibodies.  There are currently about 12k, each with only 1 ID.
+	 */
+	private void indexAntibodies() throws Exception {
+		logger.info(" - indexing antibodies");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select primary_id, name " + 
+				"from antibody " + 
+				"order by primary_id";
+		
+		DocBuilder antibody = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			antibody = new DocBuilder(primaryID, rs.getString("name"), "Antibody", null, "/antibody/" + primaryID);
+				
+			this.buildAndAddDocument(antibody, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+			gc();
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " antibodies");
+	}
+
+	/* Add documents to the index for AMA terms.  There are currently over 3200 AMA terms, with
+	 * roughly 99% having only 1 ID.
+	 */
+	private void indexImages() throws Exception {
+		logger.info(" - indexing images");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select t.primary_id, t.term, i.acc_id, t.vocab_name, s.by_dfs " + 
+				"from term t, term_id i, term_sequence_num s " + 
+				"where t.vocab_name = 'Adult Mouse Anatomy' " + 
+				"and t.term_key = i.term_key " + 
+				"and t.term_key = s.term_key " + 
+				"order by s.by_dfs";
+		
+		String lastPrimaryID = "";
+		DocBuilder term = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new term.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				term = new DocBuilder(primaryID, rs.getString("term"), "MA Browser Detail", null,
+					"/vocab/gxd/ma_ontology/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(term, primaryID, primaryID + " (Adult Mouse Anatomy)",
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("acc_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(term, otherID, otherID + " (Adult Mouse Anatomy)",
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " images");
+	}
+
+	/* Add documents to the index for AMA terms.  There are currently over 3200 AMA terms, with
+	 * roughly 99% having only 1 ID.
+	 */
+	private void indexGxdAssays() throws Exception {
+		logger.info(" - indexing Adult Mouse Anatomy");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select t.primary_id, t.term, i.acc_id, t.vocab_name, s.by_dfs " + 
+				"from term t, term_id i, term_sequence_num s " + 
+				"where t.vocab_name = 'Adult Mouse Anatomy' " + 
+				"and t.term_key = i.term_key " + 
+				"and t.term_key = s.term_key " + 
+				"order by s.by_dfs";
+		
+		String lastPrimaryID = "";
+		DocBuilder term = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new term.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				term = new DocBuilder(primaryID, rs.getString("term"), "MA Browser Detail", null,
+					"/vocab/gxd/ma_ontology/" + primaryID);
+				
+				// Index the primary ID.
+				this.buildAndAddDocument(term, primaryID, primaryID + " (Adult Mouse Anatomy)",
+					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Also index the other ID if it differs from the primary.
+			String otherID = rs.getString("acc_id");
+			if (!primaryID.equals(otherID)) {
+				this.buildAndAddDocument(term, otherID, otherID + " (Adult Mouse Anatomy)",
+					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			}
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " expression assays");
+	}
+
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
@@ -511,16 +718,16 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("beginning other bucket");
 		this.setSkipOptimizer(true);
 		
-		indexSequences();
-		indexSequencesForProbes();
-		indexProbes();
-		indexMapping();
-		indexHomologyMarkers();
-		indexHomologyClasses();
+//		indexSequences();
+//		indexSequencesForProbes();
+//		indexProbes();
+//		indexMapping();
+//		indexHomologyMarkers();
+//		indexHomologyClasses();
 		indexAdultMouseAnatomy();
-//		indexReferences();
-//		indexGenotypes();
-//		indexAntibodies();
+		indexReferences();
+		indexGenotypes();
+		indexAntibodies();
 //		indexImages();
 //		indexGxdAssays();
 
