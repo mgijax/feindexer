@@ -611,37 +611,39 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("done with " + (seqNum - startSeqNum) + " antibodies");
 	}
 
-	/* Add documents to the index for AMA terms.  There are currently over 3200 AMA terms, with
-	 * roughly 99% having only 1 ID.
+	/* Add documents to the index for Expression and Phenotype images (not molecular images).
+	 * There are currently about 270k expression and 8,700 phenotype images.  Many have multiple IDs.
 	 */
 	private void indexImages() throws Exception {
-		logger.info(" - indexing images");
+		logger.info(" - indexing expression and phenotype images");
 		
 		long startSeqNum = seqNum;
 		
-		String cmd = "select t.primary_id, t.term, i.acc_id, t.vocab_name, s.by_dfs " + 
-				"from term t, term_id i, term_sequence_num s " + 
-				"where t.vocab_name = 'Adult Mouse Anatomy' " + 
-				"and t.term_key = i.term_key " + 
-				"and t.term_key = s.term_key " + 
-				"order by s.by_dfs";
+		String cmd = "select replace(i.image_class, 'Phenotypes', 'Phenotype') as image_type, " +
+			"  i.mgi_id, d.logical_db, d.acc_id, s.by_default " + 
+			"from image i, image_sequence_num s, image_id d " + 
+			"where i.image_class in ('Expression', 'Phenotypes') " + 
+			"  and i.image_key = s.image_key " + 
+			"  and i.image_key = d.image_key " + 
+			"  and d.logical_db != 'MGI Image Archive' " + 
+			"order by s.by_default, d.acc_id";
 		
 		String lastPrimaryID = "";
-		DocBuilder term = null;
+		DocBuilder image = null;
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
 		while (rs.next())  {  
-			String primaryID = rs.getString("primary_id");
+			String primaryID = rs.getString("mgi_id");
 			
-			// If we have a new primary ID, then we have a new term.  We'll need a new DocBuilder.
+			// If we have a new primary ID, then we have a new image.  We'll need a new DocBuilder.
 			if (!lastPrimaryID.equals(primaryID)) {
-				term = new DocBuilder(primaryID, rs.getString("term"), "MA Browser Detail", null,
-					"/vocab/gxd/ma_ontology/" + primaryID);
+				image = new DocBuilder(primaryID, primaryID, rs.getString("image_type") + " Image", null,
+					"/image/" + primaryID);
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(term, primaryID, primaryID + " (Adult Mouse Anatomy)",
+				this.buildAndAddDocument(image, primaryID, getDisplayValue("MGI", primaryID),
 					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 				lastPrimaryID = primaryID;
@@ -651,32 +653,25 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("acc_id");
 			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(term, otherID, otherID + " (Adult Mouse Anatomy)",
+				this.buildAndAddDocument(image, otherID, getDisplayValue(rs.getString("logical_db"), otherID),
 					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
 		rs.close();
-		logger.info("done with " + (seqNum - startSeqNum) + " images");
+		logger.info("done with " + (seqNum - startSeqNum) + " expression and phenotype images");
 	}
 
-	/* Add documents to the index for AMA terms.  There are currently over 3200 AMA terms, with
-	 * roughly 99% having only 1 ID.
+	/* Add documents to the index for classical GXD assays, of which there are currently over 106k.  Each has 1 ID.
 	 */
-	private void indexGxdAssays() throws Exception {
-		logger.info(" - indexing Adult Mouse Anatomy");
+	private void indexClassicalGxdAssays() throws Exception {
+		logger.info(" - indexing classical expression assays");
 		
 		long startSeqNum = seqNum;
 		
-		String cmd = "select t.primary_id, t.term, i.acc_id, t.vocab_name, s.by_dfs " + 
-				"from term t, term_id i, term_sequence_num s " + 
-				"where t.vocab_name = 'Adult Mouse Anatomy' " + 
-				"and t.term_key = i.term_key " + 
-				"and t.term_key = s.term_key " + 
-				"order by s.by_dfs";
+		String cmd = "select a.primary_id, a.marker_symbol, a.marker_name from expression_assay a";
 		
-		String lastPrimaryID = "";
-		DocBuilder term = null;
+		DocBuilder assay = null;
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
@@ -684,29 +679,57 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
 			
-			// If we have a new primary ID, then we have a new term.  We'll need a new DocBuilder.
-			if (!lastPrimaryID.equals(primaryID)) {
-				term = new DocBuilder(primaryID, rs.getString("term"), "MA Browser Detail", null,
-					"/vocab/gxd/ma_ontology/" + primaryID);
+			assay = new DocBuilder(primaryID, rs.getString("marker_symbol") + ", " + rs.getString("marker_name"),
+				"Expression Assay", null, "/assay/" + primaryID);
 				
-				// Index the primary ID.
-				this.buildAndAddDocument(term, primaryID, primaryID + " (Adult Mouse Anatomy)",
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+			// Index the primary ID.
+			this.buildAndAddDocument(assay, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
+			gc();
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " classical expression assays");
+	}
+
+	/* Add documents to the index for high-throughput expression assays, of which there are over 3,100.  Many have
+	 * multiple IDs.
+	 */
+	private void indexHighThroughputGxdAssays() throws Exception {
+		logger.info(" - indexing high-throughput expression assays");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select e.primary_id, e.name, i.acc_id, i.logical_db " + 
+			"from expression_ht_experiment e, expression_ht_experiment_id i " + 
+			"where e.experiment_key = i.experiment_key " + 
+			"order by e.primary_id";
+		
+		String lastPrimaryID = "";
+		DocBuilder experiment = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new experiment.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				experiment = new DocBuilder(primaryID, rs.getString("name"), "Expression Experiment", null,
+					"/gxd/htexp_index/summary?arrayExpressID=" + primaryID);
+				
 				lastPrimaryID = primaryID;
 				gc();
 			}
 
-			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("acc_id");
-			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(term, otherID, otherID + " (Adult Mouse Anatomy)",
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
-			}
+			this.buildAndAddDocument(experiment, otherID, getDisplayValue(rs.getString("logical_db"), otherID),
+				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
-		logger.info("done with " + (seqNum - startSeqNum) + " expression assays");
+		logger.info("done with " + (seqNum - startSeqNum) + " high-throughput expression assays");
 	}
 
 	/*----------------------*/
@@ -728,8 +751,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		indexReferences();
 		indexGenotypes();
 		indexAntibodies();
-//		indexImages();
-//		indexGxdAssays();
+		indexImages();
+		indexClassicalGxdAssays();
+		indexHighThroughputGxdAssays();
 
 		// any leftover docs to send to the server?  (likely yes)
 		if (docs.size() > 0) { writeDocs(docs); }
