@@ -741,12 +741,12 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("beginning other bucket");
 		this.setSkipOptimizer(true);
 		
-//		indexSequences();
-//		indexSequencesForProbes();
-//		indexProbes();
-//		indexMapping();
-//		indexHomologyMarkers();
-//		indexHomologyClasses();
+		indexSequences();
+		indexSequencesForProbes();
+		indexProbes();
+		indexMapping();
+		indexHomologyMarkers();
+		indexHomologyClasses();
 		indexAdultMouseAnatomy();
 		indexReferences();
 		indexGenotypes();
