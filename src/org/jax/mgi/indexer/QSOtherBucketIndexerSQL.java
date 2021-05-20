@@ -716,7 +716,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			
 			// If we have a new primary ID, then we have a new experiment.  We'll need a new DocBuilder.
 			if (!lastPrimaryID.equals(primaryID)) {
-				experiment = new DocBuilder(primaryID, rs.getString("name"), "Expression Experiment", null,
+				experiment = new DocBuilder(primaryID, rs.getString("name"), "RNA-Seq/Array Experiment", null,
 					"/gxd/htexp_index/summary?arrayExpressID=" + primaryID);
 				
 				lastPrimaryID = primaryID;
@@ -724,8 +724,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			}
 
 			String otherID = rs.getString("acc_id");
-			this.buildAndAddDocument(experiment, otherID, getDisplayValue(rs.getString("logical_db"), otherID),
-				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			this.buildAndAddDocument(experiment, otherID, otherID, "ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
