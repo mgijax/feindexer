@@ -5,11 +5,13 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
 
 /* Is: an indexer that builds the index supporting the quick search's vocab bucket (aka- bucket 2).
@@ -25,7 +27,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	private static int PRIMARY_ID_WEIGHT = 1000;
 	private static int SECONDARY_ID_WEIGHT = 950;
 	private static int NAME_WEIGHT = 900;
+	private static int PARTIAL_NAME_WEIGHT = 875;
 	private static int SYNONYM_WEIGHT = 850;
+	private static int PARTIAL_SYNONYM_WEIGHT = 825;
 
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -43,6 +47,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	
 	private Map<String, QSStrain> strains;				// term's primary ID : QSTerm object
 	
+	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
 	/*--------------------*/
@@ -67,13 +72,13 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
-	private SolrInputDocument buildDoc(QSStrain strain, String exactTerm, String inexactTerm, String searchTermDisplay,
+	private SolrInputDocument buildDoc(QSStrain strain, String exactTerm, String stemmedTerm, String searchTermDisplay,
 			String searchTermType, Integer searchTermWeight) {
 
 		SolrInputDocument doc = strain.getNewDocument();
 		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
-		if (inexactTerm != null) {
-			doc.addField(IndexConstants.QS_SEARCH_TERM_INEXACT, stopwordRemover.remove(inexactTerm));
+		if (stemmedTerm != null) {
+			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
 	 	}
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
@@ -138,10 +143,23 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			if (strains.containsKey(primaryID)) {
 				QSStrain qst = strains.get(primaryID);
 				if (synonym != null) {
-					addDoc(buildDoc(qst, null, synonym, synonym, "synonym", SYNONYM_WEIGHT));
+					// First index the synonym as an exact match.
+					addDoc(buildDoc(qst, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					
-					// also index it as an exact match, in case of stopwords
-					addDoc(buildDoc(qst, synonym, null, synonym, "synonym", SYNONYM_WEIGHT));
+					// Then convert the synonym into its component parts.  Index those parts for exact matching.
+					List<String> parts = splitIntoChunks(synonym);
+					if (parts.size() > 1) {
+						for (String part : parts) {
+							addDoc(buildDoc(qst, part, null, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
+						}
+					}
+
+					// And if any of those parts are only letters and ending with lowercase letters, then we'll
+					// assume those could be words.  Remove any stopwords, then index the others for stemmed
+					// matching.
+					for (String word : this.cullStopwords(this.cullNonWords(parts))) {
+						addDoc(buildDoc(qst, null, word, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
+					}
 				}
 			}
 		}
@@ -297,6 +315,50 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		return preferred; 
 	}
 	
+	/* Split string s (either a strain name or synonym) into parts delimited by non-alpha-numeric
+	 * characters.  Return a list of those substrings.
+	 */
+	private List<String> splitIntoChunks(String s) {
+		List<String> pieces = new ArrayList<String>();
+		
+		for (String t : s.split("[^A-Za-z0-9]+")) {
+			// An initial non-alpha-numeric will lead to an empty string at first, so check for it.
+			if (t.length() > 0) {
+				pieces.add(t); 
+			}
+		}
+		return pieces;
+	}
+	
+	/* Keep only potential words (only composed of letters, ending with a lowercase letter).
+	 */
+	private List<String> cullNonWords(List<String> words) {
+		List<String> keepers = new ArrayList<String>();
+		
+		for (String word : words) {
+			if (word.matches("^[A-Za-z]*[a-z]$")) {
+				keepers.add(word);
+			}
+		}
+		
+		return keepers;
+	}
+
+	/* Remove any stopwords from the given list of strings.
+	 */
+	private List<String> cullStopwords(List<String> words) {
+		List<String> keepers = new ArrayList<String>();
+		
+		for (String word : words) {
+			String w = stopwordRemover.remove(word);
+			if (w.trim().length() > 0) {
+				keepers.add(word);
+			}
+		}
+		
+		return keepers;
+	}
+
 	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
 	 * Assumes cachePhenotypeFacets, cacheReferenceCounts, and cacheAttributes have been called.
 	 */
@@ -347,10 +409,16 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			// now build and save our initial documents for this strain
 
 			addDoc(buildDoc(qst, qst.primaryID, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
-			addDoc(buildDoc(qst, null, qst.name, qst.name, "Name", NAME_WEIGHT));
-					
-			// also index it as an exact match, in case of stopwords
+
+			// Index the strain name as an exact match, then also its individual parts for exact matches.
 			addDoc(buildDoc(qst, qst.name, null, qst.name, "Name", NAME_WEIGHT));
+
+			List<String> parts = splitIntoChunks(qst.name);
+			if (parts.size() > 1) {
+				for (String part : parts) {
+					addDoc(buildDoc(qst, part, null, qst.name, "Name", PARTIAL_NAME_WEIGHT));
+				}
+			}
 		}
 
 		rs.close();
