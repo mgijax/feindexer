@@ -352,7 +352,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				"  and hco.organism in ('rat', 'human', 'zebrafish') " + 
 				"  and hco.cluster_organism_key = hm.cluster_organism_key " + 
 				"  and hm.marker_key = i.marker_key " + 
-				"  and i.private = 0 " +
+				"  and (i.private = 0 or i.logical_db = 'Rat Genome Database')" +
 				"order by c.cluster_key, hco.organism, i.acc_id";
 		
 		String lastPrimaryID = "";
