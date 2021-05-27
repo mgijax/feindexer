@@ -1,13 +1,19 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -147,7 +153,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 					addDoc(buildDoc(qst, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					
 					// Then convert the synonym into its component parts.  Index those parts for exact matching.
-					List<String> parts = splitIntoChunks(synonym);
+					List<String> parts = asList(splitIntoIndexablePieces(synonym));
 					if (parts.size() > 1) {
 						for (String part : parts) {
 							addDoc(buildDoc(qst, part, null, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
@@ -315,19 +321,166 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		return preferred; 
 	}
 	
-	/* Split string s (either a strain name or synonym) into parts delimited by non-alpha-numeric
-	 * characters.  Return a list of those substrings.
+	/* Break the input string based on given start & stop grouping characters, paying attention to nesting
+	 * and only considering the outermost start/stop characters. That is, working with parentheses:
+	 * 	1. "a(b)c" yields [ "a", "b", "c" ]
+	 * 	2. "a(b(c))d" yields [ "a", "b(c)", "d" ]
+	 * 	3. "a(b(c)d)e" yields [ "a", "b(c)d", "e" ]
+	 * 	4. "a(b(c)d)e(fg)" yields [ "a", "b(c)d", "e", "fg" ]
 	 */
-	private List<String> splitIntoChunks(String s) {
-		List<String> pieces = new ArrayList<String>();
+	private List<String> splitGroup(String s, char startChar, char endChar) {
+		List<String> out = new ArrayList<String>();
+
+		// null?  no substrings to deal with.
+		if (s == null) { return out; }
 		
-		for (String t : s.split("[^A-Za-z0-9]+")) {
-			// An initial non-alpha-numeric will lead to an empty string at first, so check for it.
-			if (t.length() > 0) {
-				pieces.add(t); 
+		// empty string or not having grouping character?  no substrings to deal with.
+		String t = s.trim();
+		if ((t.length() == 0) || (t.indexOf(startChar) < 0)) { return out; }
+		
+		boolean inGroup = false;					// are we in the midst of a group?
+		int openChars = 0;							// number of unclosed open characters we've collected
+		
+		StringBuffer sb = new StringBuffer();		// current set of data being collected
+
+		for (int i = 0; i < t.length(); i++) {
+			char c = t.charAt(i);
+
+			if (c == startChar) {
+				openChars++;
+
+				// If we're already in a group, then just collect the character.
+				if (inGroup) {
+					sb.append(c);
+
+				} else {
+					// Just beginning a group, so save any previous string collected, and begin a new one.
+					inGroup = true;
+					if (sb.length() > 0) {
+						out.add(sb.toString());
+						sb = new StringBuffer();
+					}
+				}
+				
+			} else if (c == endChar) {
+				// If we're already in a group, we need to decrease our openChar count.
+				// If 0, we've reached its end and we need to save the string collected.
+				// If not, collect the character as we're dealing with a nested group.
+				
+				if (inGroup) {
+					openChars--;
+					if (openChars == 0) {
+						inGroup = false;
+						if (sb.length() > 0) {
+							out.add(sb.toString());
+							sb = new StringBuffer();
+						}
+					} else {
+						sb.append(c);
+					}
+					
+				} else {
+					// Otherwise, we're not in a group, so this is a stray end character.  Just collect it.
+					sb.append(c);
+				}
+			} else {
+				sb.append(c);
+			}
+		}
+
+		// any post-group characters we've collected?  if so, save them.
+		if (sb.length() > 0) {
+			out.add(sb.toString());
+		}
+
+		return out;
+	}
+
+	/* Split string s (either a strain name or synonym) into parts that should be added to the
+	 * exact match index.  Needs to intelligently handle grouping characters:  parentheses,
+	 * square brackets, and angle brackets.
+	 */
+	private Set<String> splitIntoIndexablePieces(String s) {
+		// pieces of s that should be matchable by an exact comparison
+		Set<String> pieces = new HashSet<String>();
+		
+		// stack of strings to analyze, starting with the full string
+		Deque<String> stack = new ArrayDeque<String>();
+		stack.push(s);
+		
+		// Keep working our way through our stack of items until it's empty.
+		while (!stack.isEmpty()) {
+			String toDo = stack.pop();
+			
+			List<String> chunks = null;
+			
+			// Angle brackets are most common (60k), so do them first.
+			chunks = splitGroup(toDo, '<', '>');
+			
+			// Then parentheses (46k); do them next.
+			if (chunks.size() == 0) {
+				chunks = splitGroup(toDo, '(', ')');
+			}
+
+			// Finally, square brackets (33 total).
+			if (chunks.size() == 0) {
+				chunks = splitGroup(toDo, '[', ']');
+			}
+			
+			// No grouping characters at this point, so split on whitespace.
+			if (chunks.size() == 0) {
+				chunks = Arrays.asList(toDo.split("\\s"));
+			}
+			
+			// No spaces, so split on non-alphanumerics.
+			if (chunks.size() == 1) {
+				chunks = Arrays.asList(toDo.split("[^A-Za-z0-9]"));
+			}
+			
+			if (!s.equals(toDo)) {
+				pieces.add(toDo);
+				pieces.add(toDo.replace("-", " "));			// also include a version with hyphens changed to spaces
+			}
+			
+			for (String chunk : chunks) {
+				if (!toDo.equals(chunk) && (chunk.trim().length() > 0)) {
+					stack.push(chunk); 
+				}
 			}
 		}
 		return pieces;
+	}
+
+	/* Split string s (either a strain name or synonym) into parts delimited by non-alpha-numeric
+	 * characters.  Return a list of those substrings.
+	 */
+	private Pattern nonAlphaNumeric = Pattern.compile("[^A-Za-z0-9]");
+	private Set<String> old_splitIntoChunks(String s) {
+		// Need to break strings into as many component pieces as possible, delimited by non-alpha-numerics.
+		// For example:
+		//	1. a-b yields a, b, a-b
+		//	2. a-b-c yields a, b, c, a-b, b-c, a-b-c
+		//	3. a-b-c-d yields a, b, c, d, a-b, b-c, c-d, a-b-c, b-c-d, a-b-c-d
+		// Should intelligently handle parentheses, square brackets, and angle brackets.  (all appear)
+		// Recursion seems to be endlessly looping for some reason, or running out of memory...
+		// hangs at 100k records.
+		
+		String t = s.trim();
+		
+		Set<String> chunks = new HashSet<String>();
+		chunks.add(t);
+		
+		Matcher matcher = nonAlphaNumeric.matcher(t);
+		while (matcher.find()) {
+			int start = matcher.start();
+			String left = t.substring(0, start);
+			String right = t.substring(start + 1);
+			
+			if (left.trim().length() > 0) { chunks.add(left); }
+			if (right.trim().length() > 0) { chunks.addAll(this.splitIntoIndexablePieces(right)); }
+		}
+		
+		return chunks;
 	}
 	
 	/* Keep only potential words (only composed of letters, ending with a lowercase letter).
@@ -357,6 +510,14 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		}
 		
 		return keepers;
+	}
+
+	private List<String> asList(Set<String> items) {
+		List<String> myList = new ArrayList<String>(items.size());
+		for (String s : items) {
+			myList.add(s);
+		}
+		return myList;
 	}
 
 	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
@@ -413,7 +574,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			// Index the strain name as an exact match, then also its individual parts for exact matches.
 			addDoc(buildDoc(qst, qst.name, null, qst.name, "Name", NAME_WEIGHT));
 
-			List<String> parts = splitIntoChunks(qst.name);
+			List<String> parts = asList(splitIntoIndexablePieces(qst.name));
 			if (parts.size() > 1) {
 				for (String part : parts) {
 					addDoc(buildDoc(qst, part, null, qst.name, "Name", PARTIAL_NAME_WEIGHT));
