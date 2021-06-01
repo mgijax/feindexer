@@ -688,6 +688,41 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and trim(h.grid_name_abbreviation) = '" + dagAbbrev + "' " +
 				"and ht.term_key = t.term_key " +
 				"order by c.marker_key";
+
+		} else if ("Feature Type".equals(dagAbbrev)) {
+			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
+					"  from term t, term_ancestor a " + 
+					"  where t.vocab_name = 'Marker Category' " + 
+					"    and t.term_key = a.term_key " + 
+					"    and a.ancestor_term != 'other feature type' " + 
+					"    and a.ancestor_term != 'other genome feature' " + 
+					"    and a.ancestor_term != 'all feature types' " + 
+					") " + 
+					"select m.marker_key as feature_key, m.marker_subtype as term " + 
+					"from marker m " + 
+					"where organism = 'mouse' " + 
+					"  and status != 'withdrawn' " + 
+					"union " + 
+					"select m.marker_key as feature_key, a.ancestor_term as term " + 
+					"from marker m, ancestors a " + 
+					"where m.marker_subtype = a.term " + 
+					"  and organism = 'mouse' " + 
+					"  and status != 'withdrawn'";
+
+		} else if ("Disease".equals(dagAbbrev)) {
+			// currently only looking at mouse disease annotations (using data from HMDC tables)
+			cmd = "select distinct m.marker_key as feature_key, ha.header as term " + 
+					" from hdp_genocluster_marker m,  " + 
+					"  hdp_genocluster_genotype gg,  " + 
+					"  hdp_genocluster_annotation ga,  " + 
+					"  hdp_annotation ha, term t  " + 
+					"where m.hdp_genocluster_key = gg.hdp_genocluster_key  " + 
+					"  and gg.hdp_genocluster_key = ga.hdp_genocluster_key  " + 
+					"  and ga.term_key = ha.term_key  " + 
+					"  and gg.genotype_key = ha.genotype_key " + 
+					"  and ga.term_key = t.term_key " + 
+					"  and t.vocab_name = 'Disease Ontology' " + 
+					"  and ga.qualifier_type is null";
 		}
 		
 		if (cmd != null) {
@@ -1021,6 +1056,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		Map<Integer, Set<String>> goFunctionFacetCache = this.getFacetValues("F");
 		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues("C");
 		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
+		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
+		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
 		
 		String prefix = "Genome Feature ";
 		features = new HashMap<Integer,QSFeature>();
@@ -1060,6 +1097,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (goFunctionFacetCache.containsKey(featureKey)) { feature.goFunctionFacets = goFunctionFacetCache.get(featureKey); }
 			if (goComponentFacetCache.containsKey(featureKey)) { feature.goComponentFacets = goComponentFacetCache.get(featureKey); }
 			if (phenotypeFacetCache.containsKey(featureKey)) { feature.phenotypeFacets = phenotypeFacetCache.get(featureKey); }
+			if (diseaseFacetCache.containsKey(featureKey)) { feature.diseaseFacets = diseaseFacetCache.get(featureKey); }
+			if (featureTypeFacetCache.containsKey(featureKey)) { feature.markerTypeFacets = featureTypeFacetCache.get(featureKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
