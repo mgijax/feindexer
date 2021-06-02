@@ -710,7 +710,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					"  and status != 'withdrawn'";
 
 		} else if ("Disease".equals(dagAbbrev)) {
-			// currently only looking at mouse disease annotations (using data from HMDC tables)
+			// top of union is for mouse disease annotations (using data from HMDC tables), while the bottom
+			// of the union includes data from human orthologs' disease annotations
 			cmd = "with headers as (select distinct header from hdp_annotation) " + 
 					"select distinct m.marker_key as feature_key, ha.header as term " + 
 					" from hdp_genocluster_marker m,  " + 
