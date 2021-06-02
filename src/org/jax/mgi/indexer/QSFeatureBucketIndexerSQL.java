@@ -711,7 +711,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		} else if ("Disease".equals(dagAbbrev)) {
 			// currently only looking at mouse disease annotations (using data from HMDC tables)
-			cmd = "select distinct m.marker_key as feature_key, ha.header as term " + 
+			cmd = "with headers as (select distinct header from hdp_annotation) " + 
+					"select distinct m.marker_key as feature_key, ha.header as term " + 
 					" from hdp_genocluster_marker m,  " + 
 					"  hdp_genocluster_genotype gg,  " + 
 					"  hdp_genocluster_annotation ga,  " + 
@@ -722,7 +723,19 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					"  and gg.genotype_key = ha.genotype_key " + 
 					"  and ga.term_key = t.term_key " + 
 					"  and t.vocab_name = 'Disease Ontology' " + 
-					"  and ga.qualifier_type is null";
+					"  and ga.qualifier_type is null " +
+					"union " +
+					"select distinct hcm2.marker_key as feature_key, h.header " + 
+					"from marker_to_annotation t " + 
+					"  inner join annotation a on (t.annotation_key = a.annotation_key and a.qualifier is null) " + 
+					"  inner join homology_cluster_organism_to_marker hcm on (t.marker_key = hcm.marker_key) " + 
+					"  inner join homology_cluster_organism ho on (hcm.cluster_organism_key = ho.cluster_organism_key and ho.organism = 'human') " + 
+					"  inner join homology_cluster hc on (ho.cluster_key = hc.cluster_key and hc.source = 'Alliance Direct') " + 
+					"  inner join homology_cluster_organism ho2 on (hc.cluster_key = ho2.cluster_key and ho2.organism = 'mouse') " + 
+					"  inner join homology_cluster_organism_to_marker hcm2 on (ho2.cluster_organism_key = hcm2.cluster_organism_key) " + 
+					"  inner join term_ancestor ta on (a.term_key = ta.term_key) " + 
+					"  inner join headers h on (ta.ancestor_term = h.header) " + 
+					"where t.annotation_type = 'DO/Human Marker'" ;
 		}
 		
 		if (cmd != null) {
