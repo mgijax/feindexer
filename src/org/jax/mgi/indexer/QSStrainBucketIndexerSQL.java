@@ -49,7 +49,6 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 
 	private Map<String,Integer> referenceCounts;			// primary ID : count of references
 	private Map<String,Set<String>> attributes;			// primary ID : attributes of the strain
-	private Map<String,Set<String>> phenotypeFacets;	// primary ID : list of MP slim terms for faceting
 	
 	private Map<String, QSStrain> strains;				// term's primary ID : QSTerm object
 	
@@ -228,32 +227,41 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info(" - cached attributes for " + attributes.size() + " strains");
 	}
 
-	/* Load and cache the high-level phenotype (MP) terms that should be used for facets for the strains.
+	/* Load and cache the high-level terms that should be used for facets for the strains for
+	 * the given facetType.
 	 */
-	private void cachePhenotypeFacets() throws Exception {
-		logger.info(" - loading phenotype facets");
-		phenotypeFacets = new HashMap<String,Set<String>>();
+	private Map<String, Set<String>> getFacetValues(String facetType) throws Exception {
+		logger.info(" - loading facets for " + facetType);
+		Map<String, Set<String>> facets = new HashMap<String,Set<String>>();
 
-		String cmd = "select s.primary_id, h.heading as header " + 
-			"from strain s, strain_grid_cell c, strain_grid_heading h " + 
-			"where s.strain_key = c.strain_key " + 
-			"and c.heading_key = h.heading_key " + 
-			"and h.grid_name = 'MP' " + 
-			"and c.value > 0";
-		
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		String cmd = null;
 
-		while (rs.next()) {
-			String strainID = rs.getString("primary_id");
-			String header = rs.getString("header");
-			
-			if (!phenotypeFacets.containsKey(strainID)) {
-				phenotypeFacets.put(strainID, new HashSet<String>());
-			}
-			phenotypeFacets.get(strainID).add(header);
+		if ("MP".equals(facetType)) {
+			cmd = "select s.primary_id, h.heading as header " + 
+				"from strain s, strain_grid_cell c, strain_grid_heading h " +
+				"where s.strain_key = c.strain_key " +
+				"and c.heading_key = h.heading_key " +
+				"and h.grid_name = 'MP' " +
+				"and c.value > 0";
 		}
-		rs.close();
-		logger.info(" - cached phenotype facets for " + phenotypeFacets.size() + " strains");
+		
+		if (cmd != null) {
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+			while (rs.next()) {
+				String strainID = rs.getString("primary_id");
+				String header = rs.getString("header");
+			
+				if (!facets.containsKey(strainID)) {
+					facets.put(strainID, new HashSet<String>());
+				}
+				facets.get(strainID).add(header);
+			}
+			rs.close();
+		}
+		logger.info(" - cached " + facetType + " facets for " + facets.size() + " strains");
+
+		return facets;
 	}
 
 	/* Get the largest sequence number for strains, so we can use it later on as padding (in
@@ -521,12 +529,15 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	}
 
 	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
-	 * Assumes cachePhenotypeFacets, cacheReferenceCounts, and cacheAttributes have been called.
+	 * Assumes cacheReferenceCounts and cacheAttributes have been called.
 	 */
 	private void buildInitialDocs() throws Exception {
 		logger.info(" - loading strains");
 		strains = new HashMap<String,QSStrain>();
 		
+		// primary ID : set of MP slim terms for faceting
+		Map<String, Set<String>> phenotypeFacets = this.getFacetValues("MP");
+
 		long padding = this.getMaxSequenceNum();
 		Map<String, Integer> preferred = this.getPreferredStrains();
 		
@@ -559,8 +570,8 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			if (this.attributes.containsKey(primaryID)) {
 				qst.attributes = this.attributes.get(primaryID);
 			}
-			if (this.phenotypeFacets.containsKey(primaryID)) {
-				qst.phenotypeFacets = this.phenotypeFacets.get(primaryID);
+			if (phenotypeFacets.containsKey(primaryID)) {
+				qst.phenotypeFacets = phenotypeFacets.get(primaryID);
 			}
 			if (this.referenceCounts.containsKey(primaryID)) {
 				qst.referenceCount = this.referenceCounts.get(primaryID);
@@ -595,7 +606,6 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info("beginning strains");
 
 		cacheAttributes();
-		cachePhenotypeFacets();
 		cacheReferenceCounts();
 		buildInitialDocs();
 		indexIDs();
