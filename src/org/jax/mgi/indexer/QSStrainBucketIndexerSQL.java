@@ -243,6 +243,12 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 				"and c.heading_key = h.heading_key " +
 				"and h.grid_name = 'MP' " +
 				"and c.value > 0";
+		} else if ("Disease".equals(facetType)) {
+			cmd = "select s.primary_id, ha.header " + 
+				"from strain_disease sd " + 
+				"inner join strain s on (sd.strain_key = s.strain_key) " + 
+				"inner join term_ancestor ta on (sd.disease_key = ta.term_key) " + 
+				"inner join hdp_annotation ha on (ta.ancestor_term = ha.header)";
 		}
 		
 		if (cmd != null) {
@@ -535,8 +541,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info(" - loading strains");
 		strains = new HashMap<String,QSStrain>();
 		
-		// primary ID : set of MP slim terms for faceting
+		// primary ID : set of slim terms for faceting
 		Map<String, Set<String>> phenotypeFacets = this.getFacetValues("MP");
+		Map<String, Set<String>> diseaseFacets = this.getFacetValues("Disease");
 
 		long padding = this.getMaxSequenceNum();
 		Map<String, Integer> preferred = this.getPreferredStrains();
@@ -572,6 +579,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			}
 			if (phenotypeFacets.containsKey(primaryID)) {
 				qst.phenotypeFacets = phenotypeFacets.get(primaryID);
+			}
+			if (diseaseFacets.containsKey(primaryID)) {
+				qst.diseaseFacets = diseaseFacets.get(primaryID);
 			}
 			if (this.referenceCounts.containsKey(primaryID)) {
 				qst.referenceCount = this.referenceCounts.get(primaryID);
@@ -627,6 +637,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		public int referenceCount = 0;
 		public Long sequenceNum;
 		public Set<String> phenotypeFacets;
+		public Set<String> diseaseFacets;
 
 		// constructor
 		public QSStrain(String primaryID) {
@@ -655,6 +666,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			}
 			if ((this.phenotypeFacets != null) && (this.phenotypeFacets.size() > 0)) { 
 				doc.addField(IndexConstants.QS_PHENOTYPE_FACETS, this.phenotypeFacets);
+			}
+			if ((this.diseaseFacets != null) && (this.diseaseFacets.size() > 0)) { 
+				doc.addField(IndexConstants.QS_DISEASE_FACETS, this.diseaseFacets);
 			}
 
 			return doc;
