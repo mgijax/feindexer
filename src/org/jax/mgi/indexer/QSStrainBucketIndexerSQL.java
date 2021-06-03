@@ -465,38 +465,6 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		return pieces;
 	}
 
-	/* Split string s (either a strain name or synonym) into parts delimited by non-alpha-numeric
-	 * characters.  Return a list of those substrings.
-	 */
-	private Pattern nonAlphaNumeric = Pattern.compile("[^A-Za-z0-9]");
-	private Set<String> old_splitIntoChunks(String s) {
-		// Need to break strings into as many component pieces as possible, delimited by non-alpha-numerics.
-		// For example:
-		//	1. a-b yields a, b, a-b
-		//	2. a-b-c yields a, b, c, a-b, b-c, a-b-c
-		//	3. a-b-c-d yields a, b, c, d, a-b, b-c, c-d, a-b-c, b-c-d, a-b-c-d
-		// Should intelligently handle parentheses, square brackets, and angle brackets.  (all appear)
-		// Recursion seems to be endlessly looping for some reason, or running out of memory...
-		// hangs at 100k records.
-		
-		String t = s.trim();
-		
-		Set<String> chunks = new HashSet<String>();
-		chunks.add(t);
-		
-		Matcher matcher = nonAlphaNumeric.matcher(t);
-		while (matcher.find()) {
-			int start = matcher.start();
-			String left = t.substring(0, start);
-			String right = t.substring(start + 1);
-			
-			if (left.trim().length() > 0) { chunks.add(left); }
-			if (right.trim().length() > 0) { chunks.addAll(this.splitIntoIndexablePieces(right)); }
-		}
-		
-		return chunks;
-	}
-	
 	/* Keep only potential words (only composed of letters, ending with a lowercase letter).
 	 */
 	private List<String> cullNonWords(List<String> words) {
