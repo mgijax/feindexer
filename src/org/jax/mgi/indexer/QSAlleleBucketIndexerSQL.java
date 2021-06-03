@@ -558,10 +558,87 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		return out;
 	}
 	
+	// Build a cache of facets (high-level slim terms) for each allele.
+	public Map<Integer,Set<String>> getFacetValues(String facetType) throws SQLException {
+		Map<Integer,Set<String>> keyToFacets = new HashMap<Integer,Set<String>>();
+		String cmd = null;
+
+		// no GO facets, because those are marker-level annotations
+		
+		if ("MP".equals(facetType)) {
+			cmd = "select distinct agt.allele_key, ta.ancestor_term as term " + 
+					"from allele_to_genotype agt " + 
+					"inner join genotype_to_annotation gta on (agt.genotype_key = gta.genotype_key) " + 
+					"inner join annotation a on (gta.annotation_key = a.annotation_key  " + 
+					"  and a.annotation_type = 'Mammalian Phenotype/Genotype'  " + 
+					"  and (a.qualifier is null or a.qualifier != 'normal')) " + 
+					"inner join term_ancestor ta on (a.term_key = ta.term_key " + 
+					"  and exists (select 1 from hdp_annotation ha " + 
+					"    where ta.ancestor_term = ha.header " + 
+					"    and ha.header != 'normal phenotype')) " + 
+					"where agt.has_phenotype_data = 1 ";
+
+		} else if ("Feature Type".equals(facetType)) {
+			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
+					"  from term t, term_ancestor a " + 
+					"  where t.vocab_name = 'Marker Category' " + 
+					"    and t.term_key = a.term_key " + 
+					"    and a.ancestor_term != 'other feature type' " + 
+					"    and a.ancestor_term != 'other genome feature' " + 
+					"    and a.ancestor_term != 'all feature types' " + 
+					") " + 
+					"select a.allele_key, m.marker_subtype as term " + 
+					"from marker m, marker_to_allele a " + 
+					"where organism = 'mouse' " + 
+					"  and status != 'withdrawn' " + 
+					"  and m.marker_key = a.marker_key " +
+					"union " + 
+					"select mta.allele_key, a.ancestor_term as term " + 
+					"from marker m, ancestors a, marker_to_allele mta " + 
+					"where m.marker_subtype = a.term " + 
+					"  and m.marker_key = mta.marker_key " +
+					"  and organism = 'mouse' " + 
+					"  and status != 'withdrawn'";
+
+		} else if ("Disease".equals(facetType)) {
+			// only looks at mouse disease annotations (not human orthologs' disease annotations)
+			cmd = "select distinct agt.allele_key, ta.ancestor_term as term " + 
+					"from allele_to_genotype agt " + 
+					"inner join genotype_to_annotation gta on (agt.genotype_key = gta.genotype_key) " + 
+					"inner join annotation a on (gta.annotation_key = a.annotation_key  " + 
+					"  and a.annotation_type = 'DO/Genotype' " + 
+					"  and a.qualifier is null) " + 
+					"inner join term_ancestor ta on (a.term_key = ta.term_key " + 
+					"  and exists (select 1 from hdp_annotation ha " + 
+					"    where ta.ancestor_term = ha.header)) " + 
+					"where agt.is_disease_model = 1";
+		}
+		
+		if (cmd != null) {
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next()) {
+				Integer key = rs.getInt("allele_key");
+				
+				if (!keyToFacets.containsKey(key)) {
+					keyToFacets.put(key, new HashSet<String>());
+				}
+				keyToFacets.get(key).add(rs.getString("term"));
+			}
+			rs.close();
+			logger.info("Collected " + facetType + " facets for " + keyToFacets.size() + " alleles");
+		}
+		
+		return keyToFacets;
+	}
+
 	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
 	 * Assumes cacheLocations has been run for this featureType.
 	 */
 	private void buildInitialDocs() throws Exception {
+		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
+		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
+		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
+
 		logger.info(" - loading alleles");
 
 		String prefix = "Allele ";
@@ -605,6 +682,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			} else {
 				allele.name = rs.getString("name");
 			}
+
+			// add the facet data for the allele
+			if (phenotypeFacetCache.containsKey(alleleKey)) { allele.phenotypeFacets = phenotypeFacetCache.get(alleleKey); }
+			if (diseaseFacetCache.containsKey(alleleKey)) { allele.diseaseFacets = diseaseFacetCache.get(alleleKey); }
+			if (featureTypeFacetCache.containsKey(alleleKey)) { allele.markerTypeFacets = featureTypeFacetCache.get(alleleKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
