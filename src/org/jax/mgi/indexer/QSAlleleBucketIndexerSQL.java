@@ -566,16 +566,15 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		// no GO facets, because those are marker-level annotations
 		
 		if ("MP".equals(facetType)) {
-			cmd = "select distinct agt.allele_key, ta.ancestor_term as term " + 
+			cmd = "select distinct agt.allele_key, ha.term " + 
 					"from allele_to_genotype agt " + 
 					"inner join genotype_to_annotation gta on (agt.genotype_key = gta.genotype_key) " + 
 					"inner join annotation a on (gta.annotation_key = a.annotation_key  " + 
 					"  and a.annotation_type = 'Mammalian Phenotype/Genotype'  " + 
 					"  and (a.qualifier is null or a.qualifier != 'normal')) " + 
-					"inner join term_ancestor ta on (a.term_key = ta.term_key " + 
-					"  and exists (select 1 from hdp_annotation ha " + 
-					"    where ta.ancestor_term = ha.header " + 
-					"    and ha.header != 'normal phenotype')) " + 
+					"inner join term_to_header ta on (a.term_key = ta.term_key) " + 
+					"inner join term ha on (ta.header_term_key = ha.term_key " + 
+					"    and ha.term != 'normal phenotype') " + 
 					"where agt.has_phenotype_data = 1 ";
 
 		} else if ("Feature Type".equals(facetType)) {
@@ -602,15 +601,14 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 		} else if ("Disease".equals(facetType)) {
 			// only looks at mouse disease annotations (not human orthologs' disease annotations)
-			cmd = "select distinct agt.allele_key, ta.ancestor_term as term " + 
+			cmd = "select distinct agt.allele_key, ha.term " + 
 					"from allele_to_genotype agt " + 
 					"inner join genotype_to_annotation gta on (agt.genotype_key = gta.genotype_key) " + 
 					"inner join annotation a on (gta.annotation_key = a.annotation_key  " + 
 					"  and a.annotation_type = 'DO/Genotype' " + 
 					"  and a.qualifier is null) " + 
-					"inner join term_ancestor ta on (a.term_key = ta.term_key " + 
-					"  and exists (select 1 from hdp_annotation ha " + 
-					"    where ta.ancestor_term = ha.header)) " + 
+					"inner join term_to_header ta on (a.term_key = ta.term_key) " + 
+					"inner join term ha on (ta.header_term_key = ha.term_key) " + 
 					"where agt.is_disease_model = 1";
 		}
 		

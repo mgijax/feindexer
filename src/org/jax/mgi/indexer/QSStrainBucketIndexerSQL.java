@@ -244,11 +244,11 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 				"and h.grid_name = 'MP' " +
 				"and c.value > 0";
 		} else if ("Disease".equals(facetType)) {
-			cmd = "select s.primary_id, ha.header " + 
+			cmd = "select s.primary_id, ha.term as header " + 
 				"from strain_disease sd " + 
 				"inner join strain s on (sd.strain_key = s.strain_key) " + 
-				"inner join term_ancestor ta on (sd.disease_key = ta.term_key) " + 
-				"inner join hdp_annotation ha on (ta.ancestor_term = ha.header)";
+				"inner join term_to_header ta on (sd.disease_key = ta.term_key) " + 
+				"inner join term ha on (ta.header_term_key = ha.term_key)";
 		}
 		
 		if (cmd != null) {
