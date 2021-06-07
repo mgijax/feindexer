@@ -397,16 +397,20 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	 * specified 'vocabName'.  Currently only works for GO vocab.
 	 */
 	private void cacheAncestorFacets(String vocabName) throws Exception {
-		if (!"GO".equals(vocabName)) { return; }
+		String cmd = null;
+
+		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName)) {
+			cmd = "select t.primary_id, a.term as header " + 
+				"from term t, term a, term_to_header h " + 
+				"where t.term_key = h.term_key " +
+				"and h.header_term_key = a.term_key " +
+				"and t.vocab_name = '" + vocabName + "' "; 
+		} else {
+			return;
+		}
 
 		logger.info(" - loading ancestor facets for " + vocabName);
 		ancestorFacets = new HashMap<String,Set<String>>();
-
-		String cmd = "select t.primary_id, a.term as header " + 
-			"from term t, term a, term_to_header h " + 
-			"where t.term_key = h.term_key " + 
-			"and h.header_term_key = a.term_key " + 
-			"and t.vocab_name = 'GO' ";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
