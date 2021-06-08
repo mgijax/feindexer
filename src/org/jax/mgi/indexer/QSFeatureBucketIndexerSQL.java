@@ -1072,6 +1072,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
 		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
 		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
+		Map<Integer, Set<String>> expressionFacetCache = this.getFacetValues("Anatomy");
 		
 		String prefix = "Genome Feature ";
 		features = new HashMap<Integer,QSFeature>();
@@ -1113,6 +1114,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (phenotypeFacetCache.containsKey(featureKey)) { feature.phenotypeFacets = phenotypeFacetCache.get(featureKey); }
 			if (diseaseFacetCache.containsKey(featureKey)) { feature.diseaseFacets = diseaseFacetCache.get(featureKey); }
 			if (featureTypeFacetCache.containsKey(featureKey)) { feature.markerTypeFacets = featureTypeFacetCache.get(featureKey); }
+			if (expressionFacetCache.containsKey(featureKey)) { feature.expressionFacets = expressionFacetCache.get(featureKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
@@ -1193,6 +1195,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		public Set<String> diseaseFacets;
 		public Set<String> phenotypeFacets;
 		public Set<String> markerTypeFacets;
+		public Set<String> expressionFacets;
 
 		// constructor
 		public QSFeature(Integer featureKey) {
@@ -1221,6 +1224,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (this.diseaseFacets != null) { doc.addField(IndexConstants.QS_DISEASE_FACETS, this.diseaseFacets); }
 			if (this.phenotypeFacets != null) { doc.addField(IndexConstants.QS_PHENOTYPE_FACETS, this.phenotypeFacets); }
 			if (this.markerTypeFacets != null) { doc.addField(IndexConstants.QS_MARKER_TYPE_FACETS, this.markerTypeFacets); }
+			if (this.expressionFacets != null) { doc.addField(IndexConstants.QS_EXPRESSION_FACETS, this.expressionFacets); }
 
 			return doc;
 		}

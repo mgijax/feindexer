@@ -118,7 +118,6 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 
 	private Map<String,Long> annotationCount;			// primary ID : count of annotations
 	private Map<String,String> annotationLabel;			// primary ID : label for annotation link
-	private Map<String,Set<String>> ancestorFacets;		// primary ID : list of ancestor terms for faceting
 	private Map<String,Long> sequenceNum;				// primary ID : sequence num for term (smart-alpha)
 	private Map<String,String> tsTag;					// primary ID : Theiler stages for EMAPA terms
 	
@@ -339,8 +338,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			// Just collect zeroes for EMAPA/EMAPS terms, as we'll look those up within the fewi (to be able to accurately 
 			// include RNA-Seq data.
 			
-			cmd = "select t.primary_id, 0 as object_count_with_descendents, 0 as annot_count_with_descendents\r\n" + 
-					"from term t\r\n" + 
+			cmd = "select t.primary_id, 0 as object_count_with_descendents, 0 as annot_count_with_descendents " + 
+					"from term t " + 
 					"where vocab_name = '" + vocabName + "' ";
 
 		} else if (INTERPRO_DOMAINS.equals(vocabName) || PIRSF_VOCAB.equals(vocabName)) {
@@ -394,10 +393,13 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	}
 
 	/* Load the ancestor terms (aka- slim terms) that should be used for facets for the terms in the
-	 * specified 'vocabName'.  Currently only works for GO vocab.
+	 * specified 'vocabName'.  Currently only works for GO, MP, and DO vocabularies.
 	 */
-	private void cacheAncestorFacets(String vocabName) throws Exception {
+	private Map<String,Set<String>> cacheAncestorFacets(String vocabName) throws Exception {
 		String cmd = null;
+
+		// primary ID : list of ancestor terms for faceting
+		Map<String,Set<String>> ancestorFacets = new HashMap<String,Set<String>>();
 
 		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName)) {
 			cmd = "select t.primary_id, a.term as header " + 
@@ -405,13 +407,53 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				"where t.term_key = h.term_key " +
 				"and h.header_term_key = a.term_key " +
 				"and t.vocab_name = '" + vocabName + "' "; 
+
+		} else if (EMAPA_VOCAB.equals(vocabName)) {
+			// headers for each EMAPA ID, computed based on EMAPS expression annotations
+			cmd = "with direct_annotations as ( " + 
+				"select distinct emap.primary_id, h.term as header " + 
+				"from expression_result_summary ers, term c, term_emap e, term emap, " + 
+				"term_to_header tth, term h " + 
+				"where ers.is_expressed = 'Yes' " + 
+				"and ers.structure_key = c.term_key " + 
+				"and ers.structure_key = e.term_key " + 
+				"and e.emapa_term_key = emap.term_key " + 
+				"and e.emapa_term_key = tth.term_key " + 
+				"and tth.header_term_key = h.term_key " + 
+				") " + 
+				"select primary_id, header " + 
+				"from direct_annotations " + 
+				"union " + 
+				"select ta.ancestor_primary_id, da.header " + 
+				"from direct_annotations da, term t, term_ancestor ta " + 
+				"where da.primary_id = t.primary_id " + 
+				"and t.term_key = ta.term_key";
+
+		} else if (EMAPS_VOCAB.equals(vocabName)) {
+			// headers for each EMAPS ID, computed based on EMAPS expression annotations
+			cmd = "with direct_annotations as ( " + 
+				"select distinct c.primary_id, h.term as header " + 
+				"from expression_result_summary ers, term c, term_emap e, " + 
+				"term_to_header tth, term h " + 
+				"where ers.is_expressed = 'Yes' " + 
+				"and ers.structure_key = c.term_key " + 
+				"and ers.structure_key = e.term_key " + 
+				"and e.emapa_term_key = tth.term_key " + 
+				"and tth.header_term_key = h.term_key " + 
+				") " + 
+				"select primary_id, header " + 
+				"from direct_annotations " + 
+				"union " + 
+				"select ta.ancestor_primary_id, da.header " + 
+				"from direct_annotations da, term t, term_ancestor ta " + 
+				"where da.primary_id = t.primary_id " + 
+				"and t.term_key = ta.term_key";
 		} else {
-			return;
+			return ancestorFacets;
 		}
 
 		logger.info(" - loading ancestor facets for " + vocabName);
-		ancestorFacets = new HashMap<String,Set<String>>();
-		
+
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 
 		while (rs.next()) {
@@ -425,6 +467,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		}
 		rs.close();
 		logger.info(" - cached ancestor facets for " + ancestorFacets.size() + " terms");
+		return ancestorFacets;
 	}
 
 	/* Load the terms for the given vocabulary name, cache them, and generate & send the initial set of
@@ -434,6 +477,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		logger.info(" - loading terms for " + vocabName);
 		terms = new HashMap<String,QSTerm>();
 		
+		Map<String,Set<String>> ancestorFacets = this.cacheAncestorFacets(vocabName);
+
 		String cmd = "select t.primary_id, t.term, t.vocab_name, t.definition, "
 			+ "    case when t.vocab_name = 'GO' then t.display_vocab_name "
 			+ "    else null end as dag_name "
@@ -478,6 +523,12 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				qst.facetValues = ancestorFacets.get(primaryID);
 			}
 			terms.put(primaryID, qst);
+			
+			if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
+				if (ancestorFacets.containsKey(primaryID)) {
+					qst.expressionFacets = ancestorFacets.get(primaryID);
+				}
+			}
 			
 			// now build and save our initial documents for this term
 
@@ -553,6 +604,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		public Long sequenceNum;
 		public String facetField;			// name of the field with ancestor-based facets for this term
 		public Set<String> facetValues;		// ancestors for facets of this term
+		public Set<String> expressionFacets;	// set of header terms (EMAPA/EMAPS only) for this term where
+												// this term has expression data
 
 		// constructor
 		public QSTerm(String primaryID) {
@@ -613,6 +666,10 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				doc.addField(this.facetField, this.facetValues);
 			}
 
+			// If there are expression facets for this term, include them too.
+			if ((this.expressionFacets != null) && (this.expressionFacets.size() > 0)) {
+				doc.addField(IndexConstants.QS_EXPRESSION_FACETS, this.expressionFacets); 
+			}
 			return doc;
 		}
 	}
