@@ -28,6 +28,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	/*--------------------------*/
 
 	// weights to prioritize different types of search terms / IDs
+	private static int LOCATION_WEIGHT = 2000;
 	private static int PRIMARY_ID_WEIGHT = 1500;
 	private static int STRAIN_GENE_ID_WEIGHT = 1450;
 	private static int SYMBOL_WEIGHT = 1400;
@@ -164,6 +165,25 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		if (stemmedTerm != null) {
 			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
 		}
+		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
+		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
+		return doc;
+	}
+
+	// Build and return a new SolrInputDocument with the given fields filled in for coordinate searching.
+	private SolrInputDocument buildCoordinateDoc(QSFeature feature, String coordType, String chromosome, Long startCoord,
+			Long endCoord, Long seqNum, String searchTermDisplay, String searchTermType, Integer searchTermWeight) {
+
+		SolrInputDocument doc = feature.getNewDocument();
+		doc.addField(IndexConstants.QS_SEARCH_COORD_TYPE, coordType);
+		doc.addField(IndexConstants.QS_SEARCH_CHROMOSOME, chromosome);
+		doc.addField(IndexConstants.QS_COORD_SEQUENCE_NUM, seqNum);
+		
+		if (startCoord != null) { doc.addField(IndexConstants.QS_SEARCH_START_COORD, startCoord); }
+		if (endCoord != null) { doc.addField(IndexConstants.QS_SEARCH_END_COORD, endCoord); }
+
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
@@ -1134,12 +1154,56 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("done with basic data for " + i + " markers");
 	}
 	
+	// Index mouse markers by genomic location.
+	private void indexMouseLocations() throws Exception {
+		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
+		logger.info(" - loading mouse marker locations");
+
+		String cmd = "select m.marker_key as feature_key, n.by_location " + 
+				"from marker m, marker_sequence_num n " + 
+				"where n.marker_key = m.marker_key " + 
+				"and m.organism = 'mouse' " + 
+				"and m.status = 'official' " + 
+				"order by n.by_location";
+		
+		long seqNum = 0;	// sequential sequence number for markers by mouse genomic location
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			Integer featureKey = rs.getInt("feature_key");
+			seqNum++;
+			
+			Long mouseStartCoord = null;
+			Long mouseEndCoord = null;
+			
+			if (startCoord.containsKey(featureKey) && (startCoord.get(featureKey) != null)) {
+				mouseStartCoord = Long.parseLong(startCoord.get(featureKey));
+			}
+			if (endCoord.containsKey(featureKey) && (endCoord.get(featureKey) != null)) {
+				mouseEndCoord = Long.parseLong(endCoord.get(featureKey));
+			}
+
+			if (chromosome.containsKey(featureKey) && features.containsKey(featureKey)) {
+				QSFeature feature = features.get(featureKey);
+				addDocUnchecked(buildCoordinateDoc(feature, "mouse location", chromosome.get(featureKey), mouseStartCoord,
+					mouseEndCoord, seqNum, "Location", "Overlaps specified coordinate range", LOCATION_WEIGHT)); 
+			}
+		}
+		
+		rs.close();
+		logger.info("Indexed mouse locations for " + seqNum + " markers");
+	}
+	
 	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
 	private void processFeatureType() throws Exception {
 		cacheLocations();
 		buildInitialDocs();
 
+		indexMouseLocations();
+		
 		indexSynonyms();
 		indexOrthologNomenclature();
 		clearIndexedTermCache();		// only clear once all nomen done

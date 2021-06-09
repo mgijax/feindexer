@@ -4,6 +4,8 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -31,6 +33,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
 	// weights to prioritize different types of search terms / IDs
+	private static int LOCATION_WEIGHT = 1500;
 	private static int PRIMARY_ID_WEIGHT = 1000;
 	private static int SECONDARY_ID_WEIGHT = 950;
 	private static int SYMBOL_WEIGHT = 900;
@@ -48,6 +51,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	
 	public static Map<Integer, QSAllele> alleles;			// allele key : QSFeature object
 
+	public static Map<String,Long> chromosomeSeqNum;		// chromosome : sequence number for chromosome
+	
 	public static Map<Integer,String> chromosome;			// allele key : chromosome
 	public static Map<Integer,String> startCoord;			// allele key : start coordinate
 	public static Map<Integer,String> endCoord;				// allele key : end coordinate
@@ -130,6 +135,21 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		}
 	}
 	
+	// Add this doc to the batch we're collecting.  If the stack hits our threshold, send it to the server and reset it.
+	// Use this for cases where we don't need to monitor uniqueness.
+	private void addDocUnchecked(SolrInputDocument doc) {
+		docs.add(doc);
+		if (docs.size() >= solrBatchSize)  {
+			writeDocs(docs);
+			docs = new ArrayList<SolrInputDocument>();
+			uncommittedBatches++;
+			if (uncommittedBatches >= uncommittedBatchLimit) {
+				commit();
+				uncommittedBatches = 0;
+			}
+		}
+	}
+	
 	// Build and return a new SolrInputDocument with the given fields filled in.
 	private SolrInputDocument buildDoc(QSAllele allele, String exactTerm, String inexactTerm, String stemmedTerm,
 			String searchTermDisplay, String searchTermType, Integer searchTermWeight) {
@@ -140,6 +160,25 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		if (stemmedTerm != null) {
 			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
 		}
+		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
+		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
+		return doc;
+	}
+	
+	// Build and return a new SolrInputDocument with the given fields filled in for coordinate searching.
+	private SolrInputDocument buildCoordinateDoc(QSAllele allele, String coordType, String chromosome, Long startCoord,
+			Long endCoord, Long seqNum, String searchTermDisplay, String searchTermType, Integer searchTermWeight) {
+
+		SolrInputDocument doc = allele.getNewDocument();
+		doc.addField(IndexConstants.QS_SEARCH_COORD_TYPE, coordType);
+		doc.addField(IndexConstants.QS_SEARCH_CHROMOSOME, chromosome);
+		doc.addField(IndexConstants.QS_COORD_SEQUENCE_NUM, seqNum);
+		
+		if (startCoord != null) { doc.addField(IndexConstants.QS_SEARCH_START_COORD, startCoord); }
+		if (endCoord != null) { doc.addField(IndexConstants.QS_SEARCH_END_COORD, endCoord); }
+
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
@@ -172,11 +211,27 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	 * from the database and caches them.  If we allow searching by coordinates, these will be useful.
 	 */
 	private void cacheLocations() throws Exception {
+		chromosomeSeqNum = new HashMap<String,Long>();
 		chromosome = new HashMap<Integer,String>();
 		startCoord = new HashMap<Integer,String>();
 		endCoord = new HashMap<Integer,String>();
 		strand = new HashMap<Integer,String>();
 	
+		// First, look up the sequence numbers for ordering chromosomes.
+		
+		String cmd1 = "select distinct a.chromosome, n.by_chromosome " + 
+			"from allele a, allele_sequence_num n " + 
+			"where a.allele_key = n.allele_key " + 
+			"order by 2";
+		
+		ResultSet rs1 = ex.executeProto(cmd1);
+		while (rs1.next()) {
+			chromosomeSeqNum.put(rs1.getString("chromosome"), rs1.getLong("by_chromosome"));
+		}
+		rs1.close();
+		
+		logger.info("Got " + chromosomeSeqNum.size() + " chromosome sequence numbers");
+		
 		List<String> cmds = new ArrayList<String>();
 		
 		// primarily pick up coordinates from the allele's marker
@@ -723,6 +778,48 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		logger.info("done with basic data for " + i + " alleles");
 	}
 	
+	// Index alleles by genomic location.
+	private void indexMouseLocations() throws Exception {
+		if ((alleles == null) || (alleles.size() == 0)) { throw new Exception("Cache of QSAlleles is empty"); }
+		logger.info(" - loading mouse allele locations");
+
+		// Data is in caches:
+		//	1. chromosomeSeqNum - maps from a chromosome to its sequence number
+		//	2. alleles - has chromosome, start coordinate, end coordinate for each allele.
+		// Will need to slice & dice these to create an ordering for the alleles.
+		
+		List<SortableAllele> sortableAlleles = new ArrayList<SortableAllele>(alleles.size());
+		for (Integer alleleKey : alleles.keySet()) {
+			sortableAlleles.add(new SortableAllele(alleleKey, alleles.get(alleleKey).sequenceNum));
+		}
+		Collections.sort(sortableAlleles, new SortableAlleleComparator());
+		
+		logger.info(" - sorted alleles by location");
+		
+		long seqNum = 0;
+		for (SortableAllele allele : sortableAlleles) {
+			seqNum++;
+			
+			Long mouseStartCoord = null;
+			Long mouseEndCoord = null;
+			
+			if (startCoord.containsKey(allele.alleleKey) && (startCoord.get(allele.alleleKey) != null)) {
+				mouseStartCoord = Long.parseLong(startCoord.get(allele.alleleKey)); 
+			}
+			if (endCoord.containsKey(allele.alleleKey) && (endCoord.get(allele.alleleKey) != null)) {
+				mouseEndCoord = Long.parseLong(endCoord.get(allele.alleleKey)); 
+			}
+
+			if (chromosome.containsKey(allele.alleleKey)) {
+				QSAllele qsAllele = alleles.get(allele.alleleKey);
+				addDocUnchecked(buildCoordinateDoc(qsAllele, "mouse location", chromosome.get(allele.alleleKey),
+					mouseStartCoord, mouseEndCoord, seqNum, "Location", "Overlaps specified coordinate range",
+					LOCATION_WEIGHT)); 
+			}
+		}
+		logger.info("Indexed mouse locations for " + seqNum + " alleles");
+	}
+
 	/*----------------------*/
 	/*--- public methods ---*/
 	/*----------------------*/
@@ -740,6 +837,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		
 		cacheLocations();
 		buildInitialDocs();
+		
+		indexMouseLocations();
 
 		indexSynonyms();
 		clearIndexedTermCache();		// only clear once all nomen done
@@ -762,6 +861,65 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		commit();
 	}
 	
+	// wrapper over allele key to make it sortable by genomic location
+	private class SortableAllele {
+		public Integer alleleKey;
+		public Long chromSeqNum = null;
+		public Long myStartCoord = null;
+		public Long nomenSeqNum = null;
+		
+		public SortableAllele(Integer alleleKey, Long seqNum) {
+			this.alleleKey = alleleKey;
+			this.nomenSeqNum = seqNum;
+			
+			if (chromosome.containsKey(alleleKey)) { 
+				chromSeqNum = chromosomeSeqNum.get(chromosome.get(alleleKey));
+			}
+			if (startCoord.containsKey(alleleKey) && (startCoord.get(alleleKey) != null)) {
+				myStartCoord = Long.parseLong(startCoord.get(alleleKey));
+			}
+		}
+	}
+
+	// comparator to sort SortableAlleles by chromosome then start coordinate
+	private class SortableAlleleComparator implements Comparator<SortableAllele> {
+		public int compare(SortableAllele a, SortableAllele b) {
+			int i = 0;
+			
+			// both non-null chromosome sequence numbers
+			if ((a.chromSeqNum != null) && (b.chromSeqNum != null)) {
+				i = Long.compare(a.chromSeqNum, b.chromSeqNum);
+				
+			// b has no chromosome, so a first
+			} else if (a.chromSeqNum != null) {
+				return -1;
+				
+			// a has no chromosome, so b first
+			} else if (b.chromSeqNum != null) {
+				return 1;
+			}
+			
+			// can sort simply based on differing chromosomes
+			if (i != 0) { return i; }
+
+			// chromosomes matched, so compare coordinates
+			if ((a.myStartCoord != null) && (b.myStartCoord != null)) {
+				i = Long.compare(a.myStartCoord, b.myStartCoord);
+				
+			// b has no coordinate, so a first
+			} else if (a.myStartCoord != null) {
+				return -1;
+			
+			// a has no coordinate, so b first
+			} else if (b.myStartCoord != null) {
+				return 1;
+			}
+			
+			// fall back on sort by nomne, just so we have a consistent ordering across runs
+			return Long.compare(a.nomenSeqNum, b.nomenSeqNum);
+		}
+	}
+
 	// private class for caching allele data that will be re-used across multiple documents
 	private class QSAllele {
 		private Integer alleleKey;
