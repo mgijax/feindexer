@@ -812,9 +812,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 			if (chromosome.containsKey(allele.alleleKey)) {
 				QSAllele qsAllele = alleles.get(allele.alleleKey);
-				addDocUnchecked(buildCoordinateDoc(qsAllele, "mouse location", chromosome.get(allele.alleleKey),
-					mouseStartCoord, mouseEndCoord, seqNum, "Location", "Overlaps specified coordinate range",
-					LOCATION_WEIGHT)); 
+				addDocUnchecked(buildCoordinateDoc(qsAllele, IndexConstants.QS_SEARCHTYPE_MOUSE_COORD,
+					chromosome.get(allele.alleleKey), mouseStartCoord, mouseEndCoord, seqNum, "Location",
+					"Overlaps specified coordinate range", LOCATION_WEIGHT)); 
 			}
 		}
 		logger.info("Indexed mouse locations for " + seqNum + " alleles");

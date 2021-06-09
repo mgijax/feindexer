@@ -1187,8 +1187,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			if (chromosome.containsKey(featureKey) && features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDocUnchecked(buildCoordinateDoc(feature, "mouse location", chromosome.get(featureKey), mouseStartCoord,
-					mouseEndCoord, seqNum, "Location", "Overlaps specified coordinate range", LOCATION_WEIGHT)); 
+				addDocUnchecked(buildCoordinateDoc(feature, IndexConstants.QS_SEARCHTYPE_MOUSE_COORD,
+					chromosome.get(featureKey), mouseStartCoord, mouseEndCoord, seqNum, "Location",
+					"Overlaps specified coordinate range", LOCATION_WEIGHT)); 
 			}
 		}
 		
