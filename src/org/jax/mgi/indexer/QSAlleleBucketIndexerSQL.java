@@ -879,6 +879,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				myStartCoord = Long.parseLong(startCoord.get(alleleKey));
 			}
 		}
+		
+		@Override
+		public String toString() {
+			return "SortableAllele [alleleKey=" + alleleKey + ", chromSeqNum=" + chromSeqNum + ", myStartCoord="
+					+ myStartCoord + ", nomenSeqNum=" + nomenSeqNum + "]";
+		}
 	}
 
 	// comparator to sort SortableAlleles by chromosome then start coordinate
@@ -915,6 +921,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				return 1;
 			}
 			
+			// can sort based on differing start coordinate
+			if (i != 0) { return i; }
+
 			// fall back on sort by nomne, just so we have a consistent ordering across runs
 			return Long.compare(a.nomenSeqNum, b.nomenSeqNum);
 		}
