@@ -1197,12 +1197,82 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info("Indexed mouse locations for " + seqNum + " markers");
 	}
 	
+	// Index mouse markers by genomic location of their human orthologs.
+	private void indexHumanLocations() throws Exception {
+		if ((features == null) || (features.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
+		logger.info(" - loading locations for human orthologs");
+
+		String cmd = "with human_coords as ( " + 
+				"select m.marker_key as human_marker_key, m.symbol, ml.chromosome, ml.start_coordinate, ml.end_coordinate, ml.build_identifier, " + 
+				"sn.by_location, ml.location_type, ml.strand " + 
+				"from marker m, marker_location ml, marker_sequence_num sn " + 
+				"where m.marker_key = ml.marker_key  " + 
+				"and m.organism = 'human'  " + 
+				"and m.status = 'official'  " + 
+				"and m.marker_key = sn.marker_key " + 
+				") " + 
+				"select m.marker_key, c.symbol, c.chromosome, c.start_coordinate, c.end_coordinate, c.strand, c.build_identifier " + 
+				"from marker m, homology_cluster_organism_to_marker mm, " + 
+				"  homology_cluster_organism mo, homology_cluster hc, " + 
+				"  homology_cluster_organism ho, human_coords c, " + 
+				"  homology_cluster_organism_to_marker hm " + 
+				"where m.marker_key = mm.marker_key " + 
+				"and m.organism = 'mouse' " + 
+				"and mm.cluster_organism_key = mo.cluster_organism_key " + 
+				"and mo.organism = 'mouse' " + 
+				"and mo.cluster_key = hc.cluster_key " + 
+				"and hc.source = 'Alliance Direct' " + 
+				"and hc.cluster_key = ho.cluster_key " + 
+				"and ho.cluster_organism_key = hm.cluster_organism_key " + 
+				"and ho.organism = 'human' " + 
+				"and hm.marker_key = c.human_marker_key " + 
+				"order by c.by_location, c.location_type";
+
+		long seqNum = 0;	// sequential sequence number for markers by human genomic location
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+		
+		String lastSymbol = "";
+
+		while (rs.next())  {  
+			Integer featureKey = rs.getInt("marker_key");
+			seqNum++;
+			
+			String humanSymbol = rs.getString("symbol");
+			String humanChromosome = rs.getString("chromosome");
+			Long humanStartCoord = rs.getLong("start_coordinate");
+			Long humanEndCoord = rs.getLong("end_coordinate");
+			String humanStrand = rs.getString("strand");
+			String build = rs.getString("build_identifier");
+			
+			if (!humanSymbol.equals(lastSymbol) && features.containsKey(featureKey)) {
+				lastSymbol = humanSymbol;
+
+				String location = humanSymbol + ", Chr" + humanChromosome;
+				if ((humanStartCoord != null) && (humanEndCoord != null) && (humanStrand != null) && (build != null)) {
+					location = location + ":" + humanStartCoord + "-" + humanEndCoord + " (" + humanStrand + ") (" + build + ")";
+				}
+					
+				QSFeature feature = features.get(featureKey);
+				addDocUnchecked(buildCoordinateDoc(feature, IndexConstants.QS_SEARCHTYPE_HUMAN_COORD,
+					humanChromosome, humanStartCoord, humanEndCoord, seqNum, location,
+					"Human ortholog overlaps specified coordinate range", LOCATION_WEIGHT)); 
+			}
+
+		}
+		
+		rs.close();
+		logger.info("Indexed " + seqNum + " human locations for mouse markers");
+	}
+	
 	/* process the given feature type, loading data from the database, composing documents, and writing to Solr.
 	 */
 	private void processFeatureType() throws Exception {
 		cacheLocations();
 		buildInitialDocs();
 
+		indexHumanLocations();
 		indexMouseLocations();
 		
 		indexSynonyms();
