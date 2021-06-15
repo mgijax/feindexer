@@ -1233,7 +1233,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 		
-		String lastSymbol = "";
+		Integer lastMarkerKey = -1;
 
 		while (rs.next())  {  
 			Integer featureKey = rs.getInt("marker_key");
@@ -1246,8 +1246,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			String humanStrand = rs.getString("strand");
 			String build = rs.getString("build_identifier");
 			
-			if (!humanSymbol.equals(lastSymbol) && features.containsKey(featureKey)) {
-				lastSymbol = humanSymbol;
+			if (!featureKey.equals(lastMarkerKey) && features.containsKey(featureKey)) {
+				lastMarkerKey = featureKey;
 
 				String location = humanSymbol + ", Chr" + humanChromosome;
 				if ((humanStartCoord != null) && (humanEndCoord != null) && (humanStrand != null) && (build != null)) {
