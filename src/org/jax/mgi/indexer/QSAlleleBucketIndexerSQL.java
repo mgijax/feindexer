@@ -858,7 +858,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 		
-		Integer lastAlleleKey = -1;
+		Set<Integer> allelesSeen = new HashSet<Integer>();		// used to keep cytogenetic offset from overriding coordinates
 
 		while (rs.next())  {  
 			Integer alleleKey = rs.getInt("allele_key");
@@ -871,8 +871,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			String humanStrand = rs.getString("strand");
 			String build = rs.getString("build_identifier");
 			
-			if (!alleleKey.equals(lastAlleleKey) && alleles.containsKey(alleleKey)) {
-				lastAlleleKey = alleleKey;
+			if (!allelesSeen.contains(alleleKey) && alleles.containsKey(alleleKey)) {
+				allelesSeen.add(alleleKey);
 
 				String location = humanSymbol + ", Chr" + humanChromosome;
 				if ((humanStartCoord != null) && (humanEndCoord != null) && (humanStrand != null) && (build != null)) {
