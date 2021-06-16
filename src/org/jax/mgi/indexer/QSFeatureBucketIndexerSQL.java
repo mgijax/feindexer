@@ -1305,8 +1305,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 	@Override
 	public void index() throws Exception {
-		this.setSkipOptimizer(true);
-		
 		this.cacheHighLevelTerms();
 
 		processFeatureType();

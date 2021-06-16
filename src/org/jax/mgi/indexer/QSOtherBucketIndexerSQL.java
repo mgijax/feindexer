@@ -738,7 +738,6 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	@Override
 	public void index() throws Exception {
 		logger.info("beginning other bucket");
-		this.setSkipOptimizer(true);
 		
 		indexSequences();
 		indexSequencesForProbes();

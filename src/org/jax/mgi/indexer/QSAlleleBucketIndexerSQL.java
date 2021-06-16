@@ -896,8 +896,6 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 	@Override
 	public void index() throws Exception {
-		this.setSkipOptimizer(true);
-		
 		// cache vocabulary term data
 		diseaseOntologyCache = new VocabTermCache("Disease Ontology", ex);
 		mpOntologyCache = new VocabTermCache("Mammalian Phenotype", ex);
