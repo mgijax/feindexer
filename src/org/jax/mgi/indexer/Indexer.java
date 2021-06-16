@@ -42,7 +42,6 @@ public abstract class Indexer implements Runnable {
 	protected DecimalFormat df = new DecimalFormat("#.00");
 	protected Runtime runtime = Runtime.getRuntime();
 	public boolean indexPassed = true;
-	public boolean skipOptimizer = false;
 
 	private int docsSinceCommit = 0;				// number of documents since the last commit
 	private int docsSinceCommitThreshold = 100000;	// once we have this many uncommitted docs, do a commit
@@ -112,10 +111,6 @@ public abstract class Indexer implements Runnable {
 	 */
 	abstract void index() throws Exception;
 
-	public void setSkipOptimizer(boolean val) {
-		this.skipOptimizer = val;
-	}
-
 	public void run() {
 		try {
 			setupConnection();
@@ -143,25 +138,12 @@ public abstract class Indexer implements Runnable {
 		}
 		
 		commit(true);
-		if (!this.skipOptimizer) {
-			optimize(false);
-		}
 		logger.info("Solr Documents are flushed to the server shuting down: " + solrIndexName);
 		client.close();
 	}
 	
 	public void commit() {
 		commit(true);
-	}
-	
-	public void optimize(boolean wait) {
-		try {
-			logger.info("Beginning Solr Optimize (wait = " + wait + ")");
-			client.optimize(wait, wait);
-		} catch (SolrServerException | IOException e) {
-			logger.info("Exception in optimize");
-			e.printStackTrace();
-		}
 	}
 	
 	public void commit(boolean wait) {
