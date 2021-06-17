@@ -37,10 +37,14 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static int PRIMARY_ID_WEIGHT = 1000;
 	private static int SECONDARY_ID_WEIGHT = 950;
 	private static int SYMBOL_WEIGHT = 900;
+	private static int SYMBOL_PIECE_WEIGHT = 875;
 	private static int NAME_WEIGHT = 850;
-	private static int MARKER_SYMBOL_WEIGHT = 800;
-	private static int SYNONYM_WEIGHT = 750;
+	private static int SYNONYM_WEIGHT = 800;
+	private static int SYNONYM_PIECE_WEIGHT = 775;
+	private static int MARKER_SYMBOL_WEIGHT = 750;
+	private static int MARKER_SYMBOL_PIECE_WEIGHT = 725;
 	private static int MARKER_SYNONYM_WEIGHT = 700;
+	private static int MARKER_SYNONYM_PIECE_WEIGHT = 675;
 	private static int TRANSGENE_PART_WEIGHT = 650;
 	private static int DISEASE_ID_WEIGHT = 600;
 	private static int DISEASE_NAME_WEIGHT = 550;
@@ -454,6 +458,25 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		return mySynonyms;
 	}
 
+	/* Split symbol or synonym s into individual parts that should be indexed for matching in an exact manner.
+	 * Note that this does NOT include the whole string s.  And it returns an empty list if s contains any
+	 * spaces.  (to handle synonyms with spaces differently than those that are symbol-like)
+	 */
+	private List<String> getParts(String s) {
+		List<String> parts = new ArrayList<String>();
+		
+		if ((s != null) && (s.indexOf(" ") < 0)) {
+			String[] pieces = s.split("[-.]");
+			if (pieces.length > 1) {
+				for (String p : pieces) {
+					parts.add(p);
+				}
+			}
+		}
+
+		return parts;
+	}
+	
 	// Retrieve synonyms, create documents, and index them.  Do both marker synonyms and allele synonyms.
 	private void indexSynonyms() throws Exception {
 		if ((alleles == null) || (alleles.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
@@ -464,9 +487,14 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		for (Integer alleleKey : mySynonyms.keySet()) {
 			if (alleles.containsKey(alleleKey)) {
 				QSAllele feature = alleles.get(alleleKey);
+				
 				for (String synonym : mySynonyms.get(alleleKey)) {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
+					
+					for (String part : this.getParts(synonym)) {
+						addDoc(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+					}
 				}
 			}
 		}
@@ -491,6 +519,10 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				for (String synonym : markerSynonyms.get(markerKey)) {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+					
+					for (String part : this.getParts(synonym)) {
+						addDoc(buildDoc(feature, synonym, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+					}
 				}
 			}
 		}
@@ -751,11 +783,21 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 			if ((markerSymbol != null) && (!markerSymbol.equals(allele.symbol))) {
 				addDoc(buildDoc(allele, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
+				
+				for (String part : this.getParts(markerSymbol)) {
+					addDoc(buildDoc(allele, part, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_PIECE_WEIGHT));
+				}
 			}
 
 			// split allele symbol into relevant pieces that need to be indexed separately
+			boolean first = true;
 			for (String piece : getAlleleSymbolPieces(allele.symbol)) {
-				addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+				if (first) {
+					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					first = false;
+				} else {
+					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
+				}
 			}
 				
 			// For transgenic alleles, we need to index by the parts of the allele symbol, including those

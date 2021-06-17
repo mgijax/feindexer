@@ -32,16 +32,20 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int PRIMARY_ID_WEIGHT = 1500;
 	private static int STRAIN_GENE_ID_WEIGHT = 1450;
 	private static int SYMBOL_WEIGHT = 1400;
+	private static int SYMBOL_PIECE_WEIGHT = 1375;
 	private static int NAME_WEIGHT = 1350;
 	private static int SYNONYM_WEIGHT = 1300;
+	private static int SYNONYM_PIECE_WEIGHT = 1275;
 	private static int ORTHOLOG_ID_WEIGHT = 1250;
 	private static int SECONDARY_ID_WEIGHT = 1200;
 	private static int PROTEOFORM_ID_WEIGHT = 1150;
 	private static int PROTEIN_DOMAIN_WEIGHT = 1100;
 	private static int PROTEIN_FAMILY_WEIGHT = 1050;
 	private static int ORTHOLOG_SYMBOL_WEIGHT = 1000;
+	private static int ORTHOLOG_SYMBOL_PIECE_WEIGHT = 975;
 	private static int ORTHOLOG_NAME_WEIGHT = 950;
 	private static int ORTHOLOG_SYNONYM_WEIGHT = 900;
+	private static int ORTHOLOG_SYNONYM_PIECE_WEIGHT = 875;
 	private static int DISEASE_ID_WEIGHT = 850;
 	private static int DISEASE_NAME_WEIGHT = 800;
 	private static int DISEASE_SYNONYM_WEIGHT = 750;
@@ -675,6 +679,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					if (termType.contains("symbol")) {
 						weight = ORTHOLOG_SYMBOL_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
+						for (String part : this.getParts(termLower)) {
+							addDoc(buildDoc(feature, part, null, null, term, termType, ORTHOLOG_SYMBOL_PIECE_WEIGHT));
+						}
 					}
 					else if (termType.contains("name")) {
 						weight = ORTHOLOG_NAME_WEIGHT;
@@ -683,6 +690,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					else if (termType.contains("synonym")) {
 						weight = ORTHOLOG_SYNONYM_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
+						for (String part : this.getParts(termLower)) {
+							addDoc(buildDoc(feature, part, null, null, term, termType, ORTHOLOG_SYNONYM_PIECE_WEIGHT));
+						}
 					}
 					i++; 
 				}
@@ -788,6 +798,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				for (String synonym : mySynonyms.get(featureKey)) {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
+					for (String part : this.getParts(synonym)) {
+						addDoc(buildDoc(feature, part, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+					}
 				}
 			}
 		}
@@ -1080,6 +1093,25 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			GO_NAME_WEIGHT, GO_ID_WEIGHT, GO_SYNONYM_WEIGHT);
 	}
 	
+	/* Split symbol or synonym s into individual parts that should be indexed for matching in an exact manner.
+	 * Note that this does NOT include the whole string s.  And it returns an empty list if s contains any
+	 * spaces.  (to handle synonyms with spaces differently than those that are symbol-like)
+	 */
+	private List<String> getParts(String s) {
+		List<String> parts = new ArrayList<String>();
+		
+		if ((s != null) && (s.indexOf(" ") < 0)) {
+			String[] pieces = s.split("[-.]");
+			if (pieces.length > 1) {
+				for (String p : pieces) {
+					parts.add(p);
+				}
+			}
+		}
+
+		return parts;
+	}
+	
 	/* Load the features of the given type, cache them, generate initial documents and send them to Solr.
 	 * Assumes cacheLocations has been run.
 	 */
@@ -1143,6 +1175,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
 			if (!"transgene".equalsIgnoreCase(feature.featureType)) {
 				addDocUnchecked(buildDoc(feature, symbol, null, null, symbol, "Symbol", SYMBOL_WEIGHT));
+				for (String part : this.getParts(symbol)) {
+					addDocUnchecked(buildDoc(feature, part, null, null, symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
+				}
 			}
 
 			// feature name
