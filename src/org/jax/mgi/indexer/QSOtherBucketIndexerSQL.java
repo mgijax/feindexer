@@ -99,6 +99,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	/* get the provider string to appear after the ID itself in the Best Match column.
 	 */
 	private String getDisplayValue(String logicalDB, String accID) {
+		if ("Sequence DB".equals(logicalDB)) {
+			logicalDB = "GenBank, EMBL, DDBJ";		// display hack
+		}
 		if (accID.startsWith(logicalDB)) {
 			return accID;
 		}
@@ -121,6 +124,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				"inner join sequence_sequence_num n on (s.sequence_key = n.sequence_key)" + 
 				"left outer join sequence_id i on (s.sequence_key = i.sequence_key" + 
 				"  and i.private = 0)" + 
+				"where organism = 'mouse' " +
 				"order by n.by_sequence_type, s.sequence_key";
 		
 		String lastPrimaryID = "";
@@ -258,48 +262,50 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("done with " + (seqNum - startSeqNum) + " probes and clones");
 	}
 
-	/* Add documents to the index for sequences related to probes and clones.  79% of probes have at 
-	 * least one sequence associated.  Most (82%) of those have exactly one sequence, but some have
-	 * up to fifty.
+	/* Add documents to the index to associate sequence IDs with related probes and clones.  79% of
+	 * probes have at least one sequence associated.  Most (82%) of those have exactly one sequence,
+	 * but some have up to fifty.
 	 */
-	private void indexSequencesForProbes() throws Exception {
-		logger.info(" - indexing sequences for probes and clones");
+	private void indexSequenceIDsForProbes() throws Exception {
+		logger.info(" - indexing sequence IDs for probes and clones");
 		
 		long startSeqNum = seqNum;
 		
-		String cmd = "select i.acc_id, i.logical_db as other_ldb, s.primary_id as seq_id, s.sequence_type, s.description " + 
-				"from sequence s " + 
-				"inner join probe_to_sequence ps on (ps.sequence_key = s.sequence_key) " + 
-				"left outer join probe_id i on (ps.probe_key = i.probe_key) " + 
-				"order by s.primary_id, i.acc_id ";
+		String cmd = "select p.primary_id, p.name, p.segment_type, p.logical_db, " + 
+				"	  seq.acc_id, seq.logical_db as other_ldb, s.by_name " + 
+				"from probe p " + 
+				"inner join probe_sequence_num s on (p.probe_key = s.probe_key) " + 
+				"inner join probe_to_sequence pts on (p.probe_key = pts.probe_key) " + 
+				"inner join sequence_id seq on (pts.sequence_key = seq.sequence_key) " + 
+				"order by p.primary_id";
 		
-		String lastPrimaryID = "";		// primary ID of sequences (since we're walking through them)
+		String lastPrimaryID = "";		// primary ID of probes (since we're walking through them)
 		DocBuilder seq = null;
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
 		while (rs.next())  {  
-			String primaryID = rs.getString("seq_id");
+			String primaryID = rs.getString("primary_id");
 			
-			// If we have a new primary ID, then we have a new sequence.  We'll need a new DocBuilder.
+			// If we have a new primary ID, then we have a new probe.  We'll need a new DocBuilder.
 			if (!lastPrimaryID.equals(primaryID)) {
-				seq = new DocBuilder(primaryID, rs.getString("description"), "Sequence",
-					rs.getString("sequence_type"), "/sequence/" + primaryID);
+				seq = new DocBuilder(primaryID, rs.getString("name"), "Probe/Clone",
+					rs.getString("segment_type"), "/probe/" + primaryID);
 				
 				lastPrimaryID = primaryID;
 				seqNum++;
 				gc();
 			}
 
-			// Now index the probe IDs for the sequence.
+			// Now index the sequence IDs for the sequence.
 			String otherID = rs.getString("acc_id");
 			this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
 				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
-		logger.info("done with " + (seqNum - startSeqNum) + " sequences for probes and clones");
+		logger.info("done with " + (seqNum - startSeqNum) + " sequence IDs for probes and clones");
 	}
 
 	/* Generate string to describe homology class based on given counts.
@@ -740,7 +746,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("beginning other bucket");
 		
 		indexSequences();
-		indexSequencesForProbes();
+		indexSequenceIDsForProbes();
 		indexProbes();
 		indexMapping();
 		indexHomologyMarkers();

@@ -302,6 +302,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				"and a.primary_id != i.acc_id " +
 				"and a.is_wild_type = 0 " +
 				"union " +
+				"select a.allele_key as allele_key, i.acc_id, i.logical_db, 'Sequence' as prefix " + 
+				"from allele a, allele_to_sequence t, sequence_id i " + 
+				"where a.allele_key = t.allele_key " + 
+				"	and t.sequence_key = i.sequence_key " + 
+				"	and i.private = 0 " +
+				"union " +
 				"select allele_key as allele_key, primary_id as acc_id, logical_db, 'Cell Line' as prefix " + 
 				"from allele_cell_line " + 
 				"where primary_id is not null " + 
@@ -319,8 +325,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			String prefix = rs.getString("prefix");
 			String suffix = "";
 			
-			if ("MGI".contentEquals(logicalDB)) {
+			if ("MGI".equals(logicalDB)) {
 				logicalDB = prefix + "ID";
+			} else if ("Sequence DB".equals(logicalDB)) {
+				suffix = " (GenBank, EMBL, DDBJ)";
+				logicalDB = "Sequence ID";
 			} else if ("Cell Line".equals(prefix)){
 				suffix = " (" + logicalDB + ")";
 				logicalDB = prefix + " ID";
