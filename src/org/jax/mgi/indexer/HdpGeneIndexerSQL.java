@@ -333,7 +333,6 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			addIfNotNull(doc, DiseasePortalFields.LOCATION_DISPLAY, rs.getString("location_display"));
 			addIfNotNull(doc, DiseasePortalFields.COORDINATE_DISPLAY, rs.getString("coordinate_display"));
 			addIfNotNull(doc, DiseasePortalFields.BUILD_IDENTIFIER, rs.getString("build_identifier"));
-			this.addMarkerCoordinates(doc, markerKey, true);
 
 			// nomen and ID data for orthologs
 			Set<String> orthologNomen = new HashSet<String>();
@@ -485,7 +484,6 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		// collect various mappings needed for data lookup
 		getTermSynonymMap();		// term IDs to term synonyms
 		getMarkerSynonymMap();		// marker keys to marker synonyms
-		getMarkerCoordinateMap();	// coordinates per marker
 		cacheHeadersPerTerm();		// disease IDs to term headers
 		getMarkerAllIdMap();		// marker key to searchable marker IDs
 

@@ -14,7 +14,6 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
-import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.GridMarker;
 
@@ -49,7 +48,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Set<Integer> mouseMarkers = null;					// marker keys for mouse markers
 	protected Set<Integer> humanMarkers = null;					// marker keys for human markers
 	protected Map<String,Set<String>> markerSynonymMap = null;	// marker key -> marker synonyms 
-	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;		// marker key -> set of ortholog marker keys
 	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> Alliance Clustered homology cluster key
@@ -547,90 +545,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return subset;
 	}
 
-	/* retrieve the mapping from each (String) marker key to the spatial strings for its coordinates
-	 */
-	protected Map<String, Set<String>> getMarkerCoordinateMap() throws Exception {
-		if (markerCoordinates == null) {
-			logger.info("building map of marker coordinates to marker keys");
-			Timer.reset();
-
-			// load all mouse and human marker locations to be encoded for Solr spatial queries
-			String markerLocationQuery="select distinct m.marker_key, ml.chromosome, "
-					+ "  ml.strand, ml.start_coordinate, ml.end_coordinate "
-					+ "from marker_location ml, "
-					+ "  marker m "
-					+ "where m.marker_key=ml.marker_key "
-					+ "  and ml.sequence_num=1 "
-					+ "  and ml.start_coordinate is not null "
-					+ "  and ml.chromosome != 'UN' ";
-
-			markerCoordinates = new HashMap<String,Set<String>>();
-			ResultSet rs = ex.executeProto(markerLocationQuery, cursorLimit);
-
-			while (rs.next()) {
-				String markerKey = rs.getString("marker_key");
-				String chromosome = rs.getString("chromosome");
-				Long start = rs.getLong("start_coordinate");
-				Long end = rs.getLong("end_coordinate");
-				if(!markerCoordinates.containsKey(markerKey)) {
-					markerCoordinates.put(markerKey, new HashSet<String>());
-				}
-				// NOTE: we are ignoring strand at this time. We can support searching both (in theory), so we will just treat everything as positive for now.
-				// AS OF 2013/08/06 -kstone
-				String spatialString = SolrLocationTranslator.getIndexValue(chromosome,start,end,true);
-
-				// only add locations for chromosomes we can map. The algorithm will ignore any weird values
-				if(spatialString != null && !spatialString.equals("")) {
-					markerCoordinates.get(markerKey).add(spatialString);
-				}
-			}
-			rs.close();
-			logger.info("done retrieving marker locations" + Timer.getElapsedMessage());
-		}
-		return markerCoordinates;
-	}
-
-	/* get the spatial strings for the coordinates of the given marker key
-	 */
-	protected Set<String> getMarkerCoordinates(Integer markerKey) throws Exception {
-		if (markerCoordinates == null) { getMarkerCoordinateMap(); }
-		String markerKeyString = markerKey.toString();
-		if (markerCoordinates.containsKey(markerKeyString)) {
-			return markerCoordinates.get(markerKeyString);
-		}
-		return null;
-	}
-
-	/* add the coordinates for the given marker to the appropriate bin (human or mouse) 
-	 * in the given document.  Optionally include coordinates for the marker's orthologs.
-	 */
-	protected void addMarkerCoordinates(DistinctSolrInputDocument doc, Integer markerKey, boolean includeOrthologs) throws Exception {
-		if (markerKey == null) { return; }
-		
-		boolean isHumanMarker = isHuman(markerKey);
-		
-		// add the marker itself
-		if (isHumanMarker) {
-			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
-		} else {
-			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
-		}
-		
-		// if we need to add coordinates for orthologs, look up the orthologous markers and
-		// add the coordinates for each.  Note that we do not add orthologs from the same organism as
-		// the specified marker -- only orthologs from a different organism.
-		if (includeOrthologs) {
-			Set<Integer> myOrthologs = getMarkerOrthologs(markerKey);
-			if (myOrthologs != null) {
-				for (Integer orthologKey : myOrthologs) {
-					if ((isHumanMarker && !isHuman(orthologKey)) || (!isHumanMarker && isHuman(orthologKey))) {
-						addMarkerCoordinates(doc, orthologKey, false);
-					}
-				}
-			}
-		}
-	}
-	
 	/* build the mapping of term keys to a sqeuence number for each one, where the terms
 	 * are sorted in order of a DAG-based traversal (to group terms together that are
 	 * similar biologically)

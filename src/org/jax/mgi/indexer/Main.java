@@ -92,7 +92,7 @@ public class Main {
 					SPECIFIED_INDEXERS.add(arg);
 					logger.info("adding user specified index: " + arg + " to list of indexers to run.");
 				} else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
-					SPECIFIED_INDEXERS.add("hdpCoords");
+					SPECIFIED_INDEXERS.add("hdpCoord");
 					SPECIFIED_INDEXERS.add("hdpGene");
 					SPECIFIED_INDEXERS.add("hdpDisease");
 					SPECIFIED_INDEXERS.add("hdpGrid");
