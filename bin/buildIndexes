@@ -33,7 +33,7 @@ OVERALL_START=`date +%s`
 SEQUENTIAL_TIME=0
 
 # number of indexers to run sequentially
-SUBPROC_COUNT=1
+SUBPROC_COUNT=4
 
 # number of seconds to wait before checking for finished indexers on each
 # interation
