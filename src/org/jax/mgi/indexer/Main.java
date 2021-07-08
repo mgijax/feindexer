@@ -53,6 +53,7 @@ public class Main {
 		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
 		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
+		indexerMap.put("hdpCoord", new HdpCoordIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 		indexerMap.put("sequence", new SequenceIndexerSQL());
 		indexerMap.put("cdna", new CdnaIndexerSQL());
@@ -91,6 +92,7 @@ public class Main {
 					SPECIFIED_INDEXERS.add(arg);
 					logger.info("adding user specified index: " + arg + " to list of indexers to run.");
 				} else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("hdpCoords");
 					SPECIFIED_INDEXERS.add("hdpGene");
 					SPECIFIED_INDEXERS.add("hdpDisease");
 					SPECIFIED_INDEXERS.add("hdpGrid");
@@ -106,6 +108,7 @@ public class Main {
 					SPECIFIED_INDEXERS.add("qsFeatureBucket");
 					SPECIFIED_INDEXERS.add("qsStrainBucket");
 					SPECIFIED_INDEXERS.add("qsVocabBucket");
+					SPECIFIED_INDEXERS.add("qsOtherBucket");
 					SPECIFIED_INDEXERS.add("qsLocation");
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
