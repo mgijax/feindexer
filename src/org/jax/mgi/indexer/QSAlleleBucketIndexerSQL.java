@@ -697,14 +697,15 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 		} else if ("Disease".equals(facetType)) {
 			// only looks at mouse disease annotations (not human orthologs' disease annotations)
-			cmd = "select distinct agt.allele_key, ha.term " + 
+			cmd = "with headers as (select distinct header from hdp_annotation) " + 
+					"select distinct agt.allele_key, ha.header as term " + 
 					"from allele_to_genotype agt " + 
 					"inner join genotype_to_annotation gta on (agt.genotype_key = gta.genotype_key) " + 
-					"inner join annotation a on (gta.annotation_key = a.annotation_key  " + 
+					"inner join annotation a on (gta.annotation_key = a.annotation_key " + 
 					"  and a.annotation_type = 'DO/Genotype' " + 
 					"  and a.qualifier is null) " + 
-					"inner join term_to_header ta on (a.term_key = ta.term_key) " + 
-					"inner join term ha on (ta.header_term_key = ha.term_key) " + 
+					"inner join term_ancestor ta on (a.term_key = ta.term_key) " + 
+					"inner join headers ha on (ta.ancestor_term = ha.header) " + 
 					"where agt.is_disease_model = 1";
 		}
 		
