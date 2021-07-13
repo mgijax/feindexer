@@ -401,12 +401,20 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		// primary ID : list of ancestor terms for faceting
 		Map<String,Set<String>> ancestorFacets = new HashMap<String,Set<String>>();
 
-		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName)) {
+		if (GO_VOCAB.equals(vocabName) || MP_VOCAB.equals(vocabName)) {
 			cmd = "select t.primary_id, a.term as header " + 
 				"from term t, term a, term_to_header h " + 
 				"where t.term_key = h.term_key " +
 				"and h.header_term_key = a.term_key " +
 				"and t.vocab_name = '" + vocabName + "' "; 
+
+		} else if (DO_VOCAB.equals(vocabName)) {
+			cmd = "with headers as (select distinct header from hdp_annotation) " + 
+				"select t.primary_id, h.header " + 
+				"from term t, term_ancestor a, headers h " + 
+				"where t.term_key = a.term_key " + 
+				"and a.ancestor_term = h.header " + 
+				"and t.vocab_name = '" + vocabName + "' ";
 
 		} else if (EMAPA_VOCAB.equals(vocabName)) {
 			// headers for each EMAPA ID, computed based on EMAPS expression annotations
