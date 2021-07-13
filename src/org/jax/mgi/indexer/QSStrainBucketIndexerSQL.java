@@ -237,10 +237,13 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		String cmd = null;
 
 		if ("MP".equals(facetType)) {
-			cmd = "select s.primary_id, h.heading as header " + 
-				"from strain s, strain_grid_cell c, strain_grid_heading h " +
+			cmd = "select s.primary_id, t.term as header " +
+				"from strain s, strain_grid_cell c, strain_grid_heading h, " +
+				" strain_grid_heading_to_term ht, term t " +
 				"where s.strain_key = c.strain_key " +
 				"and c.heading_key = h.heading_key " +
+				"and h.heading_key = ht.heading_key " +
+				"and ht.term_key = t.term_key " +
 				"and h.grid_name = 'MP' " +
 				"and c.value > 0";
 		} else if ("Disease".equals(facetType)) {
