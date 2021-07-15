@@ -1711,34 +1711,65 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("retrieving expressed components");
 		Timer.reset();
 
-		// top half of union is mouse-to-mouse, bottom is mouse-to-human
-		String ecQuery = "select m.marker_key, arm.related_marker_key "
-			+ "from allele_related_marker arm, allele a, marker_to_allele mta, "
-			+ "  marker m "
-			+ "where arm.relationship_category = 'expresses_component' "
-			+ "  and arm.allele_key = a.allele_key "
-			+ "  and a.allele_key = mta.allele_key "
-			+ "  and mta.marker_key = m.marker_key "
-			+ "  and m.marker_type = 'Transgene'"
-			+ "  and m.marker_key not in (1092, 37270, 9936) "
-			+ "union "
-			+ "select m.marker_key, r.marker_key as expressed_marker_key "
-			+ "from allele a, marker_to_allele m, allele_related_marker arm, allele_arm_property po, "
-			+ "  allele_arm_property pi, allele_arm_property ps, marker_id ri, marker r "
-			+ "where m.allele_key = a.allele_key "
-			+ "  and m.marker_key not in (1092, 37270, 9936) "
-			+ "  and a.allele_key = arm.allele_key "
-			+ "  and arm.arm_key = po.arm_key "
-			+ "  and arm.arm_key = pi.arm_key "
-			+ "  and arm.arm_key = ps.arm_key "
-			+ "  and po.name = 'Non-mouse_Organism' "
-			+ "  and pi.name = 'Non-mouse_NCBI_Gene_ID' "
-			+ "  and ps.name = 'Non-mouse_Gene_Symbol' "
-			+ "  and pi.value = ri.acc_id "
-			+ "  and ps.value = r.symbol "
-			+ "  and po.value ilike r.organism "
-			+ "  and r.organism = 'human' "
-			+ "  and ri.marker_key = r.marker_key";
+		String ecQuery =
+				// alleles having exactly one expressed component marker
+
+				"with ec_count as ( " + 
+					"select allele_key, count(1) as ec_ct " + 
+					"from allele_related_marker " + 
+					"where relationship_category = 'expresses_component' " + 
+					"group by 1 " + 
+					"having count(1) = 1" +
+				"), " + 
+
+				// alleles whose annotations have been rolled-up to a marker (passed roll-up rules)
+
+				"rolled_up as ( " + 
+					"select distinct al.allele_key " + 
+					"from marker m " + 
+					"inner join marker_to_annotation mta on (m.marker_key = mta.marker_key) " + 
+					"inner join annotation a on (mta.annotation_key = a.annotation_key and a.annotation_type in ('Mammalian Phenotype/Marker', 'DO/Marker', 'DO/Human Marker') ) " + 
+					"inner join annotation_source src on (a.annotation_key = src.annotation_key) " + 
+					"inner join annotation sa on (src.source_annotation_key = sa.annotation_key) " + 
+					"inner join genotype_to_annotation gta on (sa.annotation_key = gta.annotation_key) " + 
+					"inner join genotype g on (gta.genotype_key = g.genotype_key) " + 
+					"inner join allele_to_genotype atg on (g.genotype_key = atg.genotype_key) " + 
+					"inner join allele al on (atg.allele_key = al.allele_key) " + 
+					"inner join marker_to_allele ma on (al.allele_key = ma.allele_key) " + 
+					"inner join marker sm on (ma.marker_key = sm.marker_key) " + 
+				") " + 
+
+				// transgene markers where the corresponding allele has expressed components that are mouse markers
+				// (exclude docking site markers by key)
+
+				"select m.marker_key, arm.related_marker_key " + 
+				"from allele_related_marker arm, allele a, marker_to_allele mta, marker m, ec_count one, rolled_up ru " + 
+				"where arm.relationship_category = 'expresses_component' " + 
+				"and arm.allele_key = a.allele_key " + 
+				"and a.allele_key = ru.allele_key " + 
+				"and a.allele_key = mta.allele_key " + 
+				"and mta.marker_key = m.marker_key " + 
+				"and m.marker_type = 'Transgene' " + 
+				"and m.marker_key not in (1092, 37270, 9936) " + 
+				"and a.allele_key = one.allele_key " + 
+
+				"union " + 
+
+				// transgene markers where the corresponding allele has expressed components that are human markers
+				// (exclude docking site markers by key)
+
+				"select m.marker_key, r.marker_key as expressed_marker_key " + 
+				"from allele a " + 
+				"inner join ec_count one on (a.allele_key = one.allele_key) " + 
+				"inner join marker_to_allele m on (m.allele_key = a.allele_key) " + 
+				"inner join allele_related_marker arm on (a.allele_key = arm.allele_key and arm.relationship_category = 'expresses_component') " + 
+				"inner join allele_arm_property po on (arm.arm_key = po.arm_key and po.name = 'Non-mouse_Organism') " + 
+				"inner join allele_arm_property pi on (arm.arm_key = pi.arm_key and pi.name = 'Non-mouse_NCBI_Gene_ID') " + 
+				"inner join allele_arm_property ps on (arm.arm_key = ps.arm_key and ps.name = 'Non-mouse_Gene_Symbol') " + 
+				"inner join marker_id ri on (pi.value = ri.acc_id) " + 
+				"inner join marker r on (ri.marker_key = r.marker_key and ps.value = r.symbol and po.value ilike r.organism and r.organism = 'human') " + 
+				"inner join rolled_up ru on (a.allele_key = ru.allele_key) " + 
+				"where m.marker_key not in (1092, 37270, 9936)";
 
 		expressedComponents = new HashMap<Integer,Set<Integer>>();
 
