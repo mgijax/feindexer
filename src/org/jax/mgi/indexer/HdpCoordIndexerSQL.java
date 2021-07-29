@@ -82,6 +82,7 @@ public class HdpCoordIndexerSQL extends Indexer {
 				"where m.organism in ('human', 'mouse') " + 
 				"  and m.marker_key = l.marker_key " + 
 				"  and l.location_type = 'coordinates' " + 
+				"  and m.status = 'official' " +
 				"union  " + 
 				"select m1.marker_key, m1.primary_id, m1.organism,  " + 
 				"  loc.chromosome, loc.start_coordinate, loc.end_coordinate, 'ortholog' as coord_type " + 
