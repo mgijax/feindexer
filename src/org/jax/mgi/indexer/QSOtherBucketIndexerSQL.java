@@ -406,59 +406,6 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("done with " + (seqNum - startSeqNum) + " homology clusters");
 	}
 
-	/* Add documents to the index for non-mouse markers in homology clusters. These IDs for non-mouse markers should also
-	 * return a non-mouse marker line (in addition to the Homology class line), which will give symbol and name.
-	 * For OMIM IDs, we should index both with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)"
-	 * suffix that can be removed.
-	 */
-	private void indexHomologyMarkers() throws Exception {
-		logger.info(" - indexing homology markers");
-		
-		long startSeqNum = seqNum;
-		
-		String cmd = "select c.cluster_key, i.acc_id, i.logical_db, hco.organism, m.symbol, m.name " + 
-				"from homology_cluster c,  " + 
-				"  homology_cluster_organism hco, homology_cluster_organism_to_marker hm, " + 
-				"  marker_id i, marker m " + 
-				"where c.source = 'Alliance Direct' " + 
-				"and c.cluster_key = hco.cluster_key " + 
-				"and hco.organism in ('rat', 'human', 'zebrafish') " + 
-				"and hco.cluster_organism_key = hm.cluster_organism_key " + 
-				"and hm.marker_key = i.marker_key " + 
-				"and hm.marker_key = m.marker_key " + 
-				"and i.private = 0 " +
-				"order by c.cluster_key, hco.organism, i.acc_id";
-		
-		String lastPrimaryID = "";
-		DocBuilder cluster = null;
-		
-		ResultSet rs = ex.executeProto(cmd, cursorLimit);
-		logger.debug("  - finished query in " + ex.getTimestamp());
-
-		while (rs.next())  {  
-			String primaryID = rs.getString("cluster_key");
-			String organism = rs.getString("organism");
-			
-			// If we have a new primary ID, then we have a new homology class  We'll need a new DocBuilder.
-			if (!lastPrimaryID.equals(primaryID)) {
-				cluster = new DocBuilder(primaryID, rs.getString("symbol") + ", " + rs.getString("name"),
-					"Homolog", null, "/homology/cluster/key/" + primaryID);
-				
-				seqNum++;
-				lastPrimaryID = primaryID;
-				gc();
-			}
-
-			// Index the marker's ID.
-			String accID = rs.getString("acc_id");
-			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
-				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
-		}
-
-		rs.close();
-		logger.info("done with " + (seqNum - startSeqNum) + " homology markers");
-	}
-
 	/* Add documents to the index for AMA terms.  There are currently over 3200 AMA terms, with
 	 * roughly 99% having only 1 ID.
 	 */
@@ -749,7 +696,6 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		indexSequenceIDsForProbes();
 		indexProbes();
 		indexMapping();
-		indexHomologyMarkers();
 		indexHomologyClasses();
 		indexAdultMouseAnatomy();
 		indexReferences();
