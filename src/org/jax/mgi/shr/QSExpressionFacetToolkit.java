@@ -77,28 +77,6 @@ public class QSExpressionFacetToolkit {
 	
 	//--- private methods ---//
 	
-	// Build a map from an ID to all its high-level EMAPA terms (its "anatomical systems").  Assumes the
-	// given 'cmd' will yield two fields, primary_id and header.  The 'dataType' is just used for debugging
-	// output and should identify the data type represented by the primary_id.
-	public Map<String,List<String>> buildMap(SQLExecutor ex, String cmd, String dataType) throws SQLException {
-		Map<String, List<String>> out = new HashMap<String, List<String>>();
-		
-		ResultSet rs = ex.executeProto(cmd, 10000);
-		while (rs.next()) {
-			String accID = rs.getString("primary_id");
-			
-			if (!out.containsKey(accID)) {
-				out.put(accID, new ArrayList<String>());
-			}
-			out.get(accID).add(rs.getString("header"));
-		}
-		
-		rs.close();
-		logger.debug("Found headers for " + out.size() + " " + dataType + "(s)");
-		
-		return out;
-	}
-
 	// Build a new index on the given table for the given field(s), flagged as unique if specified.
 	// Fields are comma-separated, if more than one.  Returns name of new index.
 	private String createIndex(SQLExecutor ex, String onTable, String onFields, boolean isUnique) {
