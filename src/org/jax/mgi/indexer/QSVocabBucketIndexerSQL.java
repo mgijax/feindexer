@@ -4,6 +4,7 @@ import java.sql.ResultSet;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
+import org.jax.mgi.shr.QSVocabFacetToolkit;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -126,6 +127,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
+	private QSVocabFacetToolkit toolkit = new QSVocabFacetToolkit();
+
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -418,44 +421,12 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 
 		} else if (EMAPA_VOCAB.equals(vocabName)) {
 			// headers for each EMAPA ID, computed based on EMAPS expression annotations
-			cmd = "with direct_annotations as ( " + 
-				"select distinct emap.primary_id, h.term as header " + 
-				"from expression_result_summary ers, term c, term_emap e, term emap, " + 
-				"term_to_header tth, term h " + 
-				"where ers.is_expressed = 'Yes' " + 
-				"and ers.structure_key = c.term_key " + 
-				"and ers.structure_key = e.term_key " + 
-				"and e.emapa_term_key = emap.term_key " + 
-				"and e.emapa_term_key = tth.term_key " + 
-				"and tth.header_term_key = h.term_key " + 
-				") " + 
-				"select primary_id, header " + 
-				"from direct_annotations " + 
-				"union " + 
-				"select ta.ancestor_primary_id, da.header " + 
-				"from direct_annotations da, term t, term_ancestor ta " + 
-				"where da.primary_id = t.primary_id " + 
-				"and t.term_key = ta.term_key";
+			cmd = toolkit.getHeadersForExpressedEmapaTerms(ex);
 
 		} else if (EMAPS_VOCAB.equals(vocabName)) {
 			// headers for each EMAPS ID, computed based on EMAPS expression annotations
-			cmd = "with direct_annotations as ( " + 
-				"select distinct c.primary_id, h.term as header " + 
-				"from expression_result_summary ers, term c, term_emap e, " + 
-				"term_to_header tth, term h " + 
-				"where ers.is_expressed = 'Yes' " + 
-				"and ers.structure_key = c.term_key " + 
-				"and ers.structure_key = e.term_key " + 
-				"and e.emapa_term_key = tth.term_key " + 
-				"and tth.header_term_key = h.term_key " + 
-				") " + 
-				"select primary_id, header " + 
-				"from direct_annotations " + 
-				"union " + 
-				"select ta.ancestor_primary_id, da.header " + 
-				"from direct_annotations da, term t, term_ancestor ta " + 
-				"where da.primary_id = t.primary_id " + 
-				"and t.term_key = ta.term_key";
+			cmd = toolkit.getHeadersForExpressedEmapsTerms(ex);
+
 		} else {
 			return ancestorFacets;
 		}
