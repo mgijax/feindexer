@@ -327,7 +327,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"  homology_cluster_organism ho, " + 
 				"  homology_cluster_organism mo, " + 
 				"  homology_cluster_organism_to_marker mm, " + 
-				"  marker m " + 
+				"  marker m, homology_cluster hc " + 
 				"where h.organism != 'mouse' " + 
 				"and h.marker_key = ha.marker_key " + 
 				"and ha.logical_db != 'MyGene' " +
@@ -338,6 +338,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and mm.marker_key= m.marker_key " + 
 				"and m.organism = 'mouse' " + 
 				"and m.status = 'official' " +
+				"and ho.cluster_key = hc.cluster_key " +
+				"and hc.source = 'Alliance Direct' " +
 				"order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
