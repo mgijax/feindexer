@@ -4,7 +4,7 @@ import java.sql.ResultSet;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
-import org.jax.mgi.shr.QSVocabFacetToolkit;
+import org.jax.mgi.shr.QSExpressionFacetToolkit;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -127,7 +127,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
-	private QSVocabFacetToolkit toolkit = new QSVocabFacetToolkit();
+	private QSExpressionFacetToolkit toolkit = new QSExpressionFacetToolkit();
 
 	/*--------------------*/
 	/*--- constructors ---*/

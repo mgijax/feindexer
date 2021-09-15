@@ -12,7 +12,7 @@ import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class QSVocabFacetToolkit {
+public class QSExpressionFacetToolkit {
 	//--- static variables ---//
 	
 	// temp table name for collected EMAPA header terms
