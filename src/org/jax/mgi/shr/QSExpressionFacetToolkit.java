@@ -29,6 +29,10 @@ public class QSExpressionFacetToolkit {
 	// that have positive annotations (computed in a stage-dependent manner).
 	private static String EMAPA_TERMS_TO_HEADERS = "emapa_terms_to_headers";
 	
+	// temp table name for (feature key, header term key, expressed flag) triples.  Used to track which
+	// anatomical systems have exhibited expression in which genes.
+	private static String MARKER_HEADER_MAP = "marker_header_map";
+	
 	//--- instance variables ---//
 	
 	// logger for this class
@@ -42,6 +46,22 @@ public class QSExpressionFacetToolkit {
 	
 	//--- public methods ---//
 	
+	// Get a String SQL command that returns marker keys and their corresponding EMAPA header terms,
+	// for those terms that have positive expression data.  Those data may be from either classical
+	// assays or high-throughput experiments.
+	public String getAnatomyHeadersForMarkers(SQLExecutor ex) throws SQLException {
+		String markerToHeaders = getMarkerHeaderMapTable(ex);
+		
+		// markers and their EMAPA headers (computed in a stage-dependent manner), for terms with positive
+		// expression data.
+		String cmd = "select marker_key as feature_key, header as term "
+			+ "from " + markerToHeaders + " "
+			+ "where expressed = 1 "
+			+ "order by 1, 2";
+		
+		return cmd;
+	}
+
 	// Get a String SQL command that returns EMAPS IDs and their corresponding EMAPA header terms,
 	// for those EMAPS terms that have positive expression data.  Those data may be from either
 	// classical assays or high-throughput experiments.
@@ -49,8 +69,7 @@ public class QSExpressionFacetToolkit {
 		String emapsTermsToHeaders = getEmapsTermsToHeadersTable(ex);
 		
 		// EMAPS terms and their headers (computed in a stage-dependent manner), for terms with positive
-		// expression data.  Top half is looking for at the terms' descendants, bottom half is looking at
-		// the terms themselves.
+		// expression data.
 		String cmd = "select primary_id, header "
 			+ "from " + emapsTermsToHeaders + " "
 			+ "order by 1, 2";
@@ -75,7 +94,7 @@ public class QSExpressionFacetToolkit {
 		return cmd;
 	}
 	
-	//--- private methods ---//
+	//--- private methods (general purpose) ---//
 	
 	// Build a new index on the given table for the given field(s), flagged as unique if specified.
 	// Fields are comma-separated, if more than one.  Returns name of new index.
@@ -108,7 +127,7 @@ public class QSExpressionFacetToolkit {
 			+ "from expression_result_anatomical_systems)";
 		
 		ex.executeUpdate(cmd);
-		logger.debug("Created: " + EMAPA_HEADERS);
+		logger.info("Created: " + EMAPA_HEADERS);
 		
 		createIndex(ex, EMAPA_HEADERS, "anatomical_system", true);
 		createIndex(ex, EMAPA_HEADERS, "emapa_id", true);
@@ -116,6 +135,8 @@ public class QSExpressionFacetToolkit {
 		existingTables.add(EMAPA_HEADERS);
 		return EMAPA_HEADERS;
 	}
+	
+	//--- private methods (for Vocab bucket) ---//
 	
 	// Create and return the name of a table containing one row for each (EMAPA term key, EMAPA ID, and
 	// header) for terms with positive annotations below them (computed in a stage-dependent manner).
@@ -134,7 +155,7 @@ public class QSExpressionFacetToolkit {
 			+ ");";
 		
 		ex.executeUpdate(cmd);
-		logger.debug("Created: " + EMAPA_TERMS_TO_HEADERS);
+		logger.info("Created: " + EMAPA_TERMS_TO_HEADERS);
 		
 		createIndex(ex, EMAPA_TERMS_TO_HEADERS, "term_key", false);
 		createIndex(ex, EMAPA_TERMS_TO_HEADERS, "primary_id", false);
@@ -162,7 +183,7 @@ public class QSExpressionFacetToolkit {
 			+ " and mapping.emapa_term_key = emapa.term_key "
 			+ " and emapa.primary_id = headers.emapa_id "
 			+ "union "
-			+ "select distinct et.term_key, et.primary_id, headers.anatomical_system "
+			+ "select distinct et.term_key, et.primary_id, headers.anatomical_system as header "
 			+ "from " + emapsTerms + " et, term_emap mapping, term emapa, " + validHeaders + " headers "
 			+ "where et.expressed = 1 "
 			+ " and et.term_key = mapping.term_key "
@@ -170,7 +191,7 @@ public class QSExpressionFacetToolkit {
 			+ " and emapa.primary_id = headers.emapa_id)";
 
 		ex.executeUpdate(cmd);
-		logger.debug("Created: " + EMAPS_TERMS_TO_HEADERS);
+		logger.info("Created: " + EMAPS_TERMS_TO_HEADERS);
 		
 		createIndex(ex, EMAPS_TERMS_TO_HEADERS, "term_key", false);
 		createIndex(ex, EMAPS_TERMS_TO_HEADERS, "primary_id", false);
@@ -192,7 +213,7 @@ public class QSExpressionFacetToolkit {
 			+ "where t.vocab_name = 'EMAPS')";
 
 		ex.executeUpdate(cmd);
-		logger.debug("Created: " + EMAPS_TERMS);
+		logger.info("Created: " + EMAPS_TERMS);
 		
 		createIndex(ex, EMAPS_TERMS, "term_key", true);
 		createIndex(ex, EMAPS_TERMS, "primary_id", true);
@@ -221,7 +242,7 @@ public class QSExpressionFacetToolkit {
 			+ "  and ers.is_expressed = 'Yes')";
 
 		ex.executeUpdate(cmd);
-		logger.debug("Flagged terms with classical annotations in: " + table);
+		logger.info("Flagged terms with classical annotations in: " + table);
 	}
 
 	// Update the given table to flag with a 1 any structures that have positive HT expression annotations,
@@ -252,6 +273,85 @@ public class QSExpressionFacetToolkit {
 			+ ")";
 
 		ex.executeUpdate(cmd);
-		logger.debug("Flagged terms with high-throughput annotations in: " + table);
+		logger.info("Flagged terms with high-throughput annotations in: " + table);
+	}
+
+	//--- private methods (for Feature bucket) ---//
+	
+	// create a temp table containing a row (marker key, header ID, expression flag) for each possible 
+	// (marker) x (anatomical system) combination.  Start all expression flags at 0.
+	private String getMarkerHeaderMapTable(SQLExecutor ex) throws SQLException {
+		if (existingTables.contains(MARKER_HEADER_MAP)) { return MARKER_HEADER_MAP; }
+		
+		String validHeaders = this.getEmapaHeaderTable(ex);	// valid header terms:  header and emapa_id
+		String cmd = "create temp table " + MARKER_HEADER_MAP + " as ( "
+			+ "select m.marker_key, h.emapa_id, h.anatomical_system as header, 0 as expressed "
+			+ "from marker m, " + validHeaders + " h "
+			+ "where exists (select 1 from expression_result_summary ers "
+			+ "  where m.marker_key = ers.marker_key "
+			+ "  and ers.is_wild_type = 1) "
+			+ "or  "
+			+ "exists (select 1 from expression_ht_consolidated_sample_measurement csm,  "
+			+ "  expression_ht_consolidated_sample cs, genotype g "
+			+ "  where csm.level in ('High', 'Low', 'Medium') "
+			+ "  and csm.marker_key = m.marker_key "
+			+ "  and cs.consolidated_sample_key = csm.consolidated_sample_key "
+			+ "  and cs.genotype_key = g.genotype_key "
+			+ "  and (g.combination_1 = '' or g.combination_1 is null) "
+			+ "  ) "
+			+ ")";
+		
+		ex.executeUpdate(cmd);
+		logger.info("Created: " + MARKER_HEADER_MAP);
+		
+		createIndex(ex, MARKER_HEADER_MAP, "marker_key", false);
+		createIndex(ex, MARKER_HEADER_MAP, "emapa_id", false);
+
+		flagClassicalForMarkers(ex, MARKER_HEADER_MAP);
+		flagHighThroughputForMarkers(ex, MARKER_HEADER_MAP);
+
+		existingTables.add(MARKER_HEADER_MAP);
+		return MARKER_HEADER_MAP;
+	}
+	
+	// In the given table, flag the rows for each (marker, header) pair with positive classical
+	// annotations with a 1.
+	private void flagClassicalForMarkers(SQLExecutor ex, String table) throws SQLException {
+		String headerTable = getEmapsTermsToHeadersTable(ex);
+		String cmd = "update " + table + " eh "
+			+ "set expressed = 1 "
+			+ "where exists (select 1  "
+			+ "  from expression_result_summary ers, " + headerTable + " emaps "
+			+ "  where ers.marker_key = eh.marker_key "
+			+ "  and ers.structure_key = emaps.term_key "
+			+ "  and ers.is_wild_type = 1 "
+			+ "  and emaps.header = eh.header)";
+
+		ex.executeUpdate(cmd);
+		logger.info("Flagged terms with classical annotations in: " + table);
+	}
+	
+	// In the given table, flag the rows for each (marker, header) pair with positive RNA-Seq
+	// annotations with a 1.
+	private void flagHighThroughputForMarkers(SQLExecutor ex, String table) throws SQLException {
+		String headerTable = getEmapsTermsToHeadersTable(ex);
+		String cmd = "update " + table + " eh "
+			+ "set expressed = 1 "
+			+ "where exists (select 1 "
+			+ "  from expression_ht_consolidated_sample_measurement csm, genotype g, "
+			+ "    expression_ht_consolidated_sample cs, term_emap mapping, " + headerTable + " emaps "
+			+ "  where eh.marker_key = csm.marker_key "
+			+ "    and csm.level in ('High', 'Low', 'Medium') "
+			+ "    and csm.consolidated_sample_key = cs.consolidated_sample_key "
+			+ "    and cs.genotype_key = g.genotype_key "
+			+ "    and (g.combination_1 = '' or g.combination_1 is null) "
+			+ "    and cs.emapa_key = mapping.emapa_term_key "
+			+ "    and cs.theiler_stage::int = mapping.stage "
+			+ "    and mapping.term_key = emaps.term_key "
+			+ "    and emaps.header = eh.header "
+			+ ")";
+
+		ex.executeUpdate(cmd);
+		logger.info("Flagged terms with high-throughput annotations in: " + table);
 	}
 }

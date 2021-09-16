@@ -11,6 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.QSExpressionFacetToolkit;
 import org.jax.mgi.shr.VocabTerm;
 import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -87,6 +88,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
+	private QSExpressionFacetToolkit toolkit = new QSExpressionFacetToolkit();
+
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -711,7 +714,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		Map<Integer,Set<String>> keyToFacets = new HashMap<Integer,Set<String>>();
 		String cmd = null;
 
-		if ("C".equals(dagAbbrev) || "F".equals(dagAbbrev) || "P".equals(dagAbbrev) || "Anatomy".equals(dagAbbrev) || "MP".equals(dagAbbrev)) {
+		if ("C".equals(dagAbbrev) || "F".equals(dagAbbrev) || "P".equals(dagAbbrev) || "MP".equals(dagAbbrev)) {
 			cmd = "select c.marker_key as feature_key, t.term " + 
 				"from marker_grid_cell c, marker_grid_heading h, marker_grid_heading_to_term ht, term t " + 
 				"where c.value > 0 " + 
@@ -720,6 +723,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and trim(h.grid_name_abbreviation) = '" + dagAbbrev + "' " +
 				"and ht.term_key = t.term_key " +
 				"order by c.marker_key";
+
+		} else if ("Anatomy".equals(dagAbbrev)) {
+			cmd = toolkit.getAnatomyHeadersForMarkers(ex);
 
 		} else if ("Feature Type".equals(dagAbbrev)) {
 			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
@@ -1120,13 +1126,13 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private void buildInitialDocs() throws Exception {
 		logger.info(" - loading markers");
 
+		Map<Integer, Set<String>> expressionFacetCache = this.getFacetValues("Anatomy");
 		Map<Integer, Set<String>> goProcessFacetCache = this.getFacetValues("P");
 		Map<Integer, Set<String>> goFunctionFacetCache = this.getFacetValues("F");
 		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues("C");
 		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
 		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
 		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
-		Map<Integer, Set<String>> expressionFacetCache = this.getFacetValues("Anatomy");
 		
 		String prefix = "Genome Feature ";
 		features = new HashMap<Integer,QSFeature>();
