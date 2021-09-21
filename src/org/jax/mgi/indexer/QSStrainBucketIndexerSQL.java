@@ -36,6 +36,8 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	private static int PARTIAL_NAME_WEIGHT = 875;
 	private static int SYNONYM_WEIGHT = 850;
 	private static int PARTIAL_SYNONYM_WEIGHT = 825;
+	private static int ALLELE_SYMBOL_WEIGHT = 800;
+	private static int PARTIAL_ALLELE_SYMBOL_WEIGHT = 775;
 
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -173,6 +175,58 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " synonyms");
 	}
 	
+	/* Load all related allele symbols, build docs using bracket-less symbols, and send to Solr.
+	 * (good for cut-and-pasted symbols)
+	 */
+	private void indexAlleles() throws Exception {
+		logger.info(" - indexing allele symbols");
+		
+		String cmd = "select s.primary_id, m.allele_symbol "
+			+ "from strain s, strain_mutation m "
+			+ "where s.strain_key = m.strain_key "
+			+ "union "
+			+ "select s.primary_id, q.allele_symbol "
+			+ "from strain s, strain_qtl q "
+			+ "where s.strain_key = q.strain_key "
+			+ "order by 1, 2";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+
+		int ct = 0;							// count of alleles processed
+		while (rs.next()) {
+			ct++;
+			String primaryID = rs.getString("primary_id");
+			String fullSymbol = rs.getString("allele_symbol");
+			
+			if (strains.containsKey(primaryID) && (fullSymbol != null)) {
+				String symbol = fullSymbol.replaceAll("<", "").replaceAll(">", "");
+				QSStrain qst = strains.get(primaryID);
+				if (symbol != null) {
+					// First index the allele symbol as an exact match.
+					addDoc(buildDoc(qst, symbol, null, symbol, "Allele Symbol", ALLELE_SYMBOL_WEIGHT));
+					
+					// Then convert the symbol into its component parts.  Index those parts for exact matching.
+					List<String> parts = asList(splitIntoIndexablePieces(fullSymbol));
+					if (parts.size() > 1) {
+						for (String part : parts) {
+							addDoc(buildDoc(qst, part, null, symbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+						}
+					}
+
+					// And if any of those parts are only letters and ending with lowercase letters, then we'll
+					// assume those could be words.  Remove any stopwords, then index the others for stemmed
+					// matching.
+					for (String word : this.cullStopwords(this.cullNonWords(parts))) {
+						addDoc(buildDoc(qst, null, word, symbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+					}
+				}
+			}
+		}
+		rs.close();
+
+		logger.info(" - indexed " + ct + " symbols");
+	}
+
 	/* Cache reference count for each strain, populating referenceCounts
 	 */
 	private void cacheReferenceCounts() throws Exception {
@@ -590,6 +644,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		cacheReferenceCounts();
 		buildInitialDocs();
 		indexIDs();
+		indexAlleles();
 		indexSynonyms();
 		
 		// any leftover docs to send to the server?  (likely yes)
