@@ -680,12 +680,15 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					QSFeature feature = features.get(markerKey);
 
 					// Symbols and synonyms go in the exact-match field, names get stemmed.
+					// Both also go in the inexact field to allow for wildcard matches.
 					int weight = 0;
 					if (termType.contains("symbol")) {
 						weight = ORTHOLOG_SYMBOL_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
+						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
 						for (String part : this.getParts(termLower)) {
 							addDoc(buildDoc(feature, part, null, null, term, termType, ORTHOLOG_SYMBOL_PIECE_WEIGHT));
+							addDoc(buildDoc(feature, null, part, null, term, termType, ORTHOLOG_SYMBOL_PIECE_WEIGHT));
 						}
 					}
 					else if (termType.contains("name")) {
@@ -695,8 +698,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					else if (termType.contains("synonym")) {
 						weight = ORTHOLOG_SYNONYM_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
+						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
 						for (String part : this.getParts(termLower)) {
-							addDoc(buildDoc(feature, part, null, null, term, termType, ORTHOLOG_SYNONYM_PIECE_WEIGHT));
+							addDoc(buildDoc(feature, null, part, null, term, termType, ORTHOLOG_SYNONYM_PIECE_WEIGHT));
 						}
 					}
 					i++; 
@@ -808,6 +812,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
 					for (String part : this.getParts(synonym)) {
 						addDoc(buildDoc(feature, part, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+
+						// Also include in the inexact field for wildcard matching.
+						addDoc(buildDoc(feature, null, part, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 					}
 				}
 			}
@@ -1181,10 +1188,12 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			addDocUnchecked(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
+			// Also goes in the inexact field to allow for wildcard matches.
 			if (!"transgene".equalsIgnoreCase(feature.featureType)) {
 				addDocUnchecked(buildDoc(feature, symbol, null, null, symbol, "Symbol", SYMBOL_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, symbol, null, symbol, "Symbol", SYMBOL_WEIGHT));
 				for (String part : this.getParts(symbol)) {
-					addDocUnchecked(buildDoc(feature, part, null, null, symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
+					addDocUnchecked(buildDoc(feature, null, part, null, symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
 				}
 			}
 

@@ -503,6 +503,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					
 					for (String part : this.getParts(synonym)) {
 						addDoc(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+						
+						// Also use inexact field for wildcard matching.
+						addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 					}
 				}
 			}
@@ -531,6 +534,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					
 					for (String part : this.getParts(synonym)) {
 						addDoc(buildDoc(feature, synonym, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+						
+						// Also use inexact field for wildcard matching.
+						addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
 					}
 				}
 			}
@@ -788,25 +794,30 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			addDoc(buildDoc(allele, allele.primaryID, null, null, allele.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
 			
 			// For alleles, we also need to consider the nomenclature of each one's associated marker. (Marker name
-			// is already considered with the allele name.)
+			// is already considered with the allele name.)  Both exact match and inexact (for wildcard matching).
 			String markerSymbol = rs.getString("marker_symbol");
 
 			if ((markerSymbol != null) && (!markerSymbol.equals(allele.symbol))) {
 				addDoc(buildDoc(allele, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
+				addDoc(buildDoc(allele, null, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 				
 				for (String part : this.getParts(markerSymbol)) {
 					addDoc(buildDoc(allele, part, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_PIECE_WEIGHT));
+					addDoc(buildDoc(allele, null, part, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_PIECE_WEIGHT));
 				}
 			}
 
-			// split allele symbol into relevant pieces that need to be indexed separately
+			// split allele symbol into relevant pieces that need to be indexed separately.  (Also use inexact field for
+			// wildcard matching.)
 			boolean first = true;
 			for (String piece : getAlleleSymbolPieces(allele.symbol)) {
 				if (first) {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					addDoc(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 					first = false;
 				} else {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
+					addDoc(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
 				}
 			}
 				
