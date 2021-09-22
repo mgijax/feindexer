@@ -310,7 +310,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 	/* Generate string to describe homology class based on given counts.
 	 */
-	private String getHomologyClassDescription(int mouseCount, int humanCount, int ratCount, int zebrafishCount) {
+	private String getHomologyClassDescription(String clusterKey, Map<String, String> mouseMarkers,
+			int mouseCount, int humanCount, int ratCount, int zebrafishCount) {
 		StringBuffer sb = new StringBuffer("Class with ");
 		String spacer = "";		// no spacer needed for first present organism
 		String comma = ", ";
@@ -324,6 +325,12 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			sb.append(spacer);
 			sb.append(mouseCount + " mouse");
 			spacer = comma;
+			
+			if (mouseMarkers.containsKey(clusterKey)) {
+				sb.append(" (");
+				sb.append(mouseMarkers.get(clusterKey));
+				sb.append(")");
+			}
 		}
 		if (ratCount > 0) {
 			sb.append(spacer);
@@ -339,6 +346,46 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		return sb.toString();
 	}
 	
+	/* Build a cache of mouse marker symbols per homology cluster, mapping from cluster key to String.  Note
+	 * that there will be (at most) one symbol per cluster currently, but this is built in anticipation of
+	 * clusters coming in that are paralogy-aware (more than one mouse marker per cluster).
+	 */
+	private Map<String, String> getMarkersForClusters() throws Exception {
+		logger.info(" - getting mouse symbols for homology clusters");
+		
+		Map<String, String> markers = new HashMap<String, String>();
+		int markerCount = 0;
+		
+		String cmd = "select hc.cluster_key, m.symbol "
+			+ "from homology_cluster hc, homology_cluster_organism hco, "
+			+ "  homology_cluster_organism_to_marker hcom, marker m "
+			+ "where hc.source = 'Alliance Direct' "
+			+ "  and hc.cluster_key = hco.cluster_key "
+			+ "  and hco.organism = 'mouse' "
+			+ "  and hco.cluster_organism_key = hcom.cluster_organism_key "
+			+ "  and hcom.marker_key = m.marker_key "
+			+ "order by 1, 2";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String clusterKey = rs.getString("cluster_key");
+			String symbol = rs.getString("symbol");
+			
+			if (!markers.containsKey(clusterKey)) {
+				markers.put(clusterKey, symbol);
+			} else {
+				markers.put(clusterKey, markers.get(clusterKey) + ", " + symbol);
+			}
+		}
+
+		rs.close();
+		logger.info("found " + markerCount + " mouse markers for " + markers.size() + " homology clusters");
+		
+		return markers;
+	}
+	
 	/* Add documents to the index for homology clusters. There are currently almost 21,000 of these.  These have
 	 * no IDs of their own, but should be returned by non-mouse marker IDs.  For OMIM IDs, we should index both
 	 * with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)" suffix that can be removed.
@@ -346,6 +393,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	private void indexHomologyClasses() throws Exception {
 		logger.info(" - indexing homology clusters");
 		
+		Map<String, String> mouseMarkers = this.getMarkersForClusters();
 		long startSeqNum = seqNum;
 		
 		String cmd = "select c.cluster_key, ct.mouse_marker_count, ct.human_marker_count, " + 
@@ -374,7 +422,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			
 			// If we have a new primary ID, then we have a new homology class  We'll need a new DocBuilder.
 			if (!lastPrimaryID.equals(primaryID)) {
-				description = this.getHomologyClassDescription(rs.getInt("mouse_marker_count"),
+				description = this.getHomologyClassDescription(primaryID, mouseMarkers, rs.getInt("mouse_marker_count"),
 					rs.getInt("human_marker_count"), rs.getInt("rat_marker_count"), rs.getInt("zebrafish_marker_count"));
 				cluster = new DocBuilder(primaryID, description, "Homology", null, "/homology/cluster/key/" + primaryID);
 				
