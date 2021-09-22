@@ -161,6 +161,50 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info("done with " + (seqNum - startSeqNum) + " sequences");
 	}
 
+	/* Add documents to the index associating probe IDs with their associated sequences.
+	 * We're currently seeing about 6.6 million probe IDs for 2.1 million sequences, so
+	 * roughly 3 probe IDs per sequence (for those associated with probes).
+	 */
+	private void indexProbeIDsForSequences() throws Exception {
+		logger.info(" - indexing probe IDs for sequences");
+		
+		long startSeqNum = seqNum;
+		
+		String cmd = "select seq.primary_id, seq.description, seq.sequence_type, s.by_sequence_type, " + 
+				"  p.acc_id, p.logical_db as other_ldb " + 
+				"from sequence seq " + 
+				"inner join probe_to_sequence pts on (pts.sequence_key = seq.sequence_key) " + 
+				"inner join sequence_sequence_num s on (pts.sequence_key = s.sequence_key) " + 
+				"inner join probe_id p on (pts.probe_key = p.probe_key) " + 
+				"order by seq.primary_id";
+		
+		String lastPrimaryID = "";
+		DocBuilder seq = null;
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		logger.debug("  - finished query in " + ex.getTimestamp());
+
+		while (rs.next())  {  
+			String primaryID = rs.getString("primary_id");
+			
+			// If we have a new primary ID, then we have a new sequence.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(primaryID)) {
+				seq = new DocBuilder(primaryID, rs.getString("description"), "Sequence",
+					rs.getString("sequence_type"), "/sequence/" + primaryID);
+				lastPrimaryID = primaryID;
+				gc();
+			}
+
+			// Index the associated probe ID.
+			String otherID = rs.getString("acc_id");
+			this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
+				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+		}
+
+		rs.close();
+		logger.info("done with " + (seqNum - startSeqNum) + " probe IDs for sequences");
+	}
+
 	/* Add documents to the index for mapping experiments. We're currently seeing almost 24,000 experiments.  Of those,
 	 * about half have only 1 ID.  Most of the other half have 2, though some do have 3 and 4.
 	 */
@@ -743,6 +787,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		indexSequences();
 		indexSequenceIDsForProbes();
 		indexProbes();
+		indexProbeIDsForSequences();
 		indexMapping();
 		indexHomologyClasses();
 		indexAdultMouseAnatomy();
