@@ -1096,7 +1096,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and mta.marker_key = m.marker_key " + 
 				"and a.annotation_type = 'GO/Marker' " + 
 				"and m.organism = 'mouse' " + 
-				"and a.qualifier is null " +
+				"and ((a.qualifier is null) or (a.qualifier not like 'NOT%')) " +
 				"and a.dag_name = '<DAG>' " +
 				"order by m.marker_key";
 
