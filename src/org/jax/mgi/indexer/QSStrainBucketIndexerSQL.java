@@ -203,13 +203,13 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 				QSStrain qst = strains.get(primaryID);
 				if (symbol != null) {
 					// First index the allele symbol as an exact match.
-					addDoc(buildDoc(qst, symbol, null, symbol, "Allele Symbol", ALLELE_SYMBOL_WEIGHT));
+					addDoc(buildDoc(qst, symbol, null, fullSymbol, "Allele Symbol", ALLELE_SYMBOL_WEIGHT));
 					
 					// Then convert the symbol into its component parts.  Index those parts for exact matching.
 					List<String> parts = asList(splitIntoIndexablePieces(fullSymbol));
 					if (parts.size() > 1) {
 						for (String part : parts) {
-							addDoc(buildDoc(qst, part, null, symbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+							addDoc(buildDoc(qst, part, null, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
 						}
 					}
 
@@ -217,7 +217,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 					// assume those could be words.  Remove any stopwords, then index the others for stemmed
 					// matching.
 					for (String word : this.cullStopwords(this.cullNonWords(parts))) {
-						addDoc(buildDoc(qst, null, word, symbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+						addDoc(buildDoc(qst, null, word, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
 					}
 				}
 			}
