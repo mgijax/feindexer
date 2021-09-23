@@ -700,6 +700,15 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			if (!primaryID.equals(otherID)) {
 				this.buildAndAddDocument(image, otherID, getDisplayValue(rs.getString("logical_db"), otherID),
 					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				
+				// For GenePaint IDs, we also want to index them without the pane number after a slash.  And,
+				// since GenePaint IDs are not primary IDs, so we can just do it here in the secondary ID section.
+				// (They are also the only image IDs containing slashes.)
+				if ((otherID.indexOf('/') >= 0) && ("GenePaint".equals(rs.getString("logical_db")))) {
+					String gpID = otherID.split("/")[0];
+					this.buildAndAddDocument(image, gpID, getDisplayValue(rs.getString("logical_db"), gpID),
+						"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				}
 			}
 		}
 
