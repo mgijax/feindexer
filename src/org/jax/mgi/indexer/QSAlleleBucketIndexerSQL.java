@@ -123,6 +123,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		if ((term == null) && (doc.containsKey(IndexConstants.QS_SEARCH_TERM_STEMMED))) {
 			term = ((String) doc.getFieldValue(IndexConstants.QS_SEARCH_TERM_STEMMED)).toLowerCase();
 		}
+		if ((term == null) && (doc.containsKey(IndexConstants.QS_SEARCH_TERM_INEXACT))) {
+			term = ((String) doc.getFieldValue(IndexConstants.QS_SEARCH_TERM_INEXACT)).toLowerCase();
+		}
 		
 		if ((term != null) && !indexedTerms.get(primaryID).contains(term)) {
 			docs.add(doc);
