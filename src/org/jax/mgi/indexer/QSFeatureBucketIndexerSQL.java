@@ -697,6 +697,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					else if (termType.contains("name")) {
 						weight = ORTHOLOG_NAME_WEIGHT;
 						addDoc(buildDoc(feature, null, null, termLower, term, termType, weight));
+						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
 					}
 					else if (termType.contains("synonym")) {
 						weight = ORTHOLOG_SYNONYM_WEIGHT;

@@ -325,6 +325,7 @@ public class QSExpressionFacetToolkit {
 			+ "  where ers.marker_key = eh.marker_key "
 			+ "  and ers.structure_key = emaps.term_key "
 			+ "  and ers.is_wild_type = 1 "
+			+ "  and ers.is_expressed = 'Yes' "
 			+ "  and emaps.header = eh.header)";
 
 		ex.executeUpdate(cmd);

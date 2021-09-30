@@ -817,6 +817,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				if (first) {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 					addDoc(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+
+					// Handle inexact (wildcard) matching with parts of both gene and allele symbols.
+					addDoc(buildDoc(allele, null, piece.replaceAll("<",  "").replaceAll(">", ""), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 					first = false;
 				} else {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
