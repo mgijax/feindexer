@@ -703,6 +703,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						weight = ORTHOLOG_SYNONYM_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
 						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
+
+						// Strip out hyphens to aid wildcard matching (like R-PTP-N) in inexact field.
+						addDoc(buildDoc(feature, null, termLower.replaceAll("-", ""), null, term, termType, weight));
+
+						// Index pieces of the synonym separately.
 						for (String part : this.getParts(termLower)) {
 							addDoc(buildDoc(feature, null, part, null, term, termType, ORTHOLOG_SYNONYM_PIECE_WEIGHT));
 						}
@@ -814,6 +819,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				for (String synonym : mySynonyms.get(featureKey)) {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
+
+					// Strip out hyphens to aid wildcard matching (like R-PTP-N) in inexact field.
+					addDoc(buildDoc(feature, null, synonym.replaceAll("-", ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
+
 					for (String part : this.getParts(synonym)) {
 						addDoc(buildDoc(feature, part, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 
