@@ -664,13 +664,15 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		long startSeqNum = seqNum;
 		
+		// Primary ID will be the MGI ID; any non-MGI IDs will come back in acc_id field.  (null if
+		// no non-MGI IDs)  Note that there is--at most--one secondary ID for each image.
 		String cmd = "select replace(i.image_class, 'Phenotypes', 'Phenotype') as image_type, " +
 			"  i.mgi_id, d.logical_db, d.acc_id, s.by_default " + 
-			"from image i, image_sequence_num s, image_id d " + 
+			"from image i " +
+			"inner join image_sequence_num s on (i.image_key = s.image_key) " + 
+			"left outer join image_id d on (i.image_key = d.image_key " + 
+			"  and d.logical_db not like 'MGI%') " + 
 			"where i.image_class in ('Expression', 'Phenotypes') " + 
-			"  and i.image_key = s.image_key " + 
-			"  and i.image_key = d.image_key " + 
-			"  and d.logical_db != 'MGI Image Archive' " + 
 			"order by s.by_default, d.acc_id";
 		
 		String lastPrimaryID = "";
@@ -680,34 +682,39 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
 		while (rs.next())  {  
-			String primaryID = rs.getString("mgi_id");
+			String mgiID = rs.getString("mgi_id");
+			String secondaryID = rs.getString("acc_id");
 			
-			// If we have a new primary ID, then we have a new image.  We'll need a new DocBuilder.
-			if (!lastPrimaryID.equals(primaryID)) {
-				image = new DocBuilder(primaryID, primaryID, rs.getString("image_type") + " Image", null,
-					"/image/" + primaryID);
+			// If we have a new MGI ID, then we have a new image.  We'll need a new DocBuilder.
+			if (!lastPrimaryID.equals(mgiID)) {
+				if (secondaryID == null) {
+					image = new DocBuilder(mgiID, mgiID, rs.getString("image_type") + " Image", null,
+						"/image/" + mgiID);
+				} else {
+					image = new DocBuilder(mgiID, secondaryID, rs.getString("image_type") + " Image", null,
+						"/image/" + mgiID);
+				}
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(image, primaryID, getDisplayValue("MGI", primaryID),
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+				this.buildAndAddDocument(image, mgiID, getDisplayValue("MGI", mgiID),
+					"ID", PRIMARY_ID_WEIGHT, mgiID, seqNum++);
 
-				lastPrimaryID = primaryID;
+				lastPrimaryID = mgiID;
 				gc();
 			}
 
-			// Also index the other ID if it differs from the primary.
-			String otherID = rs.getString("acc_id");
-			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(image, otherID, getDisplayValue(rs.getString("logical_db"), otherID),
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			// Also index the other ID if non-null.
+			if (secondaryID != null) {
+				this.buildAndAddDocument(image, secondaryID, getDisplayValue(rs.getString("logical_db"), secondaryID),
+					"ID", SECONDARY_ID_WEIGHT, mgiID, seqNum);
 				
 				// For GenePaint IDs, we also want to index them without the pane number after a slash.  And,
 				// since GenePaint IDs are not primary IDs, so we can just do it here in the secondary ID section.
 				// (They are also the only image IDs containing slashes.)
-				if ((otherID.indexOf('/') >= 0) && ("GenePaint".equals(rs.getString("logical_db")))) {
-					String gpID = otherID.split("/")[0];
+				if ((secondaryID.indexOf('/') >= 0) && ("GenePaint".equals(rs.getString("logical_db")))) {
+					String gpID = secondaryID.split("/")[0];
 					this.buildAndAddDocument(image, gpID, getDisplayValue(rs.getString("logical_db"), gpID),
-						"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+						"ID", SECONDARY_ID_WEIGHT, mgiID, seqNum);
 				}
 			}
 		}
