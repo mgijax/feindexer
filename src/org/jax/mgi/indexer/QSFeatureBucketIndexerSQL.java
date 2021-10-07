@@ -688,24 +688,26 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					if (termType.contains("symbol")) {
 						weight = ORTHOLOG_SYMBOL_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
-						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
+						addDocUnchecked(buildDoc(feature, null, termLower, null, term, termType, weight));
 						for (String part : this.getParts(termLower)) {
 							addDoc(buildDoc(feature, part, null, null, term, termType, ORTHOLOG_SYMBOL_PIECE_WEIGHT));
-							addDoc(buildDoc(feature, null, part, null, term, termType, ORTHOLOG_SYMBOL_PIECE_WEIGHT));
+							addDocUnchecked(buildDoc(feature, null, part, null, term, termType, ORTHOLOG_SYMBOL_PIECE_WEIGHT));
 						}
 					}
 					else if (termType.contains("name")) {
 						weight = ORTHOLOG_NAME_WEIGHT;
 						addDoc(buildDoc(feature, null, null, termLower, term, termType, weight));
-						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
+						addDocUnchecked(buildDoc(feature, null, termLower, null, term, termType, weight));
 					}
 					else if (termType.contains("synonym")) {
 						weight = ORTHOLOG_SYNONYM_WEIGHT;
 						addDoc(buildDoc(feature, termLower, null, null, term, termType, weight));
-						addDoc(buildDoc(feature, null, termLower, null, term, termType, weight));
+						addDocUnchecked(buildDoc(feature, null, termLower, null, term, termType, weight));
 
 						// Strip out hyphens to aid wildcard matching (like R-PTP-N) in inexact field.
-						addDoc(buildDoc(feature, null, termLower.replaceAll("-", ""), null, term, termType, weight));
+						if (termLower.indexOf('-') >= 0) {
+							addDoc(buildDoc(feature, null, termLower.replaceAll("-", ""), null, term, termType, weight));
+						}
 
 						// Index pieces of the synonym separately.
 						for (String part : this.getParts(termLower)) {
@@ -818,16 +820,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				QSFeature feature = features.get(featureKey);
 				for (String synonym : mySynonyms.get(featureKey)) {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
-					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
+					addDocUnchecked(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
 
 					// Strip out hyphens to aid wildcard matching (like R-PTP-N) in inexact field.
-					addDoc(buildDoc(feature, null, synonym.replaceAll("-", ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
+					if (synonym.indexOf('-') >= 0) {
+						addDoc(buildDoc(feature, null, synonym.replaceAll("-", ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
+					}
 
 					for (String part : this.getParts(synonym)) {
 						addDoc(buildDoc(feature, part, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 
 						// Also include in the inexact field for wildcard matching.
-						addDoc(buildDoc(feature, null, part, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, part, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 					}
 				}
 			}

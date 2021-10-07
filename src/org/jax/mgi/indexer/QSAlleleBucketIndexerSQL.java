@@ -508,7 +508,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						addDoc(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 						
 						// Also use inexact field for wildcard matching.
-						addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 					}
 				}
 			}
@@ -539,7 +539,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						addDoc(buildDoc(feature, synonym, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
 						
 						// Also use inexact field for wildcard matching.
-						addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
 					}
 				}
 			}
@@ -802,11 +802,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 			if ((markerSymbol != null) && (!markerSymbol.equals(allele.symbol))) {
 				addDoc(buildDoc(allele, markerSymbol, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
-				addDoc(buildDoc(allele, null, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
+				addDocUnchecked(buildDoc(allele, null, markerSymbol, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_WEIGHT));
 				
 				for (String part : this.getParts(markerSymbol)) {
 					addDoc(buildDoc(allele, part, null, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_PIECE_WEIGHT));
-					addDoc(buildDoc(allele, null, part, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_PIECE_WEIGHT));
+					addDocUnchecked(buildDoc(allele, null, part, null, markerSymbol, "Marker Symbol", MARKER_SYMBOL_PIECE_WEIGHT));
 				}
 			}
 
@@ -816,7 +816,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			for (String piece : getAlleleSymbolPieces(allele.symbol)) {
 				if (first) {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
-					addDoc(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					addDocUnchecked(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 
 					// Handle inexact (wildcard) matching with parts of both gene and allele symbols.
 					addDoc(buildDoc(allele, null, piece.replaceAll("<",  "").replaceAll(">", ""), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
