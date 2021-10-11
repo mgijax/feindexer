@@ -1214,8 +1214,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				}
 			}
 
-			// feature name
+			// feature name (stemmed and wildcard searching)
 			addDocUnchecked(buildDoc(feature, null, null, name, name, "Name", NAME_WEIGHT));
+			addDocUnchecked(buildDoc(feature, null, name, null, name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();

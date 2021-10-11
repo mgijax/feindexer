@@ -589,8 +589,10 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
 						if (!name.equals(term.getTerm())) {
 							addDoc(buildDoc(feature, null, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
+							addDoc(buildDoc(feature, null, name, null, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
 						} else {
 							addDoc(buildDoc(feature, null, null, name, term.getTerm(), prefix + dataType, nameWeight + directBoost));
+							addDoc(buildDoc(feature, null, name, null, term.getTerm(), prefix + dataType, nameWeight + directBoost));
 						}
 						i++;
 					}
@@ -607,6 +609,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
 						for (String synonym : synonyms) {
 							addDoc(buildDoc(feature, null, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
+							addDoc(buildDoc(feature, null, synonym, null, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
 							i++;
 						}
 					}
@@ -647,7 +650,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				out.add(symbol.replaceAll("<", "").replaceAll(">", ""));
 
 				// 3. match to just allele symbol, ignoring marker symbol and angle brackets
-				String justAllele = symbol.replaceAll(".*<", "").replaceAll(">.*", "");
+				// 3a. do likewise for tranasgenes (that use parentheses instead of angle brackets).
+				String justAllele = symbol.replaceAll(".*[<)]", "").replaceAll("[>)].*", "");
 				out.add(justAllele);
 
 				// 4. match delimited parts of the allele symbol (using non-alpha-numerics as delimiters)
@@ -819,11 +823,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					addDocUnchecked(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 
 					// Handle inexact (wildcard) matching with parts of both gene and allele symbols.
-					addDoc(buildDoc(allele, null, piece.replaceAll("<",  "").replaceAll(">", ""), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					addDoc(buildDoc(allele, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 					first = false;
 				} else {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
-					addDoc(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
+					addDocUnchecked(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
 				}
 			}
 				
@@ -835,11 +839,13 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			for (String part : tgParts) {
 				if (!"Tg".equals(part)) {
 					addDoc(buildDoc(allele, part, null, null, allele.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
+					addDoc(buildDoc(allele, null, part, null, allele.symbol, "Symbol", TRANSGENE_PART_WEIGHT));
 				}
 			}
 
 			// feature name
 			addDoc(buildDoc(allele, null, null, allele.name, allele.name, "Name", NAME_WEIGHT));
+			addDoc(buildDoc(allele, null, allele.name, null, allele.name, "Name", NAME_WEIGHT));
 		}
 
 		rs.close();
