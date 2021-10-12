@@ -824,6 +824,10 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 					// Handle inexact (wildcard) matching with parts of both gene and allele symbols.
 					addDoc(buildDoc(allele, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					if (piece.startsWith("Tg(")) {
+						addDoc(buildDoc(allele, null, piece.replace("Tg(", "").replaceAll("[<>()]",  ""), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+						addDoc(buildDoc(allele, null, piece.replace("Tg(", "").replaceAll("[<>(),]",  " ").replaceAll("[-]", " "), null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					}
 					first = false;
 				} else {
 					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
