@@ -605,7 +605,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		String cmd = "select g.primary_id " + 
 				"from genotype g " + 
-				"where exists (select 1 from hdp_annotation r where g.genotype_key = r.genotype_key) "+
+				"where exists (select 1 from genotype_to_annotation r where g.genotype_key = r.genotype_key) "+
 				"order by g.primary_id";
 		
 		DocBuilder term = null;
