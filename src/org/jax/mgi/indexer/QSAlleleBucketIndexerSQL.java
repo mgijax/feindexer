@@ -355,7 +355,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		String cmd = null;
 		
 		// Note that we do not consider the roll-up rules or expressed components.  We only consider
-		// disease annotations to mouse genotypes.
+		// disease annotations to mouse genotypes.  Exclude annotations for Cre transgenes.
 		cmd = "select distinct m.allele_key as allele_key, dm.disease_id  " + 
 			"from allele m, allele_to_genotype mtg, genotype t, disease_model dm " + 
 			"where m.allele_key = mtg.allele_key  " + 
@@ -363,6 +363,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and t.is_disease_model = 1  " + 
 			"and t.genotype_key = dm.genotype_key  " + 
 			"and dm.is_not_model = 0  " + 
+			"and not (m.allele_type = 'Transgenic' and m.symbol ilike '%-cre%') " +
 			"order by 1";
 
 		logger.info(" - indexing mouse disease annotations for alleles");
@@ -624,6 +625,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	// Index the MP terms for the given feature type.  Assumes caches are loaded.
 	private void indexMP() throws SQLException {
 		// Find the allele's genotype's annotations (with null qualifiers).
+		// Exclude MP annotations for Cre transgenes.
 		String cmd = "select distinct m.allele_key as allele_key, a.term_id as primary_id " + 
 			"from allele m, allele_to_genotype mtg, genotype_to_annotation gta, annotation a " + 
 			"where m.allele_key = mtg.allele_key " + 
@@ -631,6 +633,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and gta.annotation_key = a.annotation_key " + 
 			"and a.qualifier is null " + 
 			"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
+			"and not (m.allele_type = 'Transgenic' and m.symbol ilike '%-cre%') " +
 			"order by m.allele_key";
 
 		indexAnnotations("Phenotype", cmd, mpOntologyCache, MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT);
