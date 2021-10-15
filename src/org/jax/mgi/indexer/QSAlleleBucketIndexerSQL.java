@@ -364,6 +364,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and t.genotype_key = dm.genotype_key  " + 
 			"and dm.is_not_model = 0  " + 
 			"and not (m.allele_type = 'Transgenic' and m.symbol ilike '%-cre%') " +
+			"and not (m.allele_type = 'Targeted' and m.symbol ilike '%(cre)%') " +
+			"and not (m.allele_type = 'Transgenic' and m.symbol ilike '%-icre%') " +
 			"order by 1";
 
 		logger.info(" - indexing mouse disease annotations for alleles");
@@ -634,6 +636,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			"and a.qualifier is null " + 
 			"and a.annotation_type = 'Mammalian Phenotype/Genotype' " + 
 			"and not (m.allele_type = 'Transgenic' and m.symbol ilike '%-cre%') " +
+			"and not (m.allele_type = 'Targeted' and m.symbol ilike '%(cre)%') " +
+			"and not (m.allele_type = 'Transgenic' and m.symbol ilike '%-icre%') " +
 			"order by m.allele_key";
 
 		indexAnnotations("Phenotype", cmd, mpOntologyCache, MP_NAME_WEIGHT, MP_ID_WEIGHT, MP_SYNONYM_WEIGHT);
