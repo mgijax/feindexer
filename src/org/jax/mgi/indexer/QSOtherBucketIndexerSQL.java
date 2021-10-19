@@ -430,6 +430,63 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		return markers;
 	}
 	
+	/* Get a cache of facets (high-level slim terms) for various filterable fields.
+	 */
+	private Map<String,Set<String>> getFacetValues(String dagAbbrev) throws Exception {
+		Map<String,Set<String>> keyToFacets = new HashMap<String,Set<String>>();
+		String cmd = null;
+
+		// Maps from homology cluster key to the feature types associated with the mouse marker
+		// in the cluster.  If a cluster has no mouse markers, it will not be considered.  Assumes
+		// each cluster has (at most) one mouse marker.
+		if ("Feature Type".equals(dagAbbrev)) {
+			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
+					"  from term t, term_ancestor a " + 
+					"  where t.vocab_name = 'Marker Category' " + 
+					"    and t.term_key = a.term_key " + 
+					"    and a.ancestor_term != 'other feature type' " + 
+					"    and a.ancestor_term != 'other genome feature' " + 
+					"    and a.ancestor_term != 'all feature types' " + 
+					"), " + 
+					"mouse_markers as (select hc.cluster_key, m.marker_key " + 
+					"  from marker m, homology_cluster_organism_to_marker otm, " + 
+					"    homology_cluster_organism o, homology_cluster hc " + 
+					"  where m.organism = 'mouse' " + 
+					"    and m.marker_key = otm.marker_key " + 
+					"    and otm.cluster_organism_key = o.cluster_organism_key " + 
+					"    and o.cluster_key = hc.cluster_key " + 
+					"    and hc.source = 'Alliance Direct' " +
+					") " +
+					"select mm.cluster_key as object_key, m.marker_subtype as term " + 
+					"from marker m, mouse_markers mm " + 
+					"where m.organism = 'mouse' " + 
+					"  and m.status != 'withdrawn' " + 
+					"  and m.marker_key = mm.marker_key " +
+					"union " + 
+					"select mm.cluster_key as object_key, a.ancestor_term as term " + 
+					"from marker m, ancestors a, mouse_markers mm " + 
+					"where m.marker_subtype = a.term " + 
+					"  and m.organism = 'mouse' " + 
+					"  and m.marker_key = mm.marker_key " +
+					"  and m.status != 'withdrawn'";
+		}
+		
+		if (cmd != null) {
+			ResultSet rs = ex.executeProto(cmd, cursorLimit);
+			while (rs.next()) {
+				String key = rs.getString("object_key");
+				
+				if (!keyToFacets.containsKey(key)) {
+					keyToFacets.put(key, new HashSet<String>());
+				}
+				keyToFacets.get(key).add(rs.getString("term"));
+			}
+			rs.close();
+			logger.info("Collected " + dagAbbrev + " facets for " + keyToFacets.size() + " objects");
+		}
+		return keyToFacets;
+	}
+	
 	/* Add documents to the index for homology clusters. There are currently almost 21,000 of these.  These have
 	 * no IDs of their own, but should be returned by non-mouse marker IDs.  For OMIM IDs, we should index both
 	 * with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)" suffix that can be removed.
@@ -438,6 +495,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		logger.info(" - indexing homology clusters");
 		
 		Map<String, String> mouseMarkers = this.getMarkersForClusters();
+		Map<String, Set<String>> markerTypes = this.getFacetValues("Feature Type");
+
 		long startSeqNum = seqNum;
 		
 		String cmd = "select c.cluster_key, ct.mouse_marker_count, ct.human_marker_count, " + 
@@ -469,6 +528,12 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				description = this.getHomologyClassDescription(primaryID, mouseMarkers, rs.getInt("mouse_marker_count"),
 					rs.getInt("human_marker_count"), rs.getInt("rat_marker_count"), rs.getInt("zebrafish_marker_count"));
 				cluster = new DocBuilder(primaryID, description, "Homology", null, "/homology/cluster/key/" + primaryID);
+				
+				// If we have a mouse marker, then we can filter this cluster by mouse Feature Type.  Look it up and
+				// add it to the DocBuilder.
+				if (markerTypes.containsKey(primaryID)) {
+					cluster.setMarkerTypeFacets(markerTypes.get(primaryID));
+				}
 				
 				seqNum++;
 				lastPrimaryID = primaryID;
@@ -830,6 +895,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		private String objectType;
 		private String objectSubType;
 		private String detailUri;
+		public Set<String> markerTypeFacets;
 		
 		private DocBuilder (String primaryID, String name, String objectType, String objectSubType, String detailUri) {
 			this.primaryID = primaryID;
@@ -839,6 +905,10 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			this.detailUri = detailUri;
 		}
 		
+		public void setMarkerTypeFacets(Set<String> markerTypeFacets) {
+			this.markerTypeFacets = markerTypeFacets;
+		}
+
 		// compose and return a new SolrInputDocument including the fields for this feature
 		public SolrInputDocument getNewDocument() {
 			SolrInputDocument doc = new SolrInputDocument();
@@ -848,6 +918,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			if (this.objectType != null) { doc.addField(IndexConstants.QS_OBJECT_TYPE, this.objectType); }
 			if (this.objectSubType != null) { doc.addField(IndexConstants.QS_OBJECT_SUBTYPE, this.objectSubType); }
 			if (this.detailUri != null) { doc.addField(IndexConstants.QS_DETAIL_URI, this.detailUri); }
+			if (this.markerTypeFacets != null) { doc.addField(IndexConstants.QS_MARKER_TYPE_FACETS, this.markerTypeFacets); }
 
 			return doc;
 		}
