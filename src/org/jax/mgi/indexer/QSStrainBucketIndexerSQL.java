@@ -114,7 +114,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
 			
-			if (strains.containsKey(primaryID)) {
+			if (strains.containsKey(primaryID) && (id != null) && (logicalDB != null)) {
 				QSStrain qst = strains.get(primaryID);
 
 				if (!id.equals(primaryID)) {
