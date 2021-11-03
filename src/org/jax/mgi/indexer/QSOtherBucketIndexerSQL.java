@@ -489,7 +489,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	
 	/* Add documents to the index for homology clusters. There are currently almost 21,000 of these.  These have
 	 * no IDs of their own, but should be returned by non-mouse marker IDs.  For OMIM IDs, we should index both
-	 * with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)" suffix that can be removed.
+	 * with and without the OMIM prefix.
 	 */
 	private void indexHomologyClasses() throws Exception {
 		logger.info(" - indexing homology clusters");
@@ -542,11 +542,6 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 			// Index the organism's ID.
 			String accID = rs.getString("acc_id");
-			
-			// tweak for some MyGene IDs
-			if (accID.endsWith(" (gene)")) {
-				accID = accID.replace(" (gene)", "");
-			}
 			
 			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
 				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);

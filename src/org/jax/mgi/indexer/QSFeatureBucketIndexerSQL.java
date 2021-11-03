@@ -336,7 +336,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"  marker m, homology_cluster hc " + 
 				"where h.organism != 'mouse' " + 
 				"and h.marker_key = ha.marker_key " + 
-				"and ha.logical_db != 'MyGene' " +
 				"and h.marker_key = hm.marker_key " + 
 				"and hm.cluster_organism_key = ho.cluster_organism_key " + 
 				"and ho.cluster_key = mo.cluster_key " + 

@@ -637,7 +637,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// load all marker IDs (for every organism)
 			String markerIdQuery="select marker_key, acc_id "
 					+ "from marker_id "
-					+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','MyGene','RIKEN Cluster','UniGene') ";
+					+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','RIKEN Cluster','UniGene') ";
 			markerAllIdMap = populateLookup(markerIdQuery,"marker_key","acc_id","marker keys to IDs");
 
 			logger.info("Finished loading IDs for " + markerAllIdMap.size() + " markers" + Timer.getElapsedMessage());

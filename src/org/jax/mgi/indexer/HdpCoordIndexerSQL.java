@@ -70,8 +70,7 @@ public class HdpCoordIndexerSQL extends Indexer {
 	
 	/* Add documents to the index for non-mouse markers in homology clusters. These IDs for non-mouse markers should also
 	 * return a non-mouse marker line (in addition to the Homology class line), which will give symbol and name.
-	 * For OMIM IDs, we should index both with and without the OMIM prefix.  For MyGene IDs there may be a "(gene)"
-	 * suffix that can be removed.
+	 * For OMIM IDs, we should index both with and without the OMIM prefix.
 	 */
 	private void indexCoords() throws Exception {
 		logger.info(" - indexing coordinates for markers");
