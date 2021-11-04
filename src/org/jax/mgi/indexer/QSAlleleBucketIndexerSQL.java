@@ -32,6 +32,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static String MARKER = "marker";	// used to indicate we are currently working with markers
 	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
+	// weight to move alleles with transmission in mouse lines up over those that only have transmission
+	// in cell lines
+	private static int GERMLINE_TRANSMISSION = 6000;
+	private static int OTHER_TRANSMISSION = 3000;
+	private static int CELL_LINE_TRANSMISSION = 0;
+
 	// weights to prioritize different types of search terms / IDs
 	private static int LOCATION_WEIGHT = 1500;
 	private static int PRIMARY_ID_WEIGHT = 1000;
@@ -169,7 +175,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		}
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
-		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight + allele.transmissionTypeBoost);
 		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
 		return doc;
 	}
@@ -188,7 +194,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 		doc.addField(IndexConstants.QS_SEARCH_TERM_DISPLAY, searchTermDisplay);
 		doc.addField(IndexConstants.QS_SEARCH_TERM_TYPE, searchTermType);
-		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight);
+		doc.addField(IndexConstants.QS_SEARCH_TERM_WEIGHT, searchTermWeight + allele.transmissionTypeBoost);
 		doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
 		return doc;
 	}
@@ -759,7 +765,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
 		String cmd = "select a.allele_key as allele_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
-				"m.symbol as marker_symbol, m.name as marker_name, s.by_symbol " +
+				"m.symbol as marker_symbol, m.name as marker_name, s.by_symbol, lower(a.transmission_type) as transmission_type " +
 			"from allele a " +
 			"inner join allele_sequence_num s on (a.allele_key = s.allele_key) " +
 			"left outer join marker_to_allele mta on (a.allele_key = mta.allele_key) " +
@@ -784,6 +790,17 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			allele.symbol = rs.getString("symbol");
 			allele.alleleType = rs.getString("subtype");
 			allele.sequenceNum = rs.getLong("by_symbol");
+			
+			if ("germline".equals(rs.getString("transmission_type"))) {
+				logger.info(allele.symbol + " : germline");
+				allele.transmissionTypeBoost = GERMLINE_TRANSMISSION;
+			} else if ("cell line".equals(rs.getString("transmission_type"))) {
+				logger.info(allele.symbol + " : cell line");
+				allele.transmissionTypeBoost = CELL_LINE_TRANSMISSION;
+			} else {
+				logger.info(allele.symbol + " : other");
+				allele.transmissionTypeBoost = OTHER_TRANSMISSION;
+			}
 			
 			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
 			// from the index does not get displayed.
@@ -1094,6 +1111,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		public Set<String> diseaseFacets;
 		public Set<String> phenotypeFacets;
 		public Set<String> markerTypeFacets;
+		public Integer transmissionTypeBoost;
 
 		// constructor
 		public QSAllele(Integer alleleKey) {
