@@ -79,11 +79,12 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	}
 	
 	// Build and return a new SolrInputDocument with the given fields filled in.
-	private SolrInputDocument buildDoc(QSStrain strain, String exactTerm, String stemmedTerm, String searchTermDisplay,
+	private SolrInputDocument buildDoc(QSStrain strain, String exactTerm, String inexactTerm, String stemmedTerm, String searchTermDisplay,
 			String searchTermType, Integer searchTermWeight) {
 
 		SolrInputDocument doc = strain.getNewDocument();
 		if (exactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_EXACT, exactTerm); }
+		if (inexactTerm != null) { doc.addField(IndexConstants.QS_SEARCH_TERM_INEXACT, inexactTerm); }
 		if (stemmedTerm != null) {
 			doc.addField(IndexConstants.QS_SEARCH_TERM_STEMMED, stemmer.stemAll(stopwordRemover.remove(stemmedTerm)));
 	 	}
@@ -118,9 +119,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 				QSStrain qst = strains.get(primaryID);
 
 				if (!id.equals(primaryID)) {
-					addDoc(buildDoc(qst, id, null, id, logicalDB, SECONDARY_ID_WEIGHT));
+					addDoc(buildDoc(qst, id, null, null, id, logicalDB, SECONDARY_ID_WEIGHT));
 				} else {
-					addDoc(buildDoc(qst, id, null, id, logicalDB, PRIMARY_ID_WEIGHT));
+					addDoc(buildDoc(qst, id, null, null, id, logicalDB, PRIMARY_ID_WEIGHT));
 				}
 			}
 		}
@@ -129,6 +130,13 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " IDs");
 	}
 
+	/* Return 's' except that with any non-alphanumeric characters replaced with spaces.
+	 */
+	private String justAlphanumerics(String s) {
+		if (s == null) { return ""; }
+		return s.replaceAll("[^A-Za-z0-9]", " ").replaceAll("[ ]+", " ");
+	}
+	
 	/* Load all synonyms, build docs, and send to Solr.
 	 */
 	private void indexSynonyms() throws Exception {
@@ -150,14 +158,19 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			if (strains.containsKey(primaryID)) {
 				QSStrain qst = strains.get(primaryID);
 				if (synonym != null) {
-					// First index the synonym as an exact match.
-					addDoc(buildDoc(qst, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
+					// First index the synonym as an exact match.  And as inexact to allow for wildcards.
+					addDoc(buildDoc(qst, synonym, null, null, synonym, "Synonym", SYNONYM_WEIGHT));
+					addDoc(buildDoc(qst, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
+					addDoc(buildDoc(qst, null, justAlphanumerics(synonym), null, synonym, "Synonym", SYNONYM_WEIGHT));
 					
 					// Then convert the synonym into its component parts.  Index those parts for exact matching.
+					// And for inexact to allow for wildcards.
 					List<String> parts = asList(splitIntoIndexablePieces(synonym));
 					if (parts.size() > 1) {
 						for (String part : parts) {
-							addDoc(buildDoc(qst, part, null, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
+							addDoc(buildDoc(qst, part, null, null, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
+							addDoc(buildDoc(qst, null, part, null, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
+							addDoc(buildDoc(qst, null, justAlphanumerics(part), null, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
 						}
 					}
 
@@ -165,7 +178,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 					// assume those could be words.  Remove any stopwords, then index the others for stemmed
 					// matching.
 					for (String word : this.cullStopwords(this.cullNonWords(parts))) {
-						addDoc(buildDoc(qst, null, word, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
+						addDoc(buildDoc(qst, null, null, word, synonym, "Synonym", PARTIAL_SYNONYM_WEIGHT));
 					}
 				}
 			}
@@ -202,14 +215,17 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 				String symbol = fullSymbol.replaceAll("<", "").replaceAll(">", "");
 				QSStrain qst = strains.get(primaryID);
 				if (symbol != null) {
-					// First index the allele symbol as an exact match.
-					addDoc(buildDoc(qst, symbol, null, fullSymbol, "Allele Symbol", ALLELE_SYMBOL_WEIGHT));
+					// First index the allele symbol as an exact match.  And then allowing for wildcards.
+					addDoc(buildDoc(qst, symbol, null, null, fullSymbol, "Allele Symbol", ALLELE_SYMBOL_WEIGHT));
+					addDoc(buildDoc(qst, null, symbol, null, fullSymbol, "Allele Symbol", ALLELE_SYMBOL_WEIGHT));
 					
 					// Then convert the symbol into its component parts.  Index those parts for exact matching.
+					// And then for wildcard matching.
 					List<String> parts = asList(splitIntoIndexablePieces(fullSymbol));
 					if (parts.size() > 1) {
 						for (String part : parts) {
-							addDoc(buildDoc(qst, part, null, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+							addDoc(buildDoc(qst, part, null, null, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+							addDoc(buildDoc(qst, null, part, null, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
 						}
 					}
 
@@ -217,7 +233,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 					// assume those could be words.  Remove any stopwords, then index the others for stemmed
 					// matching.
 					for (String word : this.cullStopwords(this.cullNonWords(parts))) {
-						addDoc(buildDoc(qst, null, word, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
+						addDoc(buildDoc(qst, null, null, word, fullSymbol, "Allele Symbol", PARTIAL_ALLELE_SYMBOL_WEIGHT));
 					}
 				}
 			}
@@ -615,15 +631,24 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			
 			// now build and save our initial documents for this strain
 
-			addDoc(buildDoc(qst, qst.primaryID, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
+			addDoc(buildDoc(qst, qst.primaryID, null, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
 
 			// Index the strain name as an exact match, then also its individual parts for exact matches.
-			addDoc(buildDoc(qst, qst.name, null, qst.name, "Name", NAME_WEIGHT));
+			// And do all for inexact (wildcard) matching as well.
+			if ((qst.name != null) && (qst.name.trim().length() > 0)) {
+				addDoc(buildDoc(qst, qst.name, null, null, qst.name, "Name", NAME_WEIGHT));
+				addDoc(buildDoc(qst, null, qst.name, null, qst.name, "Name", NAME_WEIGHT));
+				addDoc(buildDoc(qst, null, justAlphanumerics(qst.name), null, qst.name, "Name", NAME_WEIGHT));
+			}
 
 			List<String> parts = asList(splitIntoIndexablePieces(qst.name));
 			if (parts.size() > 1) {
 				for (String part : parts) {
-					addDoc(buildDoc(qst, part, null, qst.name, "Name", PARTIAL_NAME_WEIGHT));
+					if ((part != null) && (part.trim().length() > 0)) {
+						addDoc(buildDoc(qst, part, null, null, qst.name, "Name", PARTIAL_NAME_WEIGHT));
+						addDoc(buildDoc(qst, null, part, null, qst.name, "Name", PARTIAL_NAME_WEIGHT));
+						addDoc(buildDoc(qst, null, justAlphanumerics(part), null, qst.name, "Name", PARTIAL_NAME_WEIGHT));
+					}
 				}
 			}
 		}
