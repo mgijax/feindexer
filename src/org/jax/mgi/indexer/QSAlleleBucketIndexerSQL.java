@@ -32,12 +32,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static String MARKER = "marker";	// used to indicate we are currently working with markers
 	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
-	// weight to move alleles with transmission in mouse lines up over those that only have transmission
-	// in cell lines
-	private static int GERMLINE_TRANSMISSION = 12000;
-	private static int NOT_APPLICABLE_TRANSMISSION = 9000;
-	private static int CHIMERIC_TRANSMISSION = 6000;
-	private static int NOT_SPECIFIED_TRANSMISSION = 3000;
+	// weight to move alleles with transmission only in cell lines down below (within a star tier) those that
+	// only have transmission in cell lines
+	private static int OTHER_TRANSMISSION = 6000;
 	private static int CELL_LINE_TRANSMISSION = 0;
 
 	// weights to prioritize different types of search terms / IDs
@@ -794,16 +791,10 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			allele.sequenceNum = rs.getLong("by_symbol");
 			
 			String transmissionType = rs.getString("transmission_type");
-			if ("germline".equals(transmissionType)) {
-				allele.transmissionTypeBoost = GERMLINE_TRANSMISSION;
-			} else if ("cell line".equals(transmissionType)) {
+			if ("cell line".equals(transmissionType)) {
 				allele.transmissionTypeBoost = CELL_LINE_TRANSMISSION;
-			} else if ("not applicable".equals(transmissionType)) {
-				allele.transmissionTypeBoost = NOT_APPLICABLE_TRANSMISSION;
-			} else if ("not specified".equals(transmissionType)) {
-				allele.transmissionTypeBoost = NOT_SPECIFIED_TRANSMISSION;
 			} else {
-				allele.transmissionTypeBoost = CHIMERIC_TRANSMISSION;
+				allele.transmissionTypeBoost = OTHER_TRANSMISSION;
 			}
 			
 			// NOTE: The feature name is currently picked up from the db and cached in the fewi, so this value
