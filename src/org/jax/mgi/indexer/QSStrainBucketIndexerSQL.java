@@ -695,7 +695,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			this.primaryID = primaryID;
 		}
 		
-		// compose and return a new SolrInputDocument including the fields for this feature
+		// compose and return a new SolrInputDocument including the fields for this strain
 		public SolrInputDocument getNewDocument() {
 			SolrInputDocument doc = new SolrInputDocument();
 
