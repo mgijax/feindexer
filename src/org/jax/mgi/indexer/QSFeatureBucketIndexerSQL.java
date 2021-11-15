@@ -47,22 +47,13 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int ORTHOLOG_NAME_WEIGHT = 950;
 	private static int ORTHOLOG_SYNONYM_WEIGHT = 900;
 	private static int ORTHOLOG_SYNONYM_PIECE_WEIGHT = 875;
-	private static int DISEASE_ID_WEIGHT = 850;
-	private static int DISEASE_NAME_WEIGHT = 800;
-	private static int DISEASE_SYNONYM_WEIGHT = 750;
 	private static int DISEASE_ORTHOLOG_WEIGHT = 700;
 	private static int GO_ID_WEIGHT = 650;
 	private static int GO_NAME_WEIGHT = 600;
 	private static int GO_SYNONYM_WEIGHT = 550;
-	private static int MP_ID_WEIGHT = 500;
-	private static int MP_NAME_WEIGHT = 450;
-	private static int MP_SYNONYM_WEIGHT = 400;
 	private static int EMAP_ID_WEIGHT = 350;
 	private static int EMAP_NAME_WEIGHT = 300;
 	private static int EMAP_SYNONYM_WEIGHT = 250;
-	private static int HPO_ID_WEIGHT = 200;
-	private static int HPO_NAME_WEIGHT = 150;
-	private static int HPO_SYNONYM_WEIGHT = 100;
 	
 	public static Map<Integer, QSFeature> features;			// marker key : QSFeature object
 
