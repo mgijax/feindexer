@@ -33,7 +33,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
 	// weight to move alleles with transmission only in cell lines down below (within a star tier) those that
-	// only have transmission in cell lines
+	// have transmission values
 	private static int OTHER_TRANSMISSION = 6000;
 	private static int CELL_LINE_TRANSMISSION = 0;
 
@@ -334,7 +334,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			String suffix = "";
 			
 			if ("MGI".equals(logicalDB)) {
-				logicalDB = prefix + "ID";
+				logicalDB = prefix + " ID";
 			} else if ("Sequence DB".equals(logicalDB)) {
 				suffix = " (GenBank, EMBL, DDBJ)";
 				logicalDB = "Sequence ID";
