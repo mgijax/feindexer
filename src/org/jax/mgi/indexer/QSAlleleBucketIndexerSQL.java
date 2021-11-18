@@ -32,8 +32,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static String MARKER = "marker";	// used to indicate we are currently working with markers
 	private static String ALLELE = "allele";	// used to indicate we are currently working with alleles
 
-	// weight to move alleles with transmission only in cell lines down below (within a star tier) those that
-	// have transmission values
+	// weight to move alleles with transmission only in cell lines down below (within a star tier) others
+	
 	private static int OTHER_TRANSMISSION = 6000;
 	private static int CELL_LINE_TRANSMISSION = 0;
 
@@ -510,11 +510,40 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
 					
+					// If the synonym is a single-letter word, then also index it as an exact match.  (Because
+					// single letter search strings are de-emphasized except for that bucket.)
+					if (synonym.trim().length() == 1) {
+						addDocUnchecked(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_WEIGHT));
+					}
+					
 					for (String part : this.getParts(synonym)) {
-						addDoc(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+						addDoc(buildDoc(feature, part, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
 						
 						// Also use inexact field for wildcard matching.
-						addDocUnchecked(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, part, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+					}
+					
+					// For synonyms that contain angle brackets (e.g.- look like an allele symbol), we must also
+					// process them in pieces like we do an allele symbol.  (code copied and modified from there)
+					if ((synonym.indexOf("<") >= 0) && (synonym.indexOf(">") > 0)) {
+						boolean first = true;
+						for (String piece : getAlleleSymbolPieces(synonym)) {
+							if (first) {
+								addDoc(buildDoc(feature, piece, null, null, synonym, "Synonym", SYNONYM_WEIGHT));
+								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Synonym", SYNONYM_WEIGHT));
+
+								// Handle inexact (wildcard) matching with parts of allele synonyms.
+								addDoc(buildDoc(feature, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
+								if (piece.startsWith("Tg(")) {
+									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>()]",  ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
+									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>(),]",  " ").replaceAll("[-]", " "), null, synonym, "Synonym", SYNONYM_WEIGHT));
+								}
+								first = false;
+							} else {
+								addDoc(buildDoc(feature, piece, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
+							}
+						}
 					}
 				}
 			}
@@ -542,10 +571,39 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
 					
 					for (String part : this.getParts(synonym)) {
-						addDoc(buildDoc(feature, synonym, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+						addDoc(buildDoc(feature, part, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
 						
 						// Also use inexact field for wildcard matching.
-						addDocUnchecked(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, part, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+					}
+
+					// If the synonym is a single-letter word, then also index it as an exact match.  (Because
+					// single letter search strings are de-emphasized except for that bucket.)
+					if (synonym.trim().length() == 1) {
+						addDocUnchecked(buildDoc(feature, synonym, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+					}
+					
+					// For synonyms that contain angle brackets (e.g.- look like an allele symbol), we must also
+					// process them in pieces like we do an allele symbol.  (code copied and modified from there)
+					if ((synonym.indexOf("<") >= 0) && (synonym.indexOf(">") > 0)) {
+						boolean first = true;
+						for (String piece : getAlleleSymbolPieces(synonym)) {
+							if (first) {
+								addDoc(buildDoc(feature, piece, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+
+								// Handle inexact (wildcard) matching with parts of allele synonyms.
+								addDoc(buildDoc(feature, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+								if (piece.startsWith("Tg(")) {
+									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>()]",  ""), null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>(),]",  " ").replaceAll("[-]", " "), null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+								}
+								first = false;
+							} else {
+								addDoc(buildDoc(feature, piece, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
+							}
+						}
 					}
 				}
 			}
