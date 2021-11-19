@@ -1202,6 +1202,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				for (String part : this.getParts(symbol)) {
 					addDocUnchecked(buildDoc(feature, null, part, null, symbol, "Symbol", SYMBOL_PIECE_WEIGHT));
 				}
+
+				// Add two special cases to accommodate robot traffic searching (in large numbers) by these strings.
+				addDocUnchecked(buildDoc(feature, symbol + " Mouse", null, null, symbol, "Symbol", SYMBOL_WEIGHT));
+				addDocUnchecked(buildDoc(feature, symbol + " Gene", null, null, symbol, "Symbol", SYMBOL_WEIGHT));
 			}
 
 			// feature name (stemmed and wildcard searching)
