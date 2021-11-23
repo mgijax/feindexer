@@ -13,6 +13,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.QSAccIDFormatter;
+import org.jax.mgi.shr.QSAccIDFormatterFactory;
 import org.jax.mgi.shr.VocabTerm;
 import org.jax.mgi.shr.VocabTermCache;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -86,6 +88,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	
 	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
+	private QSAccIDFormatterFactory idFactory = new QSAccIDFormatterFactory();
 	
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -332,22 +335,19 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			String logicalDB = rs.getString("logical_db");
 			String prefix = rs.getString("prefix");
 			String suffix = "";
+			QSAccIDFormatter idf = null;
 			
-			if ("MGI".equals(logicalDB)) {
-				logicalDB = prefix + " ID";
-			} else if ("Sequence DB".equals(logicalDB)) {
-				suffix = " (GenBank, EMBL, DDBJ)";
-				logicalDB = "Sequence ID";
+			if ("Sequence DB".equals(logicalDB)) {
+				idf = idFactory.getFormatter("Sequence", "Sequence", id);
 			} else if ("Cell Line".equals(prefix)){
-				suffix = " (" + logicalDB + ")";
-				logicalDB = prefix + " ID";
+				idf = idFactory.getFormatter("Cell Line", "Cell Line", id);
 			} else {
-				logicalDB = logicalDB + " ID";
+				idf = idFactory.getFormatter("Allele", logicalDB, id);
 			}
 
 			if (alleles.containsKey(alleleKey)) {
 				QSAllele feature = alleles.get(alleleKey);
-				addDoc(buildDoc(feature, id, null, null, id + suffix, logicalDB, SECONDARY_ID_WEIGHT));
+				addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -392,9 +392,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 				addDoc(buildDoc(feature, null, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
 
+				QSAccIDFormatter idf = null;
 				if (vt.getAllIDs() != null) {
 					for (String accID : vt.getAllIDs()) {
-						addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+						idf = idFactory.getFormatter("Disease Model", "Disease Model", accID, term, false);
+						addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), DISEASE_ID_WEIGHT));
 					}
 				}
 				
@@ -413,7 +415,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, null, term + " (subterm of " + ancestor.getTerm() + ", with ID "+ accID + ")", "Disease Model", DISEASE_ID_WEIGHT));
+							idf = idFactory.getFormatter("Disease Model", "Disease Model", accID, term, true);
+							addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), DISEASE_ID_WEIGHT));
 						}
 					}
 				
@@ -661,10 +664,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						i++;
 					}
 				
+					QSAccIDFormatter idf = null;
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
-							addDoc(buildDoc(feature, id, null, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight + directBoost));
+							idf = idFactory.getFormatter(dataType, dataType, id, term.getTerm(), false);
+							addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), idWeight + directBoost));
 							i++;
 						}
 					}
@@ -833,6 +838,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
+		QSAccIDFormatter idf = null;
 		int i = 0;		// counter and sequence number for terms
 		while (rs.next())  {  
 			i++;
@@ -871,7 +877,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
-			addDoc(buildDoc(allele, allele.primaryID, null, null, allele.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
+			idf = idFactory.getFormatter("Allele", "MGI", allele.primaryID);
+			addDoc(buildDoc(allele, allele.primaryID, null, null, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT));
 			
 			// For alleles, we also need to consider the nomenclature of each one's associated marker. (Marker name
 			// is already considered with the allele name.)  Both exact match and inexact (for wildcard matching).
