@@ -9,6 +9,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.QSAccIDFormatter;
+import org.jax.mgi.shr.QSAccIDFormatterFactory;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
 
@@ -39,6 +41,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 	private Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 	private long uniqueKey = 0;						// ascending counter of documents created
 	private long seqNum = 0;						// sort order for display of objects to users (absent boosting in fewi)
+	private QSAccIDFormatterFactory idFactory = new QSAccIDFormatterFactory();
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -96,16 +99,13 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		}
 	}
 	
-	/* get the provider string to appear after the ID itself in the Best Match column.
+	/* Tweak any logical database values as needed for display.
 	 */
-	private String getDisplayValue(String logicalDB, String accID) {
+	private String cleanLogicalDB (String logicalDB) {
 		if ("Sequence DB".equals(logicalDB)) {
-			logicalDB = "GenBank, EMBL, DDBJ";		// display hack
+			return "GenBank, EMBL, DDBJ";
 		}
-		if (accID.startsWith(logicalDB)) {
-			return accID;
-		}
-		return accID + " (" + logicalDB + ")";
+		return logicalDB;
 	}
 	
 	/* Add documents to the index for sequences and other objects that should also be returned
@@ -133,6 +133,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
+		QSAccIDFormatter idf = null;
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
 			
@@ -142,8 +143,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 					rs.getString("sequence_type"), "/sequence/" + primaryID);
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(seq, primaryID, this.getDisplayValue(rs.getString("primary_ldb"), primaryID),
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+				idf = idFactory.getFormatter("Sequence", cleanLogicalDB(rs.getString("primary_ldb")), primaryID);
+				this.buildAndAddDocument(seq, primaryID, idf.getMatchDisplay(), idf.getMatchType(),
+					PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 				lastPrimaryID = primaryID;
 				gc();
@@ -152,8 +154,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("other_id");
 			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				idf = idFactory.getFormatter("Sequence", cleanLogicalDB(rs.getString("other_ldb")), rs.getString("other_id"));
+				this.buildAndAddDocument(seq, otherID, idf.getMatchDisplay(), idf.getMatchType(),
+					SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
@@ -184,6 +187,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
 
+		QSAccIDFormatter idf = null;
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
 			
@@ -197,8 +201,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 			// Index the associated probe ID.
 			String otherID = rs.getString("acc_id");
-			this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
-				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			idf = idFactory.getFormatter("Sequence", cleanLogicalDB(rs.getString("other_ldb")), otherID);
+			this.buildAndAddDocument(seq, otherID, idf.getMatchDisplay(), idf.getMatchType(),
+				SECONDARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
@@ -227,6 +232,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -237,8 +243,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 					rs.getString("experiment_type"), "/mapping/" + primaryID);
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(expt, primaryID, this.getDisplayValue("MGI", primaryID),
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+				idf = idFactory.getFormatter("Mapping Experiment", rs.getString("primary_ldb"), primaryID);
+				this.buildAndAddDocument(expt, primaryID, idf.getMatchDisplay(), idf.getMatchType(),
+					PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 				lastPrimaryID = primaryID;
 				gc();
@@ -247,8 +254,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("other_id");
 			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(expt, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				idf = idFactory.getFormatter("Mapping Experiment", rs.getString("other_ldb"), otherID);
+				this.buildAndAddDocument(expt, otherID, idf.getMatchDisplay(), idf.getMatchType(), 
+					SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
@@ -276,6 +284,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -286,9 +295,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 					rs.getString("segment_type"), "/probe/" + primaryID);
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(probe, primaryID,
-					this.getDisplayValue(rs.getString("logical_db"), primaryID),
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+				idf = idFactory.getFormatter("Probe/Clone", rs.getString("logical_db"), primaryID);
+				this.buildAndAddDocument(probe, primaryID, idf.getMatchDisplay(), idf.getMatchType(),
+					PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 				lastPrimaryID = primaryID;
 				gc();
@@ -297,8 +306,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("acc_id");
 			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(probe, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				idf = idFactory.getFormatter("Probe/Clone", rs.getString("other_ldb"), otherID);
+				this.buildAndAddDocument(probe, otherID, idf.getMatchDisplay(), idf.getMatchType(),
+					SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
@@ -328,6 +338,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -344,8 +355,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 			// Now index the sequence IDs for the sequence.
 			String otherID = rs.getString("acc_id");
-			this.buildAndAddDocument(seq, otherID, this.getDisplayValue(rs.getString("other_ldb"), otherID),
-				"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			idf = idFactory.getFormatter("Sequence", cleanLogicalDB(rs.getString("other_ldb")), otherID);
+			this.buildAndAddDocument(seq, otherID, idf.getMatchDisplay(), idf.getMatchType(),
+				SECONDARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
@@ -518,6 +530,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("cluster_key");
@@ -543,14 +556,14 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Index the organism's ID.
 			String accID = rs.getString("acc_id");
 			
-			this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
-				"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
+			idf = idFactory.getFormatter("Homology", rs.getString("logical_db"), accID, organism);
+			this.buildAndAddDocument(cluster, accID, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT, primaryID, seqNum);
 			
 			// OMIM IDs also get a version without the prefix.
 			if (accID.startsWith("OMIM:")) {
 				accID = accID.replace("OMIM:", "");
-				this.buildAndAddDocument(cluster, accID, this.getDisplayValue(rs.getString("logical_db") + " - " + organism, accID),
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum);
+				idf = idFactory.getFormatter("Homology", rs.getString("logical_db"), accID, organism);
+				this.buildAndAddDocument(cluster, accID, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
@@ -578,6 +591,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -588,8 +602,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 					"/vocab/gxd/ma_ontology/" + primaryID);
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(term, primaryID, primaryID + " (Adult Mouse Anatomy)",
-					"ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+				idf = idFactory.getFormatter("Adult Mouse Anatomy", "Adult Mouse Anatomy", primaryID);
+				this.buildAndAddDocument(term, primaryID, idf.getMatchDisplay(), idf.getMatchType(),
+					PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 				lastPrimaryID = primaryID;
 				gc();
@@ -598,8 +613,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("acc_id");
 			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(term, otherID, otherID + " (Adult Mouse Anatomy)",
-					"ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				idf = idFactory.getFormatter("Adult Mouse Anatomy", "Adult Mouse Anatomy", otherID);
+				this.buildAndAddDocument(term, otherID, idf.getMatchDisplay(), idf.getMatchType(),
+					SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
@@ -628,6 +644,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -638,7 +655,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 					"/reference/" + primaryID);
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(ref, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+				idf = idFactory.getFormatter("Reference", "MGI", primaryID);
+				this.buildAndAddDocument(ref, primaryID, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 				lastPrimaryID = primaryID;
 				gc();
@@ -647,7 +665,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			// Also index the other ID if it differs from the primary.
 			String otherID = rs.getString("acc_id");
 			if (!primaryID.equals(otherID)) {
-				this.buildAndAddDocument(ref, otherID, otherID, "ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+				idf = idFactory.getFormatter("Reference", rs.getString("logical_db"), rs.getString("acc_id"));
+				this.buildAndAddDocument(ref, otherID, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT, primaryID, seqNum);
 			}
 		}
 
@@ -672,13 +691,15 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
 			
 			term = new DocBuilder(primaryID, primaryID, "Genotype", null, "/accession/" + primaryID);
 				
-			this.buildAndAddDocument(term, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+			idf = idFactory.getFormatter("Genotype", "MGI", primaryID);
+			this.buildAndAddDocument(term, primaryID, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 			gc();
 		}
 
@@ -701,13 +722,15 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
 			
 			antibody = new DocBuilder(primaryID, rs.getString("name"), "Antibody", null, "/antibody/" + primaryID);
 				
-			this.buildAndAddDocument(antibody, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+			idf = idFactory.getFormatter("Antibody", "MGI", primaryID);
+			this.buildAndAddDocument(antibody, primaryID, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 			gc();
 		}
@@ -740,6 +763,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String mgiID = rs.getString("mgi_id");
@@ -756,8 +780,9 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				}
 				
 				// Index the primary ID.
-				this.buildAndAddDocument(image, mgiID, getDisplayValue("MGI", mgiID),
-					"ID", PRIMARY_ID_WEIGHT, mgiID, seqNum++);
+				idf = idFactory.getFormatter("Image", "MGI", mgiID);
+				this.buildAndAddDocument(image, mgiID, idf.getMatchDisplay(), idf.getMatchType(),
+					PRIMARY_ID_WEIGHT, mgiID, seqNum++);
 
 				lastPrimaryID = mgiID;
 				gc();
@@ -765,16 +790,18 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 
 			// Also index the other ID if non-null.
 			if (secondaryID != null) {
-				this.buildAndAddDocument(image, secondaryID, getDisplayValue(rs.getString("logical_db"), secondaryID),
-					"ID", SECONDARY_ID_WEIGHT, mgiID, seqNum);
+				idf = idFactory.getFormatter("Image", rs.getString("logical_db"), secondaryID);
+				this.buildAndAddDocument(image, secondaryID, idf.getMatchDisplay(), idf.getMatchType(),
+					SECONDARY_ID_WEIGHT, mgiID, seqNum);
 				
 				// For GenePaint IDs, we also want to index them without the pane number after a slash.  And,
 				// since GenePaint IDs are not primary IDs, so we can just do it here in the secondary ID section.
 				// (They are also the only image IDs containing slashes.)
 				if ((secondaryID.indexOf('/') >= 0) && ("GenePaint".equals(rs.getString("logical_db")))) {
 					String gpID = secondaryID.split("/")[0];
-					this.buildAndAddDocument(image, gpID, getDisplayValue(rs.getString("logical_db"), gpID),
-						"ID", SECONDARY_ID_WEIGHT, mgiID, seqNum);
+					idf = idFactory.getFormatter("Image", rs.getString("logical_db"), gpID);
+					this.buildAndAddDocument(image, gpID, idf.getMatchDisplay(), idf.getMatchType(),
+						SECONDARY_ID_WEIGHT, mgiID, seqNum);
 				}
 			}
 		}
@@ -796,6 +823,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -804,7 +832,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 				"Expression Assay", null, "/assay/" + primaryID);
 				
 			// Index the primary ID.
-			this.buildAndAddDocument(assay, primaryID, primaryID, "ID", PRIMARY_ID_WEIGHT, primaryID, seqNum++);
+			idf = idFactory.getFormatter("Expression Assay", "MGI", primaryID);
+			this.buildAndAddDocument(assay, primaryID, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT, primaryID, seqNum++);
 
 			gc();
 		}
@@ -831,6 +860,7 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		while (rs.next())  {  
 			String primaryID = rs.getString("primary_id");
@@ -845,7 +875,8 @@ public class QSOtherBucketIndexerSQL extends Indexer {
 			}
 
 			String otherID = rs.getString("acc_id");
-			this.buildAndAddDocument(experiment, otherID, otherID, "ID", SECONDARY_ID_WEIGHT, primaryID, seqNum);
+			idf = idFactory.getFormatter("RNA-Seq/Array Experiment", rs.getString("logical_db"), otherID);
+			this.buildAndAddDocument(experiment, otherID, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT, primaryID, seqNum);
 		}
 
 		rs.close();
