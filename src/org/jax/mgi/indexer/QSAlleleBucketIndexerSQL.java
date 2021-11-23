@@ -511,7 +511,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
 					
 					// If the synonym is a single-letter word, then also index it as an exact match.  (Because
-					// single letter search strings are de-emphasized except for that bucket.)
+					// single letter search strings are de-emphasized except for the exact fields.)
 					if (synonym.trim().length() == 1) {
 						addDocUnchecked(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_WEIGHT));
 					}
@@ -716,7 +716,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				out.add(symbol.replaceAll("<", "").replaceAll(">", ""));
 
 				// 3. match to just allele symbol, ignoring marker symbol and angle brackets
-				// 3a. do likewise for tranasgenes (that use parentheses instead of angle brackets).
+				// 3a. do likewise for transgenes (that use parentheses instead of angle brackets).
 				String justAllele = symbol.replaceAll(".*[<)]", "").replaceAll("[>)].*", "");
 				out.add(justAllele);
 
