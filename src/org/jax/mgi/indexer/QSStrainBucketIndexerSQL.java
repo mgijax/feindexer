@@ -16,6 +16,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.QSAccIDFormatter;
+import org.jax.mgi.shr.QSAccIDFormatterFactory;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
@@ -56,6 +58,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 	
 	private EasyStemmer stemmer = new EasyStemmer();
 	private StopwordRemover stopwordRemover = new StopwordRemover();
+	private QSAccIDFormatterFactory idFactory = new QSAccIDFormatterFactory();
 	
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -114,14 +117,15 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			String primaryID = rs.getString("primary_id");
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
+			QSAccIDFormatter idf = idFactory.getFormatter("Strain", logicalDB, id);
 			
 			if (strains.containsKey(primaryID) && (id != null) && (logicalDB != null)) {
 				QSStrain qst = strains.get(primaryID);
 
 				if (!id.equals(primaryID)) {
-					addDoc(buildDoc(qst, id, null, null, id, logicalDB, SECONDARY_ID_WEIGHT));
+					addDoc(buildDoc(qst, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
 				} else {
-					addDoc(buildDoc(qst, id, null, null, id, logicalDB, PRIMARY_ID_WEIGHT));
+					addDoc(buildDoc(qst, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT));
 				}
 			}
 		}
@@ -631,7 +635,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			
 			// now build and save our initial documents for this strain
 
-			addDoc(buildDoc(qst, qst.primaryID, null, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
+			// skip primary ID here, as we'll pick it up when we do IDs anyway
 
 			// Index the strain name as an exact match, then also its individual parts for exact matches.
 			// And do all for inexact (wildcard) matching as well.

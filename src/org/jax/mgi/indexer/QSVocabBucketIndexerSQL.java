@@ -4,6 +4,8 @@ import java.sql.ResultSet;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.fe.util.EasyStemmer;
 import org.jax.mgi.shr.fe.util.StopwordRemover;
+import org.jax.mgi.shr.QSAccIDFormatter;
+import org.jax.mgi.shr.QSAccIDFormatterFactory;
 import org.jax.mgi.shr.QSExpressionFacetToolkit;
 
 import java.util.ArrayList;
@@ -128,7 +130,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
 	private QSExpressionFacetToolkit toolkit = new QSExpressionFacetToolkit();
-
+	private QSAccIDFormatterFactory idFactory = new QSAccIDFormatterFactory();
+	
 	/*--------------------*/
 	/*--- constructors ---*/
 	/*--------------------*/
@@ -180,7 +183,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private void indexIDs(String vocabName) throws Exception {
 		logger.info(" - caching IDs for " + vocabName);
 
-		String cmd = "select distinct t.primary_id, i.logical_db, i.acc_id "
+		String cmd = "select distinct t.primary_id, i.logical_db, i.acc_id, t.display_vocab_name "
 			+ "from term t, term_id i "
 			+ "where t.vocab_name = '" + vocabName + "' "
 			+ "and t.term_key = i.term_key "
@@ -195,20 +198,23 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			String primaryID = rs.getString("primary_id");
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
+			String dagName = rs.getString("display_vocab_name");
 			
 			if (terms.containsKey(primaryID)) {
 				QSTerm qst = terms.get(primaryID);
+				QSAccIDFormatter idf = idFactory.getFormatter("Term", "Term", id);
 
 				if (!id.equals(primaryID)) {
-					addDoc(buildDoc(qst, id, null, id, logicalDB, SECONDARY_ID_WEIGHT));
+					addDoc(buildDoc(qst, id, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
 				} else {
-					addDoc(buildDoc(qst, id, null, id, logicalDB, PRIMARY_ID_WEIGHT));
+					addDoc(buildDoc(qst, id, null, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT));
 				}
 
 				// For OMIM IDs we also need to index them without the prefix.
 				if (id.startsWith("OMIM:")) {
 					String noPrefix = id.replaceAll("OMIM:", "");
-					addDoc(buildDoc(qst, noPrefix, null, noPrefix, logicalDB, SECONDARY_ID_WEIGHT));
+					QSAccIDFormatter idf2 = idFactory.getFormatter("Term", "Term", noPrefix);
+					addDoc(buildDoc(qst, noPrefix, null, idf2.getMatchDisplay(), idf2.getMatchType(), SECONDARY_ID_WEIGHT));
 				}
 			}
 		}
@@ -511,7 +517,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			
 			// now build and save our initial documents for this term
 
-			addDoc(buildDoc(qst, qst.primaryID, null, qst.primaryID, "ID", PRIMARY_ID_WEIGHT));
+			// any non-null primary IDs for terms will already be indexed when we do IDs, so skip them here
+
 			addDoc(buildDoc(qst, null, qst.term, qst.term, "Term", TERM_WEIGHT));
 
 			String definition = rs.getString("definition");
