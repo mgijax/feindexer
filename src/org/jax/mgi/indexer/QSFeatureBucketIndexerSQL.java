@@ -11,6 +11,8 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.QSAccIDFormatter;
+import org.jax.mgi.shr.QSAccIDFormatterFactory;
 import org.jax.mgi.shr.QSExpressionFacetToolkit;
 import org.jax.mgi.shr.VocabTerm;
 import org.jax.mgi.shr.VocabTermCache;
@@ -80,6 +82,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private StopwordRemover stopwordRemover = new StopwordRemover();
 	
 	private QSExpressionFacetToolkit toolkit = new QSExpressionFacetToolkit();
+	private QSAccIDFormatterFactory idFactory = new QSAccIDFormatterFactory();
 
 	/*--------------------*/
 	/*--- constructors ---*/
@@ -270,7 +273,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		// include both marker IDs and their related sequence IDs -- but exclude strain gene IDs, so
 		// we can do those in a separate method and format their Best Match output differently
-		String cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
+		String cmd = "select i.marker_key as feature_key, i.acc_id, i.logical_db " + 
 			"from marker m, marker_id i " + 
 			"where m.marker_key = i.marker_key " + 
 			"and m.status = 'official' " + 
@@ -278,13 +281,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			"and m.primary_id != i.acc_id " +
 			"and i.private = 0 " +
 			"union " +
-			"select mts.marker_key, i.acc_id, i.logical_db, 'Genome Feature' as prefix " + 
+			"select mts.marker_key, i.acc_id, i.logical_db " + 
 			"from marker_to_sequence mts, sequence_id i " + 
 			"where mts.sequence_key = i.sequence_key" +
 			" and i.logical_db not in ('MGI Strain Gene', 'Mouse Genome Project') " +
 			"order by 1";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		QSAccIDFormatter idf = null;
 
 		int ct = 0;							// count of IDs processed
 		while (rs.next()) {
@@ -292,21 +296,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			Integer featureKey = rs.getInt("feature_key");
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
-			String prefix = rs.getString("prefix");
-			String suffix = "";
 			
-			if ("MGI".contentEquals(logicalDB)) {
-				logicalDB = prefix + " ID";
-			} else if ("Cell Line".equals(prefix)){
-				suffix = " (" + logicalDB + ")";
-				logicalDB = prefix + " ID";
-			} else {
-				logicalDB = logicalDB + " ID";
-			}
-
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, id, null, null, id + suffix, logicalDB, SECONDARY_ID_WEIGHT));
+				idf = idFactory.getFormatter("Genome Feature", logicalDB, id);
+				addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -339,6 +333,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		QSAccIDFormatter idf = null;
 
 		int ct = 0;							// count of IDs processed
 		while (rs.next()) {
@@ -350,12 +345,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, orthologID, null, null, orthologID + " (" + organism + ")", logicalDB + " ID", ORTHOLOG_ID_WEIGHT));
+				idf = idFactory.getFormatter("Homology", logicalDB, orthologID, organism);
+				addDoc(buildDoc(feature, orthologID, null, null, idf.getMatchDisplay(), idf.getMatchType(), ORTHOLOG_ID_WEIGHT));
 
 				// For OMIM IDs we also need to index them without the prefix.
 				if (orthologID.startsWith("OMIM:")) {
 					String noPrefix = orthologID.replaceAll("OMIM:", "");
-					addDoc(buildDoc(feature, noPrefix, null, null, noPrefix + " (" + organism + ")", logicalDB + " ID", ORTHOLOG_ID_WEIGHT));
+					idf = idFactory.getFormatter("Homology", logicalDB, noPrefix, organism);
+					addDoc(buildDoc(feature, noPrefix, null, null, idf.getMatchDisplay(), idf.getMatchType(), ORTHOLOG_ID_WEIGHT));
 				}
 			}
 		}
@@ -409,6 +406,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - indexing human ortholog disease annotations");
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		QSAccIDFormatter idf = null;
 
 		int ct = 0;							// count of annotations processed
 		while (rs.next()) {
@@ -423,7 +421,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				addDoc(buildDoc(feature, null, null, term, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 				if (vt.getAllIDs() != null) {
 					for (String accID : vt.getAllIDs()) {
-						addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						idf = idFactory.getFormatter("Disease Ortholog", "Disease Ortholog", accID, term, false);
+						addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), DISEASE_ORTHOLOG_WEIGHT));
 					}
 				}
 				
@@ -442,7 +441,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
-							addDoc(buildDoc(feature, accID, null, null, term + " (subterm of " + ancTerm + ", with ID " + accID + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+							idf = idFactory.getFormatter("Disease Ortholog", "Disease Ortholog", accID, term, true);
+							addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), DISEASE_ORTHOLOG_WEIGHT));
 						}
 					}
 				
@@ -472,6 +472,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			"order by mta.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		QSAccIDFormatter idf = null;
 
 		int ct = 0;							// count of IDs processed
 		while (rs.next()) {
@@ -482,7 +483,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, accID, null, null, term + " (" + accID + ")", "Proteoform", PROTEOFORM_ID_WEIGHT));
+				idf = idFactory.getFormatter("Proteoform", "Proteoform", accID);
+				addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), PROTEOFORM_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -501,6 +503,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			"order by m.marker_key";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		QSAccIDFormatter idf = null;
 
 		int ct = 0;							// count of IDs processed
 		while (rs.next()) {
@@ -511,7 +514,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
-				addDoc(buildDoc(feature, sgID, null, null, sgID + " (" + logicalDB + ")", "Strain Gene ID", STRAIN_GENE_ID_WEIGHT));
+				idf = idFactory.getFormatter("Strain Gene", logicalDB, sgID);
+				addDoc(buildDoc(feature, sgID, null, null, idf.getMatchDisplay(), idf.getMatchType(), STRAIN_GENE_ID_WEIGHT));
 			}
 		}
 		rs.close();
@@ -840,6 +844,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		// counter of indexed items
 		int i = 0;
+		QSAccIDFormatter idf = null;
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		while (rs.next())  {  
@@ -879,7 +884,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
-							addDoc(buildDoc(feature, id, null, null, term.getTerm() + " (ID: " + id + ")", prefix + dataType, idWeight + directBoost));
+							idf = idFactory.getFormatter(dataType, dataType, id, term.getTerm(), (directBoost == 0));
+							addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), idWeight + directBoost));
 							i++;
 						}
 					}
@@ -945,12 +951,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		// For each ancestor in #3 and #4, we should check that they're not also in the direct annotation maps (#1 and #2).  If so, we
 		// can skip the ancestor data because it would just be skipped over anyway.
 		
+		QSAccIDFormatter idf = null;
+		
 		// #1 : emapsTerms (see above)
 		for (String emapsID : emapsTerms) {
 			VocabTerm term = emapsCache.getTerm(emapsID);
 
 			// only ID for EMAPS
-			addDocUnchecked(buildDoc(feature, emapsID, null, null, term.getTerm() + " (" + emapsID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+			String stage = term.getPrimaryID().substring(term.getPrimaryID().length() - 2);
+			idf = idFactory.getFormatter("Expression", "Expression", emapsID, term.getTerm(), false, stage);
+			addDocUnchecked(buildDoc(feature, emapsID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT + 1));
 		}
 		
 		// #2 : emapaDirect (see above)
@@ -962,7 +972,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			List<String> synonyms = term.getSynonyms();
 			
 			// ID, term name, synonyms for EMAPA
-			addDocUnchecked(buildDoc(feature, emapaID, null, null, "TS" + stage + ": " + name + " (ID: " + emapaID + ")", " Expression", EMAP_ID_WEIGHT + 1));
+			idf = idFactory.getFormatter("Expression", "Expression", emapaID, term.getTerm(), false, stage);
+			addDocUnchecked(buildDoc(feature, emapaID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT + 1));
 			addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
 			if (synonyms != null) {
 				for (String synonym : synonyms) {
@@ -979,8 +990,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				String stage = source.getPrimaryID().substring(source.getPrimaryID().length() - 2);
 				String name = term.getTerm();
 			
-				// only ID for EMAPS
-				addDocUnchecked(buildDoc(feature, emapsID, null, null, source.getTerm() + " (subterm of " + term.getPrimaryID() + ")", "Expression", EMAP_ID_WEIGHT));
+				// only ID for EMAPS (ancestors)
+				idf = idFactory.getFormatter("Expression", "Expression", emapsID, source.getTerm(), true, stage);
+				addDocUnchecked(buildDoc(feature, emapsID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT));
 			}
 		}
 
@@ -994,7 +1006,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				List<String> synonyms = term.getSynonyms();
 			
 				// ID, term name, synonyms for EMAPA
-				addDocUnchecked(buildDoc(feature, emapaID, null, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_ID_WEIGHT));
+				idf = idFactory.getFormatter("Expression", "Expression", emapaID, term.getTerm(), true, stage);
+				addDocUnchecked(buildDoc(feature, emapaID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT));
 				addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_NAME_WEIGHT));
 				if (synonyms != null) {
 					for (String synonym : synonyms) {
@@ -1148,7 +1161,6 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
 		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
 		
-		String prefix = "Genome Feature ";
 		features = new HashMap<Integer,QSFeature>();
 		
 		long padding = 0;	// amount of initial padding before sequence numbers should begin
@@ -1165,6 +1177,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished query in " + ex.getTimestamp());
+		QSAccIDFormatter idf = null;
 
 		int i = 0;		// counter and sequence number for terms
 		while (rs.next())  {  
@@ -1192,7 +1205,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
-			addDocUnchecked(buildDoc(feature, feature.primaryID, null, null, feature.primaryID, prefix + "ID", PRIMARY_ID_WEIGHT));
+			idf = idFactory.getFormatter("Feature", "MGI", feature.primaryID);
+			addDocUnchecked(buildDoc(feature, feature.primaryID, null, null, idf.getMatchDisplay(), idf.getMatchType(), PRIMARY_ID_WEIGHT));
 			
 			// Do not index transgene markers by symbol or synonyms.  (Their Tg alleles already get returned.)
 			// Also goes in the inexact field to allow for wildcard matches.
