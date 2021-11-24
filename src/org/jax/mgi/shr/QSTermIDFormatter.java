@@ -35,11 +35,11 @@ public class QSTermIDFormatter extends QSAccIDFormatter {
 		
 		if (isExpression(accID)) {
 			if (accID.startsWith("EMAPS")) {		// only include stage for EMAPS annotations
-				out = out + stage + ": ";
+				out = out + "TS" + stage + ": ";
 			}
 		}
 
-		out += term;
+		out = out + term;
 
 		if (isSubterm) {
 			out = out + " (ancestor term ID: " + accID + ")";

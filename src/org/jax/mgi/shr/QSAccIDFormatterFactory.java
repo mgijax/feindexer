@@ -42,6 +42,7 @@ public class QSAccIDFormatterFactory {
 			termFormatter.initialize(objectType, logicalDB, accID);
 			termFormatter.setIsSubterm(isSubterm);
 			termFormatter.setTheilerStage(theilerStage);
+			termFormatter.setTerm(term);
 			return termFormatter;
 		}
 
