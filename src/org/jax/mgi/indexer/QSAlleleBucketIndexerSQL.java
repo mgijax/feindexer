@@ -668,7 +668,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					List<String> termIDs = termToIndex.getAllIDs();
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
-							idf = idFactory.getFormatter(dataType, dataType, id, term.getTerm(), false);
+							idf = idFactory.getFormatter(dataType, dataType, id, term.getTerm(), (directBoost == 0));
 							addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), idWeight + directBoost));
 							i++;
 						}
