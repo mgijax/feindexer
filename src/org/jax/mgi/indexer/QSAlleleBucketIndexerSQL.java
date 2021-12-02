@@ -899,7 +899,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			boolean first = true;
 			for (String piece : getAlleleSymbolPieces(allele.symbol)) {
 				if (first) {
-					addDoc(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
+					// must be unchecked to accommodate alleles like "A" that match (even in a case-insensitive manner)
+					// their marker symbols
+					addDocUnchecked(buildDoc(allele, piece, null, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 					addDocUnchecked(buildDoc(allele, null, piece, null, allele.symbol, "Symbol", SYMBOL_WEIGHT));
 
 					// Handle inexact (wildcard) matching with parts of both gene and allele symbols.
