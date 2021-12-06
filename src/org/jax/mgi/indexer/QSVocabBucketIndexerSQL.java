@@ -202,7 +202,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			
 			if (terms.containsKey(primaryID)) {
 				QSTerm qst = terms.get(primaryID);
-				QSAccIDFormatter idf = idFactory.getFormatter("Term", "Term", id);
+				QSAccIDFormatter idf = idFactory.getFormatter("Term", logicalDB, id);
 
 				if (!id.equals(primaryID)) {
 					addDoc(buildDoc(qst, id, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
@@ -213,7 +213,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				// For OMIM IDs we also need to index them without the prefix.
 				if (id.startsWith("OMIM:")) {
 					String noPrefix = id.replaceAll("OMIM:", "");
-					QSAccIDFormatter idf2 = idFactory.getFormatter("Term", "Term", noPrefix);
+					QSAccIDFormatter idf2 = idFactory.getFormatter("Term", "OMIM", noPrefix);
 					addDoc(buildDoc(qst, noPrefix, null, idf2.getMatchDisplay(), idf2.getMatchType(), SECONDARY_ID_WEIGHT));
 				}
 			}

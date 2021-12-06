@@ -336,9 +336,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			QSAccIDFormatter idf = null;
 			
 			if ("Sequence DB".equals(logicalDB)) {
-				idf = idFactory.getFormatter("Sequence", "Sequence", id);
+				idf = idFactory.getFormatter("Sequence", logicalDB, id);
 			} else if ("Cell Line".equals(prefix)){
-				idf = idFactory.getFormatter("Cell Line", "Cell Line", id);
+				idf = idFactory.getFormatter("Cell Line", logicalDB, id);
 			} else {
 				idf = idFactory.getFormatter("Allele", logicalDB, id);
 			}
