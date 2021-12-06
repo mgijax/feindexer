@@ -222,8 +222,6 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	}
 	
 	/* Cache the chromosomes, coordinates, and strands for alleles.
-	 * NOTE: For efficiency's sake, these are not currently used in the fewi.  Instead, it retrieves them
-	 * from the database and caches them.  If we allow searching by coordinates, these will be useful.
 	 */
 	private void cacheLocations() throws Exception {
 		chromosomeSeqNum = new HashMap<String,Long>();
@@ -738,9 +736,62 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		return out;
 	}
 	
+	// Get a hash of only those allele keys that should NOT be returned by an MP filter choice.  (We want to
+	// exclude alleles with an attribute (all of which are collected in an allele_subtype in the database)
+	// of:  recombinase, reporter, transposase, and/or transactivator.  If any other attribute is also in
+	// an allele's list, then we DO want that allele returned by the MP filter.
+	private Set<Integer> getAlleleKeysToExcludeFromMPFilter() throws SQLException {
+		// base query; restrictive clauses to be added later
+		String cmd = "select allele_key, allele_subtype "
+			+ "from allele ";
+		
+		// one stop shopping -- Add the list of unwanted attributes here as lowercase.
+		HashSet<String> badAttributes = new HashSet<String>();
+		badAttributes.add("recombinase");
+		badAttributes.add("reporter");
+		badAttributes.add("transposase");
+		badAttributes.add("transactivator");
+		
+		// Add the list of unwanted attributes as clauses to the query.  (We only need to look at alleles
+		// that have at least one of them.)
+		ArrayList<String> clauses = new ArrayList<String>();
+		for (String badAttribute : badAttributes) {
+			clauses.add("allele_subtype ilike '" + badAttribute + "'");
+		}
+		cmd = cmd + "where " + String.join(" or ", clauses);
+		
+		// list of allele keys that we do NOT want returned by an MP filter choice
+		HashSet<Integer> keys = new HashSet<Integer>();
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		while (rs.next()) {
+			Integer key = rs.getInt("allele_key");
+			String subtype = rs.getString("allele_subtype");
+			
+			if (subtype != null) {
+				// Assume we skip the allele until we find evidence otherwise.
+				boolean skipAllele = true;			
+				for (String attribute : subtype.split(",")) {
+					String cleaned = attribute.trim().toLowerCase();
+					if (!badAttributes.contains(cleaned)) {
+						skipAllele = false;
+						break;
+					}
+				}
+				if (skipAllele) {
+					keys.add(key);
+				}
+			}
+		}
+		rs.close();
+		logger.info("Collected " + keys.size() + " alleles to hide from MP filter (based on attributes)");
+		return keys;
+	}
+	
 	// Build a cache of facets (high-level slim terms) for each allele.
 	public Map<Integer,Set<String>> getFacetValues(String facetType) throws SQLException {
 		Map<Integer,Set<String>> keyToFacets = new HashMap<Integer,Set<String>>();
+		Set<Integer> alleleKeysToSkip = new HashSet<Integer>();
 		String cmd = null;
 
 		// no GO facets, because those are marker-level annotations
@@ -756,6 +807,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					"inner join term ha on (ta.header_term_key = ha.term_key " + 
 					"    and ha.term != 'normal phenotype') " + 
 					"where agt.has_phenotype_data = 1 ";
+			alleleKeysToSkip = getAlleleKeysToExcludeFromMPFilter();
 
 		} else if ("Feature Type".equals(facetType)) {
 			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
@@ -798,10 +850,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			while (rs.next()) {
 				Integer key = rs.getInt("allele_key");
 				
-				if (!keyToFacets.containsKey(key)) {
-					keyToFacets.put(key, new HashSet<String>());
+				if (!alleleKeysToSkip.contains(key)) {
+					if (!keyToFacets.containsKey(key)) {
+						keyToFacets.put(key, new HashSet<String>());
+					}
+					keyToFacets.get(key).add(rs.getString("term"));
 				}
-				keyToFacets.get(key).add(rs.getString("term"));
 			}
 			rs.close();
 			logger.info("Collected " + facetType + " facets for " + keyToFacets.size() + " alleles");
