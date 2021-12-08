@@ -18,10 +18,10 @@ public class QSAccIDFormatter {
 	}
 	
 	public String getMatchType() {
-		if (accID.startsWith(logicalDB) || logicalDB.equalsIgnoreCase(objectType)) {
+		if (accID.startsWith(logicalDB)) {
 			return objectType + " ID";
 		}
-		return tweakedLogicalDB(logicalDB) + " " + objectType + " ID";
+		return tweakedLogicalDB(logicalDB) + " ID";
 	}
 
 	public String getMatchDisplay() {
