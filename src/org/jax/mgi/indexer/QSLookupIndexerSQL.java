@@ -188,7 +188,8 @@ public class QSLookupIndexerSQL extends Indexer {
 			String alleleName = rs.getString("name");
 			String markerName = rs.getString("marker_name");
 			
-			if ((markerName != null) && (markerName.length() > 0)) {
+			// For transgenes where the marker name and the allele name match, we do NOT want to concatenate them.
+			if ((markerName != null) && (markerName.length() > 0) && (!markerName.equalsIgnoreCase(alleleName))) {
 				alleleName = markerName + "; " + alleleName;
 			}
 
