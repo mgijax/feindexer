@@ -740,7 +740,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	// exclude alleles with an attribute (all of which are collected in an allele_subtype in the database)
 	// of:  recombinase, reporter, transposase, and/or transactivator.  If any other attribute is also in
 	// an allele's list, then we DO want that allele returned by the MP filter.
-	private Set<Integer> getAlleleKeysToExcludeFromMPFilter() throws SQLException {
+	private Set<Integer> getAlleleKeysToExcludeFromMPandDiseaseFilters() throws SQLException {
 		// base query; restrictive clauses to be added later
 		String cmd = "select allele_key, allele_subtype "
 			+ "from allele ";
@@ -784,7 +784,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			}
 		}
 		rs.close();
-		logger.info("Collected " + keys.size() + " alleles to hide from MP filter (based on attributes)");
+		logger.info("Collected " + keys.size() + " alleles to hide from MP/DO filters (based on attributes)");
 		return keys;
 	}
 	
@@ -807,7 +807,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					"inner join term ha on (ta.header_term_key = ha.term_key " + 
 					"    and ha.term != 'normal phenotype') " + 
 					"where agt.has_phenotype_data = 1 ";
-			alleleKeysToSkip = getAlleleKeysToExcludeFromMPFilter();
+			alleleKeysToSkip = getAlleleKeysToExcludeFromMPandDiseaseFilters();
 
 		} else if ("Feature Type".equals(facetType)) {
 			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
@@ -833,7 +833,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 		} else if ("Disease".equals(facetType)) {
 			// only looks at mouse disease annotations (not human orthologs' disease annotations)
-			cmd = "with headers as (select distinct header from hdp_annotation) " + 
+			cmd = "with headers as (select distinct th.term as header " + 
+					"from term t, term_to_header h, term th " + 
+					"where t.term_key = h.term_key " + 
+					"and h.header_term_key = th.term_key " + 
+					"and t.vocab_name = 'Disease Ontology'" +
+					") " +
 					"select distinct agt.allele_key, ha.header as term " + 
 					"from allele_to_genotype agt " + 
 					"inner join genotype_to_annotation gta on (agt.genotype_key = gta.genotype_key) " + 
@@ -843,6 +848,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					"inner join term_ancestor ta on (a.term_key = ta.term_key) " + 
 					"inner join headers ha on (ta.ancestor_term = ha.header) " + 
 					"where agt.is_disease_model = 1";
+			alleleKeysToSkip = getAlleleKeysToExcludeFromMPandDiseaseFilters();
 		}
 		
 		if (cmd != null) {
