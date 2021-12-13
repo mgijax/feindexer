@@ -736,10 +736,10 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		return out;
 	}
 	
-	// Get a hash of only those allele keys that should NOT be returned by an MP filter choice.  (We want to
+	// Get a hash of only those allele keys that should NOT be returned by an MP/Disease filter choice.  (We want to
 	// exclude alleles with an attribute (all of which are collected in an allele_subtype in the database)
-	// of:  recombinase, reporter, transposase, and/or transactivator.  If any other attribute is also in
-	// an allele's list, then we DO want that allele returned by the MP filter.
+	// of:  recombinase, reporter, inducible, transposase, and/or transactivator.  If any other attribute is
+	// also in an allele's list, then we DO want that allele returned by the MP and Disease filters.
 	private Set<Integer> getAlleleKeysToExcludeFromMPandDiseaseFilters() throws SQLException {
 		// base query; restrictive clauses to be added later
 		String cmd = "select allele_key, allele_subtype "
@@ -751,12 +751,13 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		badAttributes.add("reporter");
 		badAttributes.add("transposase");
 		badAttributes.add("transactivator");
+		badAttributes.add("inducible");
 		
 		// Add the list of unwanted attributes as clauses to the query.  (We only need to look at alleles
 		// that have at least one of them.)
 		ArrayList<String> clauses = new ArrayList<String>();
 		for (String badAttribute : badAttributes) {
-			clauses.add("allele_subtype ilike '" + badAttribute + "'");
+			clauses.add("allele_subtype ilike '%" + badAttribute + "%'");
 		}
 		cmd = cmd + "where " + String.join(" or ", clauses);
 		
