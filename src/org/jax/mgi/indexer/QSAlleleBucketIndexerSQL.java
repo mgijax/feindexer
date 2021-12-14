@@ -395,6 +395,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					for (String accID : vt.getAllIDs()) {
 						idf = idFactory.getFormatter("Disease Model", "Disease Model", accID, term, false);
 						addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), DISEASE_ID_WEIGHT));
+
+						if (accID.startsWith("OMIM:")) {
+							String noPrefix = accID.replaceAll("OMIM:", "");
+							idf = idFactory.getFormatter("Disease Model", "Disease Model", accID, term, false);
+							addDoc(buildDoc(feature, noPrefix, null, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
+						}
 					}
 				}
 				
@@ -415,6 +421,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						for (String accID : ancestor.getAllIDs()) {
 							idf = idFactory.getFormatter("Disease Model", "Disease Model", accID, term, true);
 							addDoc(buildDoc(feature, accID, null, null, idf.getMatchDisplay(), idf.getMatchType(), DISEASE_ID_WEIGHT));
+
+							if (accID.startsWith("OMIM:")) {
+								String noPrefix = accID.replaceAll("OMIM:", "");
+								idf = idFactory.getFormatter("Disease Model", "Disease Model", accID, term, true);
+								addDoc(buildDoc(feature, noPrefix, null, null, idf.getMatchDisplay(), idf.getMatchType(), SECONDARY_ID_WEIGHT));
+							}
 						}
 					}
 				
