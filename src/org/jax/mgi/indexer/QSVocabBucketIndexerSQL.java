@@ -418,7 +418,11 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				"and t.vocab_name = '" + vocabName + "' "; 
 
 		} else if (DO_VOCAB.equals(vocabName)) {
-			cmd = "with headers as (select distinct header from hdp_annotation) " + 
+			cmd = "with headers as (select distinct th.term as header " + 
+					"from term t, term_to_header h, term th " + 
+					"where t.term_key = h.term_key " + 
+					"  and h.header_term_key = th.term_key " + 
+					"  and t.vocab_name = 'Disease Ontology') " +
 				"select t.primary_id, h.header " + 
 				"from term t, term_ancestor a, headers h " + 
 				"where t.term_key = a.term_key " + 

@@ -759,16 +759,20 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		} else if ("Disease".equals(dagAbbrev)) {
 			// top of union is for mouse disease annotations (using data from HMDC tables), while the bottom
 			// of the union includes data from human orthologs' disease annotations
-			cmd = "with headers as (select distinct header from hdp_annotation) " + 
-					"select distinct m.marker_key as feature_key, ha.header as term " + 
+			cmd = "with headers as (select distinct th.term as header " + 
+					"from term t, term_to_header h, term th " + 
+					"where t.term_key = h.term_key " + 
+					"  and h.header_term_key = th.term_key " + 
+					"  and t.vocab_name = 'Disease Ontology') " +
+					"select distinct m.marker_key as feature_key, th.term " + 
 					" from hdp_genocluster_marker m,  " + 
 					"  hdp_genocluster_genotype gg,  " + 
 					"  hdp_genocluster_annotation ga,  " + 
-					"  hdp_annotation ha, term t  " + 
+					"  term t, term_to_header h, term th  " + 
 					"where m.hdp_genocluster_key = gg.hdp_genocluster_key  " + 
 					"  and gg.hdp_genocluster_key = ga.hdp_genocluster_key  " + 
-					"  and ga.term_key = ha.term_key  " + 
-					"  and gg.genotype_key = ha.genotype_key " + 
+					"  and t.term_key = h.term_key " + 
+					"  and h.header_term_key = th.term_key " +
 					"  and ga.term_key = t.term_key " + 
 					"  and t.vocab_name = 'Disease Ontology' " + 
 					"  and ga.qualifier_type is null " +
