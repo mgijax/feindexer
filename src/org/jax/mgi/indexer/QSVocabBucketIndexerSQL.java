@@ -200,6 +200,13 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			String logicalDB = rs.getString("logical_db");
 			String dagName = rs.getString("display_vocab_name");
 			
+			// Tweaks to adjust for proper Best Match Type display.  (two vocabs where LDB != ID prefix)
+			if ("Mammalian Phenotype".equals(logicalDB)) {
+				logicalDB = "MP";
+			} else if ("Disease Ontology".equals(logicalDB)) {
+				logicalDB = "DOID";
+			}
+
 			if (terms.containsKey(primaryID)) {
 				QSTerm qst = terms.get(primaryID);
 				QSAccIDFormatter idf = idFactory.getFormatter("Term", logicalDB, id);
