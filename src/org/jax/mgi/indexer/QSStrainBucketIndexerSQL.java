@@ -579,12 +579,38 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		return myList;
 	}
 
+	/* Load the JAX IDs that can be used to link to IMSR, assuming at most one per strain.  Return
+	 * as a mapping from primary (MGI) ID to JAX ID.
+	 */
+	private Map<String,String> getJaxIDs() throws Exception {
+		Map<String,String> jaxIDs = new HashMap<String,String>();
+		
+		String cmd = "select s.primary_id, i.imsr_id " + 
+			"from strain_imsr_data i, strain s " + 
+			"where i.strain_key = s.strain_key " + 
+			" and s.primary_id is not null " +
+			" and i.imsr_id is not null " +
+			" and i.repository = 'JAX'";
+		
+		ResultSet rs = ex.executeProto(cmd, cursorLimit);
+		
+		while (rs.next()) {
+			jaxIDs.put(rs.getString("primary_id"), rs.getString("imsr_id"));
+		}
+		rs.close();
+		
+		return jaxIDs;
+	}
+	
 	/* Load the strains, cache them, and generate & send the initial set of documents to Solr.
 	 * Assumes cacheReferenceCounts and cacheAttributes have been called.
 	 */
 	private void buildInitialDocs() throws Exception {
 		logger.info(" - loading strains");
 		strains = new HashMap<String,QSStrain>();
+		
+		// JAX IDs for linking to IMSR
+		Map<String,String> jaxIDs = this.getJaxIDs();
 		
 		// primary ID : set of slim terms for faceting
 		Map<String, Set<String>> phenotypeFacets = this.getFacetValues("MP");
@@ -630,6 +656,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			}
 			if (this.referenceCounts.containsKey(primaryID)) {
 				qst.referenceCount = this.referenceCounts.get(primaryID);
+			}
+			if (jaxIDs.containsKey(primaryID)) {
+				qst.imsrID = jaxIDs.get(primaryID);
 			}
 			strains.put(primaryID, qst);
 			
@@ -693,6 +722,7 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		public Long sequenceNum;
 		public Set<String> phenotypeFacets;
 		public Set<String> diseaseFacets;
+		public String imsrID;					// JAX ID for links to IMSR
 
 		// constructor
 		public QSStrain(String primaryID) {
@@ -724,6 +754,9 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			}
 			if ((this.diseaseFacets != null) && (this.diseaseFacets.size() > 0)) { 
 				doc.addField(IndexConstants.QS_DISEASE_FACETS, this.diseaseFacets);
+			}
+			if ((this.imsrID != null) && (this.imsrID.length() > 0)) {
+				doc.addField(IndexConstants.QS_IMSR_ID, this.imsrID);
 			}
 
 			return doc;
