@@ -579,10 +579,10 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		return myList;
 	}
 
-	/* Load the JAX IDs that can be used to link to IMSR, assuming at most one per strain.  Return
-	 * as a mapping from primary (MGI) ID to JAX ID.
+	/* Load the IDs that can be used to link to IMSR.  Return as a mapping from primary (MGI) ID
+	 * to linkable ID.  (For strains with more than one linkable ID, we just keep the last.
 	 */
-	private Map<String,String> getJaxIDs() throws Exception {
+	private Map<String,String> getImsrIDs() throws Exception {
 		Map<String,String> jaxIDs = new HashMap<String,String>();
 		
 		String cmd = "select s.primary_id, i.imsr_id " + 
@@ -590,12 +590,13 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			"where i.strain_key = s.strain_key " + 
 			" and s.primary_id is not null " +
 			" and i.imsr_id is not null " +
-			" and i.repository = 'JAX'";
+			"order by 1, 2";
 		
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		
 		while (rs.next()) {
-			jaxIDs.put(rs.getString("primary_id"), rs.getString("imsr_id"));
+			String primaryID = rs.getString("primary_id");
+			jaxIDs.put(primaryID, rs.getString("imsr_id"));
 		}
 		rs.close();
 		
@@ -609,8 +610,8 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 		logger.info(" - loading strains");
 		strains = new HashMap<String,QSStrain>();
 		
-		// JAX IDs for linking to IMSR
-		Map<String,String> jaxIDs = this.getJaxIDs();
+		// strain IDs for linking to IMSR
+		Map<String,String> imsrIDs = this.getImsrIDs();
 		
 		// primary ID : set of slim terms for faceting
 		Map<String, Set<String>> phenotypeFacets = this.getFacetValues("MP");
@@ -657,8 +658,8 @@ public class QSStrainBucketIndexerSQL extends Indexer {
 			if (this.referenceCounts.containsKey(primaryID)) {
 				qst.referenceCount = this.referenceCounts.get(primaryID);
 			}
-			if (jaxIDs.containsKey(primaryID)) {
-				qst.imsrID = jaxIDs.get(primaryID);
+			if (imsrIDs.containsKey(primaryID)) {
+				qst.imsrID = imsrIDs.get(primaryID);
 			}
 			strains.put(primaryID, qst);
 			
