@@ -172,8 +172,6 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 					}
 				}
 
-				this.addMarkerCoordinates(doc, markerKey, true);
-				
 				/* need to add all marker symbols related to the disease, for display purposes
 				 */
 				Set<String> markerKeys = getMarkersByDisease(termId);
@@ -256,7 +254,6 @@ public class HdpDiseaseIndexerSQL extends HdpIndexerSQL {
 		getFeatureTypeMap();		// gridcluster keys to feature types
 		getTermSynonymMap();		// term IDs to term synonyms
 		getMarkerSynonymMap();		// marker keys to marker synonyms
-		getMarkerCoordinateMap();	// coordinates per marker
 		cacheHeadersPerTerm();		// disease IDs to term headers
 		getMarkerAllIdMap();		// marker key to searchable marker IDs
 

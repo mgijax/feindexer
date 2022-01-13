@@ -33,6 +33,12 @@ public class Main {
 		indexerMap.put("authorsAC", new AuthorsAutoCompleteIndexerSQL());
 		indexerMap.put("marker", new MarkerIndexerSQL());
 		indexerMap.put("image", new ImageIndexerSQL());
+		indexerMap.put("qsLookup", new QSLookupIndexerSQL());
+		indexerMap.put("qsVocabBucket", new QSVocabBucketIndexerSQL());
+		indexerMap.put("qsOtherBucket", new QSOtherBucketIndexerSQL());
+		indexerMap.put("qsStrainBucket", new QSStrainBucketIndexerSQL());
+		indexerMap.put("qsFeatureBucket", new QSFeatureBucketIndexerSQL());
+		indexerMap.put("qsAlleleBucket", new QSAlleleBucketIndexerSQL());
 		indexerMap.put("allele", new AlleleIndexerSQL());
 		indexerMap.put("markerAnnotation", new MarkerAnnotationIndexerSQL());
 		indexerMap.put("creAssayResult", new CreAssayResultIndexerSQL());
@@ -47,6 +53,7 @@ public class Main {
 		indexerMap.put("hdpDisease", new HdpDiseaseIndexerSQL());
 		indexerMap.put("hdpGrid", new HdpGridIndexerSQL());
 		indexerMap.put("hdpGene", new HdpGeneIndexerSQL());
+		indexerMap.put("hdpCoord", new HdpCoordIndexerSQL());
 		indexerMap.put("hdpGridAnnotation", new HdpGridAnnotationIndexerSQL());
 		indexerMap.put("sequence", new SequenceIndexerSQL());
 		indexerMap.put("cdna", new CdnaIndexerSQL());
@@ -85,6 +92,7 @@ public class Main {
 					SPECIFIED_INDEXERS.add(arg);
 					logger.info("adding user specified index: " + arg + " to list of indexers to run.");
 				} else if("hmdc".equalsIgnoreCase(arg) || "hdp".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("hdpCoord");
 					SPECIFIED_INDEXERS.add("hdpGene");
 					SPECIFIED_INDEXERS.add("hdpDisease");
 					SPECIFIED_INDEXERS.add("hdpGrid");
@@ -95,6 +103,13 @@ public class Main {
 				} else if ("gxdht".equalsIgnoreCase(arg)) {
 					SPECIFIED_INDEXERS.add("gxdHtSample");
 					SPECIFIED_INDEXERS.add("gxdHtExperiment");
+				} else if ("qs".equalsIgnoreCase(arg)) {
+					SPECIFIED_INDEXERS.add("qsAlleleBucket");
+					SPECIFIED_INDEXERS.add("qsFeatureBucket");
+					SPECIFIED_INDEXERS.add("qsStrainBucket");
+					SPECIFIED_INDEXERS.add("qsVocabBucket");
+					SPECIFIED_INDEXERS.add("qsOtherBucket");
+					SPECIFIED_INDEXERS.add("qsLocation");
 				} else if ("list".equalsIgnoreCase(arg)) {
 					for (String s : getIndexers()) {
 						System.out.println(s);

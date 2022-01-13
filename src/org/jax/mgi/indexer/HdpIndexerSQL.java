@@ -14,7 +14,6 @@ import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
-import org.jax.mgi.shr.fe.query.SolrLocationTranslator;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.GridMarker;
 
@@ -49,7 +48,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Set<Integer> mouseMarkers = null;					// marker keys for mouse markers
 	protected Set<Integer> humanMarkers = null;					// marker keys for human markers
 	protected Map<String,Set<String>> markerSynonymMap = null;	// marker key -> marker synonyms 
-	protected Map<String,Set<String>> markerCoordinates = null;	// marker key -> coordinates
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;		// marker key -> set of ortholog marker keys
 	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> Alliance Clustered homology cluster key
@@ -547,90 +545,6 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return subset;
 	}
 
-	/* retrieve the mapping from each (String) marker key to the spatial strings for its coordinates
-	 */
-	protected Map<String, Set<String>> getMarkerCoordinateMap() throws Exception {
-		if (markerCoordinates == null) {
-			logger.info("building map of marker coordinates to marker keys");
-			Timer.reset();
-
-			// load all mouse and human marker locations to be encoded for Solr spatial queries
-			String markerLocationQuery="select distinct m.marker_key, ml.chromosome, "
-					+ "  ml.strand, ml.start_coordinate, ml.end_coordinate "
-					+ "from marker_location ml, "
-					+ "  marker m "
-					+ "where m.marker_key=ml.marker_key "
-					+ "  and ml.sequence_num=1 "
-					+ "  and ml.start_coordinate is not null "
-					+ "  and ml.chromosome != 'UN' ";
-
-			markerCoordinates = new HashMap<String,Set<String>>();
-			ResultSet rs = ex.executeProto(markerLocationQuery, cursorLimit);
-
-			while (rs.next()) {
-				String markerKey = rs.getString("marker_key");
-				String chromosome = rs.getString("chromosome");
-				Long start = rs.getLong("start_coordinate");
-				Long end = rs.getLong("end_coordinate");
-				if(!markerCoordinates.containsKey(markerKey)) {
-					markerCoordinates.put(markerKey, new HashSet<String>());
-				}
-				// NOTE: we are ignoring strand at this time. We can support searching both (in theory), so we will just treat everything as positive for now.
-				// AS OF 2013/08/06 -kstone
-				String spatialString = SolrLocationTranslator.getIndexValue(chromosome,start,end,true);
-
-				// only add locations for chromosomes we can map. The algorithm will ignore any weird values
-				if(spatialString != null && !spatialString.equals("")) {
-					markerCoordinates.get(markerKey).add(spatialString);
-				}
-			}
-			rs.close();
-			logger.info("done retrieving marker locations" + Timer.getElapsedMessage());
-		}
-		return markerCoordinates;
-	}
-
-	/* get the spatial strings for the coordinates of the given marker key
-	 */
-	protected Set<String> getMarkerCoordinates(Integer markerKey) throws Exception {
-		if (markerCoordinates == null) { getMarkerCoordinateMap(); }
-		String markerKeyString = markerKey.toString();
-		if (markerCoordinates.containsKey(markerKeyString)) {
-			return markerCoordinates.get(markerKeyString);
-		}
-		return null;
-	}
-
-	/* add the coordinates for the given marker to the appropriate bin (human or mouse) 
-	 * in the given document.  Optionally include coordinates for the marker's orthologs.
-	 */
-	protected void addMarkerCoordinates(DistinctSolrInputDocument doc, Integer markerKey, boolean includeOrthologs) throws Exception {
-		if (markerKey == null) { return; }
-		
-		boolean isHumanMarker = isHuman(markerKey);
-		
-		// add the marker itself
-		if (isHumanMarker) {
-			doc.addAllDistinct(DiseasePortalFields.HUMAN_COORDINATE, getMarkerCoordinates(markerKey));
-		} else {
-			doc.addAllDistinct(DiseasePortalFields.MOUSE_COORDINATE, getMarkerCoordinates(markerKey));
-		}
-		
-		// if we need to add coordinates for orthologs, look up the orthologous markers and
-		// add the coordinates for each.  Note that we do not add orthologs from the same organism as
-		// the specified marker -- only orthologs from a different organism.
-		if (includeOrthologs) {
-			Set<Integer> myOrthologs = getMarkerOrthologs(markerKey);
-			if (myOrthologs != null) {
-				for (Integer orthologKey : myOrthologs) {
-					if ((isHumanMarker && !isHuman(orthologKey)) || (!isHumanMarker && isHuman(orthologKey))) {
-						addMarkerCoordinates(doc, orthologKey, false);
-					}
-				}
-			}
-		}
-	}
-	
 	/* build the mapping of term keys to a sqeuence number for each one, where the terms
 	 * are sorted in order of a DAG-based traversal (to group terms together that are
 	 * similar biologically)
@@ -723,7 +637,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// load all marker IDs (for every organism)
 			String markerIdQuery="select marker_key, acc_id "
 					+ "from marker_id "
-					+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','MyGene','RIKEN Cluster','UniGene') ";
+					+ "where logical_db not in ('ABA','Download data from the QTL Archive','FuncBase','GENSAT','GEO','HomoloGene','RIKEN Cluster','UniGene') ";
 			markerAllIdMap = populateLookup(markerIdQuery,"marker_key","acc_id","marker keys to IDs");
 
 			logger.info("Finished loading IDs for " + markerAllIdMap.size() + " markers" + Timer.getElapsedMessage());
@@ -1797,32 +1711,65 @@ public abstract class HdpIndexerSQL extends Indexer {
 		logger.info("retrieving expressed components");
 		Timer.reset();
 
-		// top half of union is mouse-to-mouse, bottom is mouse-to-human
-		String ecQuery = "select m.marker_key, arm.related_marker_key "
-			+ "from allele_related_marker arm, allele a, marker_to_allele mta, "
-			+ "  marker m "
-			+ "where arm.relationship_category = 'expresses_component' "
-			+ "  and arm.allele_key = a.allele_key "
-			+ "  and a.allele_key = mta.allele_key "
-			+ "  and mta.marker_key = m.marker_key "
-			+ "  and m.marker_type = 'Transgene'"
-			+ "union "
-			+ "select m.marker_key, r.marker_key as expressed_marker_key "
-			+ "from allele a, marker_to_allele m, allele_related_marker arm, allele_arm_property po, "
-			+ "  allele_arm_property pi, allele_arm_property ps, marker_id ri, marker r "
-			+ "where m.allele_key = a.allele_key "
-			+ "  and a.allele_key = arm.allele_key "
-			+ "  and arm.arm_key = po.arm_key "
-			+ "  and arm.arm_key = pi.arm_key "
-			+ "  and arm.arm_key = ps.arm_key "
-			+ "  and po.name = 'Non-mouse_Organism' "
-			+ "  and pi.name = 'Non-mouse_NCBI_Gene_ID' "
-			+ "  and ps.name = 'Non-mouse_Gene_Symbol' "
-			+ "  and pi.value = ri.acc_id "
-			+ "  and ps.value = r.symbol "
-			+ "  and po.value ilike r.organism "
-			+ "  and r.organism = 'human' "
-			+ "  and ri.marker_key = r.marker_key";
+		String ecQuery =
+				// alleles having exactly one expressed component marker
+
+				"with ec_count as ( " + 
+					"select allele_key, count(1) as ec_ct " + 
+					"from allele_related_marker " + 
+					"where relationship_category = 'expresses_component' " + 
+					"group by 1 " + 
+					"having count(1) = 1" +
+				"), " + 
+
+				// alleles whose annotations have been rolled-up to a marker (passed roll-up rules)
+
+				"rolled_up as ( " + 
+					"select distinct al.allele_key " + 
+					"from marker m " + 
+					"inner join marker_to_annotation mta on (m.marker_key = mta.marker_key) " + 
+					"inner join annotation a on (mta.annotation_key = a.annotation_key and a.annotation_type in ('Mammalian Phenotype/Marker', 'DO/Marker', 'DO/Human Marker') ) " + 
+					"inner join annotation_source src on (a.annotation_key = src.annotation_key) " + 
+					"inner join annotation sa on (src.source_annotation_key = sa.annotation_key) " + 
+					"inner join genotype_to_annotation gta on (sa.annotation_key = gta.annotation_key) " + 
+					"inner join genotype g on (gta.genotype_key = g.genotype_key) " + 
+					"inner join allele_to_genotype atg on (g.genotype_key = atg.genotype_key) " + 
+					"inner join allele al on (atg.allele_key = al.allele_key) " + 
+					"inner join marker_to_allele ma on (al.allele_key = ma.allele_key) " + 
+					"inner join marker sm on (ma.marker_key = sm.marker_key) " + 
+				") " + 
+
+				// transgene markers where the corresponding allele has expressed components that are mouse markers
+				// (exclude docking site markers by key)
+
+				"select m.marker_key, arm.related_marker_key " + 
+				"from allele_related_marker arm, allele a, marker_to_allele mta, marker m, ec_count one, rolled_up ru " + 
+				"where arm.relationship_category = 'expresses_component' " + 
+				"and arm.allele_key = a.allele_key " + 
+				"and a.allele_key = ru.allele_key " + 
+				"and a.allele_key = mta.allele_key " + 
+				"and mta.marker_key = m.marker_key " + 
+				"and m.marker_type = 'Transgene' " + 
+				"and m.marker_key not in (1092, 37270, 9936) " + 
+				"and a.allele_key = one.allele_key " + 
+
+				"union " + 
+
+				// transgene markers where the corresponding allele has expressed components that are human markers
+				// (exclude docking site markers by key)
+
+				"select m.marker_key, r.marker_key as expressed_marker_key " + 
+				"from allele a " + 
+				"inner join ec_count one on (a.allele_key = one.allele_key) " + 
+				"inner join marker_to_allele m on (m.allele_key = a.allele_key) " + 
+				"inner join allele_related_marker arm on (a.allele_key = arm.allele_key and arm.relationship_category = 'expresses_component') " + 
+				"inner join allele_arm_property po on (arm.arm_key = po.arm_key and po.name = 'Non-mouse_Organism') " + 
+				"inner join allele_arm_property pi on (arm.arm_key = pi.arm_key and pi.name = 'Non-mouse_NCBI_Gene_ID') " + 
+				"inner join allele_arm_property ps on (arm.arm_key = ps.arm_key and ps.name = 'Non-mouse_Gene_Symbol') " + 
+				"inner join marker_id ri on (pi.value = ri.acc_id) " + 
+				"inner join marker r on (ri.marker_key = r.marker_key and ps.value = r.symbol and po.value ilike r.organism and r.organism = 'human') " + 
+				"inner join rolled_up ru on (a.allele_key = ru.allele_key) " + 
+				"where m.marker_key not in (1092, 37270, 9936)";
 
 		expressedComponents = new HashMap<Integer,Set<Integer>>();
 

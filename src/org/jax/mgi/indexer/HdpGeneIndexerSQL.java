@@ -1,6 +1,7 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -174,14 +175,102 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		}
 	}
 
+	/* Get the set of filterable feature types for markers.  Of note, mouse markers will always have a
+	 * feature type (marker.marker_subtype) if they are official markers.  Human markers never have a
+	 * feature type, only a marker type (marker.marker_type); they should inherit the feature type info
+	 * for their mouse ortholog(s).  Returns a map from marker key to list of feature types, with
+	 * assigned feature type coming first.
+	 */
+	private Map<Integer, List<String>> getFeatureTypes() throws SQLException {
+		// marker key to list of feature types
+		Map<Integer, List<String>> ft = new HashMap<Integer, List<String>>();
+		
+		logger.info("Looking up feature types for mouse markers");
+
+		// For each mouse marker, get its assigned feature type plus any ancestor types.
+		// (likely returns multiple rows for each marker)
+		String mouseData = "select distinct m.marker_key, m.marker_subtype, a.ancestor_term " + 
+				"from marker m " + 
+				"inner join term t on (m.marker_subtype = t.term " + 
+				"  and t.vocab_name = 'Marker Category') " + 
+				"left outer join term_ancestor a on (t.term_key = a.term_key) " + 
+				"where m.organism = 'mouse' " + 
+				"  and m.status = 'official' " +
+				"  and m.marker_key is not null " +
+				"order by m.marker_key";
+		
+		// Collate mouse marker data.
+		
+		ResultSet rs = ex.executeProto(mouseData);
+		while (rs.next()) {
+			Integer markerKey = rs.getInt("marker_key");
+			String subType = rs.getString("marker_subtype");
+			String ancestor = rs.getString("ancestor_term");
+			
+			if (!ft.containsKey(markerKey)) {
+				ft.put(markerKey, new ArrayList<String>());
+				ft.get(markerKey).add(subType);
+			}
+
+			if (ancestor != null) {
+				ft.get(markerKey).add(ancestor);
+			}
+		}
+		rs.close();
+		
+		int mouseCount = ft.size();
+		logger.info(" - finished with " + mouseCount + " mouse markers");
+
+		// Get mouse/human marker orthologs.
+		logger.info("Looking up feature types for human markers");
+
+		String orthologs = "select distinct m.marker_key as mouse_marker_key, h.marker_key as human_marker_key " + 
+				"from marker h, " +
+				"  homology_cluster_organism_to_marker hm, " + 
+				"  homology_cluster_organism ho, " + 
+				"  homology_cluster_organism mo, " + 
+				"  homology_cluster_organism_to_marker mm, " + 
+				"  marker m " +
+				"where h.organism = 'human' " + 
+				"  and h.marker_key = hm.marker_key " + 
+				"  and hm.cluster_organism_key = ho.cluster_organism_key " + 
+				"  and ho.cluster_key = mo.cluster_key " + 
+				"  and mo.cluster_organism_key = mm.cluster_organism_key " + 
+				"  and mm.marker_key = m.marker_key " + 
+				"  and m.organism = 'mouse' " + 
+				"  and m.status = 'official' " +
+				"order by m.marker_key";
+		
+		// Look up feature types for the mouse ortholog(s) of each human marker.
+		// Assumes only one mouse marker per human marker.  When we allow multiples, need to reconsider this, as
+		// whichever one is last is the one whose feature types will be kept.
+		
+		ResultSet rs1 = ex.executeProto(orthologs);
+		while (rs1.next()) {
+			Integer mouseKey = rs1.getInt("mouse_marker_key");
+			Integer humanKey = rs1.getInt("human_marker_key");
+			
+			if (ft.containsKey(mouseKey)) {
+				ft.put(humanKey, ft.get(mouseKey));
+			}
+		}
+		rs1.close();
+
+		logger.info(" - finished with " + (ft.size() - mouseCount) + " human markers");
+		return ft;
+	}
+	
 	/* Pull the marker data from the database and add them to the index.  If a
 	 * marker has no annotations, we still allow matches to it by marker nomenclature
 	 * and IDs.  For markers with annotations, we add the full suite of fields
 	 * for searching.
 	 */
 	private void processGenes() throws Exception {
-		logger.info("loading markerss");
+		logger.info("loading markers");
 
+		// list of feature types for each mouse and human marker, by key.
+		Map<Integer, List<String>> featureTypes = this.getFeatureTypes();
+		
 		// main query - human and mouse markers with official (not withdrawn) nomenclature, which
 		// are not BAC/YAC ends and are not DNA Segments.  Order by symbol, name, and organism
 		// to ensure a consistent order across runs.  We also bring in the genocluster keys 
@@ -244,7 +333,6 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			addIfNotNull(doc, DiseasePortalFields.LOCATION_DISPLAY, rs.getString("location_display"));
 			addIfNotNull(doc, DiseasePortalFields.COORDINATE_DISPLAY, rs.getString("coordinate_display"));
 			addIfNotNull(doc, DiseasePortalFields.BUILD_IDENTIFIER, rs.getString("build_identifier"));
-			this.addMarkerCoordinates(doc, markerKey, true);
 
 			// nomen and ID data for orthologs
 			Set<String> orthologNomen = new HashSet<String>();
@@ -282,12 +370,15 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 
 			// feature types
 
-			String featureType = rs.getString("marker_subtype");
-			if (featureType == null) {
-				featureType = rs.getString("marker_type");
+			List<String> myFeatureTypes = featureTypes.get(markerKey);
+
+			String primaryFeatureType = rs.getString("marker_type");
+			if ((myFeatureTypes != null) && (myFeatureTypes.size() > 0)) {
+				primaryFeatureType = myFeatureTypes.get(0);
 			}
-			addIfNotNull(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, featureType);
-			addIfNotNull(doc, DiseasePortalFields.MARKER_FEATURE_TYPE, featureType);
+
+			addIfNotNull(doc, DiseasePortalFields.FILTERABLE_FEATURE_TYPES, myFeatureTypes);
+			addIfNotNull(doc, DiseasePortalFields.MARKER_FEATURE_TYPE, primaryFeatureType);
 
 			// pre-computed sorts
 
@@ -393,7 +484,6 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		// collect various mappings needed for data lookup
 		getTermSynonymMap();		// term IDs to term synonyms
 		getMarkerSynonymMap();		// marker keys to marker synonyms
-		getMarkerCoordinateMap();	// coordinates per marker
 		cacheHeadersPerTerm();		// disease IDs to term headers
 		getMarkerAllIdMap();		// marker key to searchable marker IDs
 
