@@ -387,8 +387,12 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				// 1. term name, primary ID, secondary IDs, and synonyms for that term.
 				// 2. And for each of its ancestors, we also need to index:
 				//    a. term name, primary ID, secondary IDs, and synonyms.
+				// In both cases (direct annotation and ancestor relationship), we need to index both the
+				// term name and any synonyms in both the stemmed field (for stemmed matching) and in the
+				// inexact field (for wildcard matching).
 
 				addDoc(buildDoc(feature, null, null, term, term, "Disease Model", DISEASE_NAME_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, term, null, term, "Disease Model", DISEASE_NAME_WEIGHT));
 
 				QSAccIDFormatter idf = null;
 				if (vt.getAllIDs() != null) {
@@ -407,6 +411,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				if (vt.getSynonyms() != null) {
 					for (String synonym : vt.getSynonyms()) {
 						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, synonym, null, term + " (synonym: " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
 					}
 				}
 				
@@ -416,6 +421,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					String ancTerm = ancestor.getTerm();
 					
 					addDoc(buildDoc(feature, null, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
+					addDocUnchecked(buildDoc(feature, null, ancTerm, null, term + " (subterm of " + ancTerm + ")", "Disease Model", DISEASE_NAME_WEIGHT));
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
@@ -433,6 +439,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
 							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
+							addDocUnchecked(buildDoc(feature, null, synonym, null, term + " (subterm of " + ancestor.getTerm() + ", with synonym " + synonym +")", "Disease Model", DISEASE_SYNONYM_WEIGHT));
 						}
 					}
 				}
@@ -662,14 +669,17 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 						directBoost = 0;
 					}
 					
+					// Note: For each annotation, we need to add the term name and any synonyms to both the stemmed
+					// field (for stemmed matching) and to the inexact field (for wildcard matching).
+					
 					String name = termToIndex.getTerm();
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
 						if (!name.equals(term.getTerm())) {
 							addDoc(buildDoc(feature, null, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
-							addDoc(buildDoc(feature, null, name, null, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
+							addDocUnchecked(buildDoc(feature, null, name, null, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
 						} else {
 							addDoc(buildDoc(feature, null, null, name, term.getTerm(), prefix + dataType, nameWeight + directBoost));
-							addDoc(buildDoc(feature, null, name, null, term.getTerm(), prefix + dataType, nameWeight + directBoost));
+							addDocUnchecked(buildDoc(feature, null, name, null, term.getTerm(), prefix + dataType, nameWeight + directBoost));
 						}
 						i++;
 					}
@@ -688,7 +698,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
 						for (String synonym : synonyms) {
 							addDoc(buildDoc(feature, null, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
-							addDoc(buildDoc(feature, null, synonym, null, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
+							addDocUnchecked(buildDoc(feature, null, synonym, null, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
 							i++;
 						}
 					}

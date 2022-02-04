@@ -418,7 +418,11 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				QSFeature feature = features.get(mouseMarkerKey);
 				String term = vt.getTerm();
 
+				// Add to both stemmed field and inexact fields to allow matching by both word stems
+				// and by searches using wildcards.
 				addDoc(buildDoc(feature, null, null, term, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, term, null, term, "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+
 				if (vt.getAllIDs() != null) {
 					for (String accID : vt.getAllIDs()) {
 						idf = idFactory.getFormatter("Disease Ortholog", "Disease Ortholog", accID, term, false);
@@ -434,7 +438,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				
 				if (vt.getSynonyms() != null) {
 					for (String synonym : vt.getSynonyms()) {
+						// Add to both stemmed field and inexact fields to allow matching by both word stems
+						// and by searches using wildcards.
 						addDoc(buildDoc(feature, null, null, synonym, term + " (synonym: " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+						addDocUnchecked(buildDoc(feature, null, synonym, null, term + " (synonym: " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 					}
 				}
 				
@@ -443,7 +450,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					VocabTerm ancestor = diseaseOntologyCache.getTerm(ancestorKey);
 					String ancTerm = ancestor.getTerm();
 					
+					// Add to both stemmed field and inexact fields to allow matching by both word stems
+					// and by searches using wildcards.
 					addDoc(buildDoc(feature, null, null, ancTerm, term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+					addDocUnchecked(buildDoc(feature, null, ancTerm, null, term + " (subterm of " + ancTerm + ")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 
 					if (ancestor.getAllIDs() != null) {
 						for (String accID : ancestor.getAllIDs()) {
@@ -460,7 +470,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				
 					if (ancestor.getSynonyms() != null) {
 						for (String synonym : ancestor.getSynonyms()) {
+							// Add to both stemmed field and inexact fields to allow matching by both word stems
+							// and by searches using wildcards.
 							addDoc(buildDoc(feature, null, null, synonym, term + " (subterm of " + ancTerm + ", with synonym " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
+							addDocUnchecked(buildDoc(feature, null, synonym, null, term + " (subterm of " + ancTerm + ", with synonym " + synonym +")", "Disease Ortholog", DISEASE_ORTHOLOG_WEIGHT));
 						}
 					}
 				}
@@ -887,12 +900,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						directBoost = 0;
 					}
 					
+					// Add term's name to both the stemmed field (for stemmed matching) and the inexact field
+					// (for wildcard matching).
 					String name = termToIndex.getTerm();
 					if ((nameWeight != null) && (name != null) && (name.length() > 0)) {
 						if (!name.equals(term.getTerm())) {
 							addDoc(buildDoc(feature, null, null, name, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
+							addDocUnchecked(buildDoc(feature, null, name, null, term.getTerm() + " (" + name + ")", prefix + dataType, nameWeight + directBoost));
 						} else {
 							addDoc(buildDoc(feature, null, null, name, term.getTerm(), prefix + dataType, nameWeight + directBoost));
+							addDocUnchecked(buildDoc(feature, null, name, null, term.getTerm(), prefix + dataType, nameWeight + directBoost));
 						}
 						i++;
 					}
@@ -906,10 +923,13 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 						}
 					}
 				
+					// Add term's synonyms to both the stemmed field (for stemmed matching) and the inexact field
+					// (for wildcard matching).
 					List<String> synonyms = termToIndex.getSynonyms();
 					if ((synonymWeight != null) && (synonyms != null) && (synonyms.size() > 0)) {
 						for (String synonym : synonyms) {
 							addDoc(buildDoc(feature, null, null, synonym, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
+							addDocUnchecked(buildDoc(feature, null, synonym, null, term.getTerm() + " (synonym: " + synonym + ")", prefix + dataType, synonymWeight + directBoost));
 							i++;
 						}
 					}
@@ -990,10 +1010,16 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			// ID, term name, synonyms for EMAPA
 			idf = idFactory.getFormatter("Expression", "Expression", emapaID, term.getTerm(), false, stage);
 			addDocUnchecked(buildDoc(feature, emapaID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT + 1));
+
+			// Add name and synonym both to the stemmed field (for stemmed matching) and to the inexact field
+			// (for wildcard matching).
 			addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
+			addDocUnchecked(buildDoc(feature, null, name, null, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
+
 			if (synonyms != null) {
 				for (String synonym : synonyms) {
 					addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
+					addDocUnchecked(buildDoc(feature, null, synonym, null, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
 				}
 			}
 		}
@@ -1023,11 +1049,17 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			
 				// ID, term name, synonyms for EMAPA
 				idf = idFactory.getFormatter("Expression", "Expression", emapaID, term.getTerm(), true, stage);
+
 				addDocUnchecked(buildDoc(feature, emapaID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT));
+
+				// Add name and synonym both to the stemmed field (for stemmed matching) and to the inexact field
+				// (for wildcard matching).
 				addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_NAME_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, name, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_NAME_WEIGHT));
 				if (synonyms != null) {
 					for (String synonym : synonyms) {
 						addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
+						addDocUnchecked(buildDoc(feature, null, synonym, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
 					}
 				}
 			}
