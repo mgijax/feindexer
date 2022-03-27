@@ -57,7 +57,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// mapping from EMAPA structure keys to their respective synonyms
 	private Map<String,Set<String>> emapaSynonyms;
 	
-	// mapping from each allele key to the EMAPA structure keys of its ancestors
+	// mapping from each allele key to the keys of all EMAPA structures (and their ancestors) 
+	// where recombinase activity is detected, (Union over activity locations and their ancestors.)
+	private Map<String, Set<String>> allStructures;
+	
+	// mapping from each allele key to the keys of EMAPA structures (and their ancestors) 
+	// where ALL detected activity is found. (Intersection over activity locations and their ancestors,)
 	private Map<String, Set<String>> exclusiveStructures;
 	
 	// shared empty set object to make code simpler later on
@@ -152,13 +157,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return emptySet;
 	}
 
-	// identify the exclusive structures for each allele (the set of structures outside which there is
+	// Precompute two structure sets for searching recombinase alleles.
+	// 1. exclusiveStructures: identify the exclusive structures for each allele (the set of structures outside which there is
 	// no recombinase activity detected for that allele), returning a mapping from:
 	//		allele key (String) : set of structure terms (Strings)
 	// Because everything traces up the DAG to 'mouse', everything should at least have one exclusive
 	// structure returned.
 	// Use:  This field is used when the user specifies a structure and checks the "nowhere else" checkbox.
-	private void findExclusiveStructures() throws Exception {
+	// 2. allStructures: set of all EMAPA structure keys (and their ancestors) where recombinase activity is detected
+	//
+	private void findStructures() throws Exception {
+		allStructures = new HashMap<String, Set<String>>();
 		exclusiveStructures = new HashMap<String, Set<String>>();
 		
 		int minAlleleKey = 0;	// lowest allele key with recombinase data
@@ -206,22 +215,31 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			// activity detected.
 			
 			for (String alleleKey : structuresPerAllele.keySet()) {
+				Set<String> allAncestors = null;
 				Set<String> commonAncestors = null;
 				for (String emapsKey : structuresPerAllele.get(alleleKey)) {
 					Set<String> resultAncestors = new HashSet<String>();
 					resultAncestors.addAll(this.getEmapaAncestors(emapsKey));
 					
+					if (allAncestors == null) {
+						allAncestors = new HashSet<String>(resultAncestors);
+					} else {
+						allAncestors.addAll(resultAncestors);
+					}
+
 					if (commonAncestors == null) {
-						commonAncestors = resultAncestors;
+						commonAncestors = new HashSet<String>(resultAncestors);
 					} else {
 						commonAncestors.retainAll(resultAncestors);
 					}
 				}
+				allStructures.put(alleleKey, allAncestors);
 				exclusiveStructures.put(alleleKey, commonAncestors);
 			}
 			startAllele = endAllele;
 			endAllele = startAllele + chunkSize;
 		}
+		logger.info("Got all structures for " + allStructures.size() + " alleles");
 		logger.info("Got exclusive structures for " + exclusiveStructures.size() + " alleles");
 	}
 
@@ -234,9 +252,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		fillEmapaTerms();
 		fillEmapaSynonyms();
 		fillSystemSorts();
-		findExclusiveStructures();
-		loadAssayResults();
+		findStructures();
 
+		loadAssayResults();
 		loadAllelesWithNoData();
 
 		commit();    
@@ -472,6 +490,10 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					}
 					this.resetDupTracking();
 				}              
+
+				if (allStructures.containsKey(alleleKey)) {
+					doc.addField(CreFields.ALL_ALL_STRUCTURES, allStructures.get(alleleKey));
+				}
 
 				if (exclusiveStructures.containsKey(alleleKey)) {
 					doc.addField(CreFields.ALL_EXCLUSIVE_STRUCTURES, exclusiveStructures.get(alleleKey));
