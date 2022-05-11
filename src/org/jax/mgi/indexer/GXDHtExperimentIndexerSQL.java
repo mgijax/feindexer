@@ -96,6 +96,13 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		HashMap<String, HashSet<String>> geoIDs = makeHash(cmd2, "experiment_key", "acc_id");
 		logger.info("Retrieved GEO IDs for " + geoIDs.size() + " experiments");
 		
+		// look up ArrayExpress ID for each experiment
+		String cmd2b = "select experiment_key, acc_id "
+			+ "from expression_ht_experiment_id "
+			+ "where logical_db = 'ArrayExpress Experiments'";
+		HashMap<String, HashSet<String>> aeIDs = makeHash(cmd2b, "experiment_key", "acc_id");
+		logger.info("Retrieved ArrayExpress IDs for " + aeIDs.size() + " experiments");
+		
 		// look up experimental variables for each experiment
 		String cmd3 = "select experiment_key, variable from expression_ht_experiment_variable";
 		HashMap<String, HashSet<String>> variables = makeHash(cmd3, "experiment_key", "variable");
@@ -107,7 +114,7 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		logger.info("Retrieved experiment notes for " + notes.size() + " experiments");
 		
 		// main query including pre-computed sequence num
-		String cmd5 = "select e.experiment_key, e.primary_id as arrayexpress_id, e.name as title, "
+		String cmd5 = "select e.experiment_key, e.primary_id, e.name as title, "
 			+ " e.description, e.method, e.study_type, o.by_primary_id as sequence_num, "
 			+ " e.is_in_atlas "
 			+ "from expression_ht_experiment e, expression_ht_experiment_sequence_num o "
@@ -119,11 +126,10 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 
 		while (rs.next()) {
 			String exptKey = rs.getString("experiment_key");
-			String primaryID = rs.getString("arrayexpress_id");
+			String primaryID = rs.getString("primary_id");
 			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 			doc.addField(GxdHtFields.EXPERIMENT_KEY, exptKey);
-			doc.addField(GxdHtFields.ARRAYEXPRESS_ID, primaryID);
 			doc.addField(GxdHtFields.TITLE, rs.getString("title"));
 			doc.addField(GxdHtFields.DESCRIPTION, rs.getString("description"));
 			doc.addField(GxdHtFields.STUDY_TYPE, rs.getString("study_type"));
@@ -145,6 +151,10 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 				doc.addAllDistinct(GxdHtFields.SAMPLE_COUNT, sampleCounts.get(exptKey));
 			} else {
 				doc.addField(GxdHtFields.SAMPLE_COUNT, "0");
+			}
+			
+			if (aeIDs.containsKey(exptKey)) {
+				doc.addField(GxdHtFields.ARRAYEXPRESS_ID, getFirst(aeIDs.get(exptKey)));
 			}
 			
 			if (geoIDs.containsKey(exptKey)) {
