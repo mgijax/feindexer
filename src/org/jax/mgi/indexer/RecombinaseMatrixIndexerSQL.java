@@ -186,6 +186,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 	public Map<Integer,Integer> emapsToEmapa;			// maps from EMAPS term key to EMAPA term key
 	public Map<Integer,List<Integer>> emapsParents;		// maps from EMAPS term key to its parent EMAPS term keys
 	public Map<Integer,List<Integer>> emapsAncestors;	// maps from EMAPS term key to all of its ancestor EMAPS term keys
+        public Map<Integer,Integer> nonMouse2Mouse;             // maps from non-mouse marker key to key of its 1:1 mouse ortholog (if any)
 
 	// caches of data for this batch of markers
 
@@ -336,6 +337,54 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		rs.close();
 		logger.info(" - cached data for " + markerID.size() + " markers");
 	}
+        
+        // Populate a mapping from non-mouse marker key to the marker key of its 1:1 mouse ortholog (if there is one)
+        public void buildHomologyCache() throws SQLException {
+            this.nonMouse2Mouse = new HashMap<Integer,Integer>(); 
+            String cmd = 
+                "select hco.cluster_key, hco.organism, hom.marker_key " +
+                "from homology_cluster_organism_to_marker hom, homology_cluster_organism hco, homology_cluster hc " +
+                "where hom.cluster_organism_key = hco.cluster_organism_key " +
+                "and hco.cluster_key = hc.cluster_key " +
+                "and hc.source = 'Alliance Direct' " +
+                "order by cluster_key, organism " ;
+            //
+            Integer currentClusterKey = null;
+            int mouseCount = 0;
+            Integer mouseMarkerKey = null;
+            List<Integer> nonMouseMarkerKeys = new ArrayList<Integer>();
+            // Results sorted by cluster key; process by groups.
+            ResultSet rs = ex.executeProto(cmd);
+            while (rs.next()) {
+                Integer clusterKey = rs.getInt("cluster_key");
+                Integer markerKey = rs.getInt("marker_key");
+                String organism = rs.getString("organism");
+
+                if (! clusterKey.equals(currentClusterKey)) {
+                    if (currentClusterKey != null && mouseCount == 1) {
+                        for(Integer nmmk : nonMouseMarkerKeys) {
+                            this.nonMouse2Mouse.put(nmmk, mouseMarkerKey);
+                        }
+                    }
+                    mouseCount = 0;
+                    mouseMarkerKey = null;
+                    nonMouseMarkerKeys.clear();
+                    currentClusterKey = clusterKey;
+                }
+
+                if ("mouse".equals(organism)) {
+                    mouseCount += 1;
+                    mouseMarkerKey = markerKey;
+                } else {
+                    nonMouseMarkerKeys.add(markerKey);
+                }
+            }
+            if (currentClusterKey != null && mouseCount == 1) {
+                for(Integer nmmk : nonMouseMarkerKeys) {
+                    this.nonMouse2Mouse.put(nmmk, mouseMarkerKey);
+                }
+            }
+        }
 	
 	// populate the indexer's caches of allele data for expression results with drivers
 	// with keys >= startMarker and < endMarker
@@ -445,7 +494,9 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		int startMarker = minMarkerKey;
 		List<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		int uniqueKey = 1;
+                int nonMouseCount = 0;
 		buildAnatomyCaches();
+                buildHomologyCache();
 				
 		while (startMarker < maxMarkerKey) {
 			int endMarker = startMarker + this.batchSize;
@@ -472,12 +523,12 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			 * process, however, could be used to also add the wild-type expression data for markers.  Note that
 			 * we restrict our index to including only data for mouse drivers.
 			 */
-			String cmd = "select r.allele_key, r.driver_key, r.result_key, r.structure_key, r.is_detected "
+			String cmd = "select r.allele_key, r.driver_key, m.organism, r.result_key, r.structure_key, r.is_detected "
 				+ "from recombinase_expression r, marker m "
 				+ "where r.driver_key >= " + startMarker
 				+ " and r.driver_key < " + endMarker
-				+ " and r.driver_key = m.marker_key "
-				+ " and m.organism = 'mouse'";
+				+ " and r.driver_key = m.marker_key ";
+				//+ " and m.organism = 'mouse'";
 			logger.info(cmd);
 
 			ResultSet rs = ex.executeProto(cmd);
@@ -488,6 +539,17 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			while (rs.next()) {
 				int alleleKey = rs.getInt("allele_key");
 				int driverKey = rs.getInt("driver_key");
+                                String organism = rs.getString("organism");
+                                if (!"mouse".equals(organism)) {
+                                    if (nonMouse2Mouse.containsKey(driverKey)) {
+                                        // substitute mouse ortholog's key (so this allele gets returns
+                                        // for the mouse gene)
+                                        driverKey = nonMouse2Mouse.get(driverKey);
+                                    } else {
+                                        // non-mouse driver but no 1:1 mouse ortholog. Skip it.
+                                        continue;
+                                    }
+                                }
 				int emapsKey = rs.getInt("structure_key");
 				int emapaKey = this.emapsToEmapa.get(emapsKey);
 				String isDetected = rs.getString("is_detected");
@@ -528,6 +590,11 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 						List<Integer> emapaAncestors = this.anatomyAncestors.get(structureKey);
 						Cell cell = cellBlock.getCell(driverKey, ALLELE, alleleKey, structureKey);
 
+                                                if (!this.driverOrganism.get(alleleKey).equals("mouse")) {
+                                                    nonMouseCount += 1;
+                                                    logger.info("  -> nonmouse ID " + driverID);
+                                                }
+
 						SolrInputDocument doc = new SolrInputDocument();
 						doc.addField(IndexConstants.CELL_TYPE, "recombinase");
 						doc.addField(IndexConstants.UNIQUE_KEY, uniqueKey++);
@@ -558,7 +625,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			startMarker = endMarker;
 		}
 		writeDocs(docs);
-		logger.info("Finished writing " + uniqueKey + " docs to Solr");
+		logger.info("Finished writing " + uniqueKey + " docs to Solr (" + nonMouseCount + " non-mouse)");
 		commit();
 	}
 }
