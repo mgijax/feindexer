@@ -130,13 +130,23 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 			if ("mouse".equals(this.organism)) { return 0; }
 			if ("human".equals(this.organism)) { return 1; }
 			if ("rat".equals(this.organism)) { return 2; }
-			return 3;
+                        if (!"Not Specified".equals(this.organism)) { return 3; }
+			return 4;
 		}
 		
 		private int getSortableSubtype() {
 			if ("Targeted".equals(this.objectSubtype)) { return 0; }
-			if ("Transgenic".equals(this.objectSubtype)) { return 1; }
-			return 2;
+			if ("Endonuclease-mediated".equals(this.objectSubtype)) { return 1; }
+			if ("Transgenic".equals(this.objectSubtype)) {
+                            if (this.symbol.startsWith("Tg(")) {
+                                // transgene
+                                return 3;
+                            } else {
+                                // transgenic allele
+                                return 2;
+                            }
+                        }
+			return 4;
 		}
 		
 		public class SortableColumnHeaderComparator implements Comparator<SortableColumnHeader> {
@@ -173,7 +183,11 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 	
 	/***--- instance variables ---***/
 	
-	public int batchSize = 25000;			// how many markers to process in each batch
+        // jer - forcing everything to be done in one batch. The memory footprint should stay relatively small.
+        // Splitting into batches one driver key ranges just causes too many problems now that we're folding non-mouse drivers
+        // in with their mouse othologs.
+	public int batchSize = 25000000;			// how many markers to process in each batch
+        //
 	public int documentCacheSize = 10000;	// how many Solr docs to cache in memory
 	
 	// caches across all batches of markers (retrieve once and hold them)
@@ -355,15 +369,12 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 		this.driverOrganism = new HashMap<Integer,String>();
 		List<SortableColumnHeader> alleleColumns = new ArrayList<SortableColumnHeader>();
 		
-		// get the allele pairs for each genocluster, but strip out all the markup and just leave
-		// the allele symbols
-		
 		String cmd = "select distinct a.allele_key, a.symbol, a.primary_id, a.allele_type, m.organism "
 			+ "from allele a, recombinase_expression e, marker m "
 			+ "where a.allele_key = e.allele_key "
 			+ " and e.driver_key = m.marker_key"
-			+ " and e.driver_key >= " + startMarker
-			+ " and e.driver_key < " + endMarker;
+			+ " and m.marker_key >= " + startMarker
+			+ " and m.marker_key < " + endMarker;
 		
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
@@ -530,7 +541,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
                                     if (driverID == null) {
                                         continue;
                                     }
-                                    logger.info("Mapped " + driverKey + " to " + driverID);
+                                    //logger.info("Mapped " + driverKey + " to " + driverID);
                                 }
 				
 				for (Integer alleleKey : cellBlock.getObjectKeys(driverKey, ALLELE)) {
@@ -548,7 +559,7 @@ public class RecombinaseMatrixIndexerSQL extends Indexer {
 
                                                 if (!this.driverOrganism.get(alleleKey).equals("mouse")) {
                                                     nonMouseCount += 1;
-                                                    logger.info("  -> nonmouse ID " + driverID);
+                                                    // logger.info("  -> nonmouse ID " + driverID);
                                                 }
 
 						SolrInputDocument doc = new SolrInputDocument();
