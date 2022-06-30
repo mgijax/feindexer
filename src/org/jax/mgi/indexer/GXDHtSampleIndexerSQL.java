@@ -27,6 +27,8 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String, HashSet<String>> variables = null;		// maps sample key to experimental variables
 	HashMap<String,String> terms = null;					// maps term key to term (EMAPA)
 	HashMap<String,String> termIDs = null;					// maps term key to term ID (EMAPA)
+	HashMap<String,String> clTerms = null;					// maps term key to term (Cell type)
+	HashMap<String,String> clTermIDs = null;					// maps term key to term ID (Cell type)
 	HashMap<String, HashSet<String>> termStrings = null;	// maps term key to terms, IDs, and synonyms
 	HashSet<String> conditionalGenotypes = null;		// set of genotype keys for conditional genotypes
 
@@ -138,6 +140,30 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		logger.info("Retrieved mutated genes for " + this.markerData.size() + " samples");
 	}
 	
+	private void cacheCellTypeData() throws Exception {
+
+                logger.info("Caching Cell Type info.");
+
+		this.clTerms = new HashMap<String,String>();
+		this.clTermIDs = new HashMap<String,String>();
+
+		String cmd7 = "select t.term_key, t.primary_id, t.term "
+			+ "from term t "
+			+ "where t.vocab_name = 'Cell Ontology'";
+		
+		ResultSet rs7 = ex.executeProto(cmd7);
+		while (rs7.next()) {
+			String termKey = rs7.getString("term_key");
+			String term = rs7.getString("term");
+                        String termID = rs7.getString("primary_id");
+
+                        this.clTerms.put(termKey,term);
+                        this.clTermIDs.put(termKey,termID);
+                }
+                rs7.close();
+                logger.info("Got terms, IDs, synonyms for " + this.clTerms.size() + " CL terms");
+        }
+
 	private void cacheEmapaData() throws Exception {
 		// look up terms, IDs, synonyms for structure and its ancestors;
 		// also look up ancestors (via DAG) for each term; is stage-aware when traversing DAG
@@ -206,6 +232,9 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		if (this.terms.containsKey(termKey)) {
 			return this.terms.get(termKey);
 		}
+		if (this.clTerms.containsKey(termKey)) {
+			return this.clTerms.get(termKey);
+		}
 		return null;
 	}
 	
@@ -213,6 +242,9 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		// return term ID corresponding to termKey
 		if (this.termIDs.containsKey(termKey)) {
 			return this.termIDs.get(termKey);
+		}
+		if (this.clTermIDs.containsKey(termKey)) {
+			return this.clTermIDs.get(termKey);
 		}
 		return null;
 	}
@@ -250,9 +282,10 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		cacheGenotypeData();
 		cacheMarkerData();
 		cacheEmapaData();
+		cacheCellTypeData();
 		
 		// main query for sample data
-		String cmd = "select s.sample_key, s.emapa_key, s.theiler_stage, s.genotype_key, s.age, s.sex, "
+		String cmd = "select s.sample_key, s.emapa_key, s.theiler_stage, s.celltype_key, s.genotype_key, s.age, s.sex, "
 			+ "  e.method, s.name as sample_name, s.organism, s.sequence_num, e.experiment_key, "
 			+ "  e.name as title, e.description, s.genotype_key, s.age_min, s.age_max, e.study_type, s.relevancy "
 			+ "from expression_ht_sample s, expression_ht_experiment e "
@@ -267,6 +300,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			String exptKey = rs.getString("experiment_key");
 			String genotypeKey = rs.getString("genotype_key");
 			String emapaKey = rs.getString("emapa_key");
+                        String celltypeKey = rs.getString("celltype_key");
 			String stage = rs.getString("theiler_stage");
 			
 			DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
@@ -328,6 +362,11 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 				doc.addField(GxdHtFields.STRUCTURE_ID, this.getTermID(emapaKey));
 				doc.addAllDistinct(GxdHtFields.STRUCTURE_SEARCH, this.getTermStringsWithAncestors(stage, emapaKey));
 			}
+
+                        if (celltypeKey != null) {
+				doc.addField(GxdHtFields.CELLTYPE_ID, this.getTermID(celltypeKey));
+				doc.addField(GxdHtFields.CELLTYPE_TERM, this.getTerm(celltypeKey));
+                        }
 
 			docs.add(doc);
 			if (docs.size() > 10000) {
