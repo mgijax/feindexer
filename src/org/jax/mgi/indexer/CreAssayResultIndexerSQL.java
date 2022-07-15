@@ -71,12 +71,34 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// map from EMAPS term key to its EMAPA ancestor keys (stage-aware)
 	Map<String, Set<String>> emapaAncestors;
 	
+        // map from driver key (ie, a marker key) to list of search strings it should match.
+        private Map<String,Set<String>> clusterKey2searchStrings;
+        private Map<String,Set<String>> clusterKey2facetStrings;;
+
 	/***--- methods ---***/
 
 	public CreAssayResultIndexerSQL () {
 		super("creAssayResult");
 	}
 
+
+        // populate mapping from driver cluster_key to list of search terms (lowercase driver symbols) for that cluster
+        private void fillDriverSearchStrings () throws SQLException {
+                clusterKey2searchStrings = new HashMap<String,Set<String>>();
+                clusterKey2facetStrings = new HashMap<String,Set<String>>();
+                ResultSet rs1 = ex.executeProto("select driver_key, driver, cluster_key from driver");
+                while (rs1.next()) {
+                    String driverKey = rs1.getString("driver_key");
+                    String driver = rs1.getString("driver");
+                    String clusterKey = rs1.getString("cluster_key");
+                    if (!clusterKey2searchStrings.containsKey(clusterKey)) {
+                        clusterKey2searchStrings.put(clusterKey, new HashSet<String>());
+                        clusterKey2facetStrings.put(clusterKey, new HashSet<String>());
+                    }
+                    clusterKey2searchStrings.get(clusterKey).add(driver.toLowerCase());
+                    clusterKey2facetStrings.get(clusterKey).add(driver);
+                }
+        }
 	// populate the mapping from EMAPA keys to terms
 	public void fillEmapaTerms() throws Exception {
 		emapaTerms = new HashMap<String,String>();
@@ -249,6 +271,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	 */
 	public void index() throws Exception
 	{   
+                fillDriverSearchStrings();
 		fillEmapaTerms();
 		fillEmapaSynonyms();
 		fillSystemSorts();
@@ -304,6 +327,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ "ras.allele_id, "
 					+ "ras.allele_key, "
 					+ "a.driver, "
+					+ "a.driver_key, "
+                                        + "drv.cluster_key, "
 					+ "a.inducible_note, "
 					+ "rarsn.by_structure, "
 					+ "rarsn.by_age, "
@@ -325,6 +350,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					+ 	"rar.result_key = rarsn.result_key "
 					+ "join allele a on "
 					+ 	"a.allele_key = ras.allele_key "
+					+ "join driver drv on "
+                                        +       "drv.driver_key = a.driver_key "
 					+ "join term_emap e on rar.structure_key = e.term_key "
 					+ "join term emapa on "
 					+ 	"e.emapa_term_key = emapa.term_key "
@@ -360,8 +387,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		String alleleQuery = "select a.allele_key, "
 				+ "a.primary_id as allele_id,"
 				+ "a.driver,"
+				+ "a.driver_key,"
+                                + "drv.cluster_key,"
 				+ "a.inducible_note "
 				+ "from allele a "
+                                + "join driver drv on "
+                                +    "drv.driver_key = a.driver_key "
 				+ "where a.driver is not null "
 				+ "and not exists (select 1 from recombinase_allele_system ras "
 				+ 	"where ras.allele_key = a.allele_key "
@@ -408,6 +439,18 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.DRIVER_SORT, alleleSorts.byDriver);
 			}
 			doc.addField(CreFields.DRIVER, rs.getString("driver"));
+                        for(String searchString : clusterKey2searchStrings.get(rs.getString("cluster_key"))) {
+                            doc.addField(CreFields.DRIVER_SEARCH, searchString);
+                        }
+                        String facetString = "";
+                        for(String fString : clusterKey2facetStrings.get(rs.getString("cluster_key"))) {
+                            if (facetString.length() > 0) {
+                                facetString += ",";
+                            }
+                            facetString += fString;
+                        }
+                        doc.addField(CreFields.DRIVER_FACET, facetString);
+
 			doc.addField(CreFields.INDUCER, rs.getString("inducible_note"));
 
 			if (resultType == ResultType.ALLELE) {
