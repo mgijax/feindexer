@@ -285,7 +285,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		
 		String cmd = "select distinct gc.hdp_genocluster_key, g.genotype_type, "
 			+ " regexp_replace("
-			+ "  regexp_replace(g.combination_1, '\\\\Allele\\([^\\|]*|', '', 'g'), "
+			+ "  regexp_replace(g.combination_3, '\\\\Allele\\([^\\|]*|', '', 'g'), "
 			+ "   '\\|\\)?', '', 'g') as allele_pairs "
 			+ "from marker m, hdp_genocluster_marker gc, hdp_genocluster_genotype gg, genotype g "
 			+ "where gc.marker_key = m.marker_key "

@@ -98,14 +98,14 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		this.alleles = new HashMap<String,String>();
 		this.conditionalGenotypes = new HashSet<String>();
 
-		String cmd3 = "select s.genotype_key, g.background_strain, g.combination_1, g.is_conditional "
+		String cmd3 = "select s.genotype_key, g.background_strain, g.combination_3, g.is_conditional "
 			+ "from expression_ht_sample s, genotype g "
 			+ "where s.genotype_key = g.genotype_key";
 		ResultSet rs3 = ex.executeProto(cmd3);
 		while (rs3.next()) {
 			String genotypeKey = rs3.getString("genotype_key");
 			this.strains.put(genotypeKey, rs3.getString("background_strain"));
-			this.alleles.put(genotypeKey, rs3.getString("combination_1"));
+			this.alleles.put(genotypeKey, rs3.getString("combination_3"));
 			if (rs3.getInt("is_conditional") != 0) {
 				this.conditionalGenotypes.add(genotypeKey);
 			}

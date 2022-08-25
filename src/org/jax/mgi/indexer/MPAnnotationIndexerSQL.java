@@ -106,7 +106,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		return map;
 	}
 	
-	// dataType should be either 'background_strain' or 'combination_1', depending on what you want
+	// dataType should be either 'background_strain' or 'combination_3', depending on what you want
 	public HashMap<String, HashSet<String>> getGenotypeInfoMap(String dataType) {
 		String genotypeQuery = "select distinct g.genotype_key, "
 				+ "  g." + dataType + " "
@@ -188,7 +188,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 		HashMap<String, HashSet<String>> annotationToRefs = getAnnotationToRefsMap();
 		HashMap<String, HashSet<String>> annotationToSeqNum = getAnnotationToSeqNumMap();
 		HashMap<String, HashSet<String>> genotypeToStrain = getGenotypeInfoMap("background_strain");
-		HashMap<String, HashSet<String>> genotypeToAlleles = getGenotypeInfoMap("combination_1");
+		HashMap<String, HashSet<String>> genotypeToAlleles = getGenotypeInfoMap("combination_3");
 		HashMap<String, HashSet<String>> mpTermKeyToTerm = getTermDataMap(mpVocabName, "term");
 		HashMap<String, HashSet<String>> mpTermKeyToID = getTermDataMap(mpVocabName, "primary_id");
 		HashMap<String, HashSet<String>> mpAncestors = getTermAncestorMap(mpVocabName);
@@ -228,7 +228,7 @@ public class MPAnnotationIndexerSQL extends Indexer {
 				+ "and a.annotation_key > " + start + " and a.annotation_key <= " + end + " "
 				+ "and a.annotation_key = t.annotation_key " 
 				+ "and t.genotype_key = g.genotype_key " 
-				+ "and g.combination_1 is not null";
+				+ "and g.combination_3 is not null";
 
 			ResultSet rs_overall = ex.executeProto(mainQuery);
 

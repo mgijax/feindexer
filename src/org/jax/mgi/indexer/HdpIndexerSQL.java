@@ -1562,7 +1562,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		// grab the allele combination from the first genotype for each genocluster
 		String allelePairQuery = "select distinct on (gc1.hdp_genocluster_key) "
-				+ "  gc1.hdp_genocluster_key, g1.combination_1, g1.is_conditional "
+				+ "  gc1.hdp_genocluster_key, g1.combination_3, g1.is_conditional "
 				+ "from hdp_genocluster_genotype gc1, "
 				+ "  genotype g1 "
 				+ "where gc1.genotype_key = g1.genotype_key";
@@ -1572,7 +1572,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 
 		ResultSet rs = ex.executeProto(allelePairQuery, cursorLimit);
 		while (rs.next()) {
-			allelePairs.put(rs.getInt("hdp_genocluster_key"), formatAllelePairsForDisplay(rs.getString("combination_1")));
+			allelePairs.put(rs.getInt("hdp_genocluster_key"), formatAllelePairsForDisplay(rs.getString("combination_3")));
 			if (rs.getInt("is_conditional") == 1) {
 				conditionalGenoclusters.add(rs.getInt("hdp_genocluster_key"));
 			}
