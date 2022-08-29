@@ -944,6 +944,11 @@ public abstract class HdpIndexerSQL extends Indexer {
 			markerOrthologs = new HashMap<Integer,Set<Integer>>();
 
 			logger.info("building mapping from each marker to its orthologs");
+                        /* For mouse/human orthologies, we want the 'Alliance Clustered' set.
+                         * For non-mouse/human orthologies, we need the 'Alliance Direct' set,
+                         * because the Alliance Clustered set doesn't have them.
+                         * Start by building the mapping index from the Alliance Clustered set.
+                         */
 			String orthologQuery = "select distinct otm.marker_key as marker_key, "
 					+ "  other_otm.marker_key as other_marker_key "
 					+ "from homology_cluster_organism o, "
@@ -967,6 +972,38 @@ public abstract class HdpIndexerSQL extends Indexer {
 				markerOrthologs.get(markerKey).add(rs.getInt("other_marker_key"));
 			}
 			rs.close();
+                        /*
+                         * Now augment the mapping by pulling in the non-mouse/non-human orthologs from Alliance Direct set.
+                         */
+			String orthologQuery2 = "select distinct otm.marker_key as marker_key, "
+					+ "  other_otm.marker_key as other_marker_key "
+					+ "from homology_cluster_organism o, "
+					+ "  homology_cluster_organism_to_marker otm, "
+					+ "  homology_cluster_organism other_o, "
+					+ "  homology_cluster_organism_to_marker other_otm, "
+					+ "  homology_cluster hc "
+					+ "where other_o.cluster_key=o.cluster_key "
+					+ "  and o.cluster_organism_key=otm.cluster_organism_key "
+					+ "  and other_o.cluster_organism_key=other_otm.cluster_organism_key "
+					+ "  and o.cluster_key = hc.cluster_key "
+					+ "  and hc.source = 'Alliance Direct' "
+					+ "  and otm.marker_key!=other_otm.marker_key";
+
+			ResultSet rs2 = ex.executeProto(orthologQuery2, cursorLimit);
+			while(rs2.next()) {
+				Integer markerKey = rs2.getInt("marker_key");
+                                Integer otherKey = rs2.getInt("other_marker_key");
+				if (markerOrthologs.containsKey(markerKey)) {
+                                        /* add other_marker_key to everything in the cluster */
+                                        Set<Integer> clusterMemberKeys = new HashSet<Integer> (markerOrthologs.get(markerKey));
+                                        for (Integer clusterMemberKey : clusterMemberKeys) {
+                                            if (markerOrthologs.containsKey(clusterMemberKey)) {
+                                                markerOrthologs.get(clusterMemberKey).add(otherKey);
+                                            }
+                                        }
+				}
+			}
+			rs2.close();
 			logger.info("done collecting orthologs for " + markerOrthologs.size() + " markers" + Timer.getElapsedMessage());
 		}
 		return markerOrthologs;
