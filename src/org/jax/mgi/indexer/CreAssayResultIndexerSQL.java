@@ -57,6 +57,10 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// mapping from EMAPA structure keys to their respective synonyms
 	private Map<String,Set<String>> emapaSynonyms;
 	
+	// mapping from each allele key to the keys of all EMAPA structures
+	// where recombinase activity is directly detected, (Union over activity locations.)
+	private Map<String, Set<String>> allStructuresDirect;
+	
 	// mapping from each allele key to the keys of all EMAPA structures (and their ancestors) 
 	// where recombinase activity is detected, (Union over activity locations and their ancestors.)
 	private Map<String, Set<String>> allStructures;
@@ -152,15 +156,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			if (!emapaAncestors.containsKey(emapsTermKey)) {
 				// add the initial set for this term, populated by the corresponding EMAPA term and its synonyms
 				emapaAncestors.put(emapsTermKey, new HashSet<String>());
-				emapaAncestors.get(emapsTermKey).add(emapaTerms.get(emapaTermKey));
+				//emapaAncestors.get(emapsTermKey).add(emapaTerms.get(emapaTermKey));
+				emapaAncestors.get(emapsTermKey).add(emapaTermKey);
 				if (emapaSynonyms.containsKey(emapaTermKey)) {
-					emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(emapaTermKey));
+					//emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(emapaTermKey));
 				}
 			}
 			// then add the term and its synonyms for the EMAPA ancestor term
-			emapaAncestors.get(emapsTermKey).add(emapaTerms.get(ancestorTermKey));
+			//emapaAncestors.get(emapsTermKey).add(emapaTerms.get(ancestorTermKey));
+			emapaAncestors.get(emapsTermKey).add(ancestorTermKey);
 			if (emapaSynonyms.containsKey(ancestorTermKey)) {
-				emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(ancestorTermKey));
+				// emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(ancestorTermKey));
 			}
 		}
 		rs.close();
@@ -179,17 +185,19 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return emptySet;
 	}
 
-	// Precompute two structure sets for searching recombinase alleles.
+	// Precompute three structure sets for searching recombinase alleles.
 	// 1. exclusiveStructures: identify the exclusive structures for each allele (the set of structures outside which there is
 	// no recombinase activity detected for that allele), returning a mapping from:
 	//		allele key (String) : set of structure terms (Strings)
 	// Because everything traces up the DAG to 'mouse', everything should at least have one exclusive
 	// structure returned.
 	// Use:  This field is used when the user specifies a structure and checks the "nowhere else" checkbox.
-	// 2. allStructures: set of all EMAPA structure keys (and their ancestors) where recombinase activity is detected
+        // 2. allStructuresDirect: set of all EMAPA structure keys where recombinase activity is directly detected
+	// 3. allStructures: set of all EMAPA structure keys (and their ancestors) where recombinase activity is detected
 	//
 	private void findStructures() throws Exception {
 		allStructures = new HashMap<String, Set<String>>();
+		allStructuresDirect = new HashMap<String, Set<String>>();
 		exclusiveStructures = new HashMap<String, Set<String>>();
 		
 		int minAlleleKey = 0;	// lowest allele key with recombinase data
@@ -214,12 +222,13 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			// gather the EMAPS structures where recombinase activity was detected
 			Map<String,Set<String>> structuresPerAllele = new HashMap<String,Set<String>>();
 
-			String cmd = "select ras.allele_key, rar.structure_key "
-				+ "from recombinase_allele_system ras, recombinase_assay_result rar "
+			String cmd = "select ras.allele_key, rar.structure_key, rar.structure, te.emapa_term_key "
+				+ "from recombinase_allele_system ras, recombinase_assay_result rar, term_emap te "
 				+ "where ras.allele_system_key = rar.allele_system_key "
 				+ " and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') "
 				+ " and ras.allele_key > " + startAllele
 				+ " and ras.allele_key <= " + endAllele
+                                + " and rar.structure_key = te.term_key "
 				+ " order by ras.allele_key";
 			
 			ResultSet rs1 = ex.executeProto(cmd);
@@ -227,8 +236,10 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				String alleleKey = rs1.getString("allele_key");
 				if (!structuresPerAllele.containsKey(alleleKey)) {
 					structuresPerAllele.put(alleleKey, new HashSet<String>());
+                                        allStructuresDirect.put(alleleKey, new HashSet<String>());
 				}
 				structuresPerAllele.get(alleleKey).add(rs1.getString("structure_key"));
+				allStructuresDirect.get(alleleKey).add(rs1.getString("emapa_term_key"));
 			}
 			rs1.close();
 			
@@ -262,6 +273,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			endAllele = startAllele + chunkSize;
 		}
 		logger.info("Got all structures for " + allStructures.size() + " alleles");
+		logger.info("Got all structures (direct) for " + allStructuresDirect.size() + " alleles");
 		logger.info("Got exclusive structures for " + exclusiveStructures.size() + " alleles");
 	}
 
@@ -536,6 +548,10 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 				if (allStructures.containsKey(alleleKey)) {
 					doc.addField(CreFields.ALL_ALL_STRUCTURES, allStructures.get(alleleKey));
+				}
+
+				if (allStructuresDirect.containsKey(alleleKey)) {
+					doc.addField(CreFields.ALL_ALL_STRUCTURES_DIRECT, allStructuresDirect.get(alleleKey));
 				}
 
 				if (exclusiveStructures.containsKey(alleleKey)) {
