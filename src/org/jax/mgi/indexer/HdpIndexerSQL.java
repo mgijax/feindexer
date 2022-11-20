@@ -1501,8 +1501,11 @@ public abstract class HdpIndexerSQL extends Indexer {
 		gcToMouseMarkers = new HashMap<Integer,String>();
 
 		String markerQuery = "select gcm.hdp_gridcluster_key, m.organism, m.symbol, m.marker_key, "
-				+ "  m.primary_id, ms.by_symbol, m.marker_type, m.marker_subtype, m.name "
-				+ "from hdp_gridcluster_marker gcm, marker m, marker_sequence_num ms "
+				+ "  m.primary_id, mi.acc_id as hgnc_id, ms.by_symbol, m.marker_type, m.marker_subtype, m.name "
+				+ "from hdp_gridcluster_marker gcm, "
+                                + "  marker m left join marker_id mi "
+                                + "    on m.marker_key = mi.marker_key and mi.logical_db = 'HGNC', "
+                                + "  marker_sequence_num ms "
 				+ "where gcm.marker_key = m.marker_key "
 				+ "  and m.marker_key = ms.marker_key "
 				+ "order by gcm.hdp_gridcluster_key, m.organism, ms.by_symbol";
@@ -1520,6 +1523,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String symbol = rs.getString("symbol");
 			String name = rs.getString("name");
 			String accId = rs.getString("primary_id");
+			String hgncId = rs.getString("hgnc_id");
 			String markerType = rs.getString("marker_type");
 			String markerSubType = rs.getString("marker_subtype");
 			Integer markerKey = rs.getInt("marker_key");
@@ -1537,7 +1541,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 
 			if ("human".equals(organism)) {
-				humanGM.add(new GridMarker(symbol, accId, name, markerType, getHomologyClusterKey(markerKey)));
+				humanGM.add(new GridMarker(symbol, hgncId, name, markerType, getHomologyClusterKey(markerKey)));
 			} else {
 				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType, getHomologyClusterKey(markerKey)));
 			}
