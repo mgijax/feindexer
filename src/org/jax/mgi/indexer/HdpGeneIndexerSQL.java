@@ -277,7 +277,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 		// associated with the markers, so this will lead to multiple rows (and documents)
 		// per marker.
 		String markerQuery = "select n.by_symbol, n.by_name, n.by_organism, n.by_location, "
-				+ "  m.marker_key, m.symbol, m.name, m.primary_id, m.organism, m.marker_type, "
+				+ "  m.marker_key, m.symbol, m.name, m.primary_id, mi.acc_id as hgnc_id, m.organism, m.marker_type, "
 				+ "  m.location_display, m.coordinate_display, m.build_identifier, m.marker_subtype, "
 				+ "  c.reference_count, c.disease_relevant_reference_count, c.imsr_count, "
 				+ "  gc.hdp_genocluster_key, a.term_key "
@@ -286,6 +286,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 				+ "inner join marker_counts c on (m.marker_key = c.marker_key) "
 				+ "left outer join hdp_genocluster_marker gc on (m.marker_key = gc.marker_key) "
 				+ "left outer join hdp_annotation a on (m.marker_key = a.marker_key and a.organism_key = 2)"
+				+ "left outer join marker_id mi on (m.marker_key = mi.marker_key and mi.logical_db = 'HGNC')"
 				+ "where m.marker_type not in ('BAC/YAC end', 'DNA Segment') "
 				+ "  and m.organism in ('mouse', 'human') "
 				+ "  and m.status = 'official' "
@@ -311,7 +312,7 @@ public class HdpGeneIndexerSQL extends HdpIndexerSQL {
 			doc.addField(DiseasePortalFields.MARKER_KEY, markerKey);
 			addIfNotNull(doc, DiseasePortalFields.MARKER_SYMBOL, rs.getString("symbol"));
 			addIfNotNull(doc, DiseasePortalFields.MARKER_NAME, rs.getString("name"));
-			addIfNotNull(doc, DiseasePortalFields.MARKER_MGI_ID, rs.getString("primary_id"));
+			addIfNotNull(doc, DiseasePortalFields.MARKER_MGI_ID, isHumanMarker ? rs.getString("hgnc_id") : rs.getString("primary_id"));
 			doc.addAllDistinct(DiseasePortalFields.MARKER_ID, getMarkerIds(markerKey));
 			addIfNotNull(doc, DiseasePortalFields.GRID_CLUSTER_KEY, gridClusterKey);
 			addIfNotNull(doc, DiseasePortalFields.ORGANISM, rs.getString("organism"));
