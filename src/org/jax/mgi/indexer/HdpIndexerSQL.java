@@ -51,8 +51,12 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;		// marker key -> set of ortholog marker keys
 	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> Alliance Clustered homology cluster key
+
+        // Mappings from marker key to list of symbols for mutation-involves and expresses-component.
+        // Used for populating the mouseover tooltip in the grid display. (The other expresses component caches are for
+        // populating search fields in the index.)
 	protected Map<Integer,List<String>> markerToMutationInvolves = null;	// marker key -> list of symbols of genes in "mutation-involves"
-      
+	protected Map<Integer,List<String>> markerToExpressesComponent = null;	// marker key -> list of symbols of genes in "expresses-component"
 
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerTerm = null;	// disease ID -> header terms
@@ -893,6 +897,8 @@ public abstract class HdpIndexerSQL extends Indexer {
         /* get a mapping from integer marker key to list of "mutation involves" symbols.
          */
         private void cacheMutationInvolves () throws Exception {
+            if (markerToMutationInvolves != null) return;
+
             logger.info("caching mutation involves data");
             markerToMutationInvolves = new HashMap<Integer,List<String>>();
             String query = "select distinct m.marker_key, arm.related_marker_symbol "
@@ -1576,9 +1582,20 @@ public abstract class HdpIndexerSQL extends Indexer {
                                 title += "\nFeature type: " + markerSubType;
                                 if (markerToMutationInvolves.containsKey(markerKey)) {
                                     List<String> mutationInvolves = markerToMutationInvolves.get(markerKey);
-                                    title += "\nMutation involves " + mutationInvolves.size() + " genes: ";
+                                    int sz = mutationInvolves.size();
+                                    title += "\nMutation involves " + sz + " gene" + (sz > 1 ? "s" : "") + ": ";
                                     if (mutationInvolves.size() <= 5) {
                                         title += String.join(", ", mutationInvolves);
+                                    } else {
+                                        title += "see allele page for details";
+                                    }
+                                }
+                                if (markerToExpressesComponent.containsKey(markerKey)) {
+                                    List<String> expresses = markerToExpressesComponent.get(markerKey);
+                                    int sz = expresses.size();
+                                    title += "\nTransgene expresses " + sz + " gene" + (sz > 1 ? "s" : "") + ": ";
+                                    if (expresses.size() <= 5) {
+                                        title += String.join(", ", expresses);
                                     } else {
                                         title += "see allele page for details";
                                     }
@@ -1882,6 +1899,57 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 		}
 		logger.info("included orthologs for expressed components " + Timer.getElapsedMessage());
+
+                // Here we load EC data for populating the tooltips on the grid tab
+                //
+                logger.info("Retrieving expressed component tooltip data.");
+                markerToExpressesComponent = new HashMap<Integer, List<String>> ();
+                String ec_tooltip_query_mouse = "select m.marker_key, arm.related_marker_symbol "
+                        + "from marker m, marker_to_allele ma, allele a, allele_related_marker arm "
+                        + "where m.marker_type = 'Transgene' "
+                        + "and m.marker_key = ma.marker_key "
+                        + "and ma.allele_key = a.allele_key "
+                        + "and a.allele_key = arm.allele_key "
+                        + "and arm.relationship_term = 'expresses' ";
+                ResultSet rs2 = ex.executeProto(ec_tooltip_query_mouse, cursorLimit);
+                while (rs2.next()) {
+                    Integer markerKey = rs2.getInt("marker_key");
+                    String expressedMarker = rs2.getString("related_marker_symbol");
+                    if (! markerToExpressesComponent.containsKey(markerKey)) {
+                        markerToExpressesComponent.put(markerKey, new ArrayList<String>());
+                    }
+                    markerToExpressesComponent.get(markerKey).add(expressedMarker + " (mouse)");
+                }
+
+                /* Non mouse markers are stored as multiple properties associated with the EC annotation.
+                 * We need the organism and the gene symbol. These are returned in separate rows by
+                 * the following query and are assembled in the code that follows.
+                 * For each non mouse EC, this query returns one row containing the symbol, immediately followed
+                 * by a second row containing the organism.
+                 */
+                String ec_tooltip_query_nonmouse = "select m.marker_key, arm.arm_key, arp.name, arp.value "
+                        + "from marker m, marker_to_allele ma, allele a, allele_related_marker arm  "
+                        + "left join allele_arm_property arp on arm.arm_key = arp.arm_key "
+                        + "and arp.name in ('Non-mouse_Organism','Non-mouse_Gene_Symbol') "
+                        + "where m.marker_type = 'Transgene' "
+                        + "and m.marker_key = ma.marker_key "
+                        + "and ma.allele_key = a.allele_key "
+                        + "and a.allele_key = arm.allele_key "
+                        + "and arm.relationship_term = 'expresses an ortholog of' "
+                        + "order by m.marker_key, arm.arm_key, arp.name";
+                ResultSet rs3 = ex.executeProto(ec_tooltip_query_nonmouse, cursorLimit);
+                while(rs3.next()) {
+                    Integer markerKey = rs3.getInt("marker_key");
+                    String expressedMarker = rs3.getString("value");
+                    rs3.next();
+                    String organism = rs3.getString("value");
+                    if (! markerToExpressesComponent.containsKey(markerKey)) {
+                        markerToExpressesComponent.put(markerKey, new ArrayList<String>());
+                    }
+                    markerToExpressesComponent.get(markerKey).add(expressedMarker + " (" + organism + ")");
+                }
+                logger.info("Cached expressed component tooltip data for " + markerToExpressesComponent.size() + " transgenes.");
+
 	}
 	
 	/* add to the Solr document the symbols, names, synonyms, and IDs for 'expressed component' markers
