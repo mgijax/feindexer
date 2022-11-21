@@ -51,6 +51,8 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected Map<Integer,Set<String>> markerFeatureTypes = null;	// marker key -> set of feature types
 	protected Map<Integer,Set<Integer>> markerOrthologs = null;		// marker key -> set of ortholog marker keys
 	protected Map<Integer,Integer> markerToHomologyCluster = null;	// marker key -> Alliance Clustered homology cluster key
+	protected Map<Integer,List<String>> markerToMutationInvolves = null;	// marker key -> list of symbols of genes in "mutation-involves"
+      
 
 	protected Map<String,Set<String>> markersPerDisease = null;	// disease ID -> marker keys
 	protected Map<String,Set<String>> headersPerTerm = null;	// disease ID -> header terms
@@ -888,6 +890,32 @@ public abstract class HdpIndexerSQL extends Indexer {
 		return getHeadersPerTerm(termId);
 	}
 
+        /* get a mapping from integer marker key to list of "mutation involves" symbols.
+         */
+        private void cacheMutationInvolves () throws Exception {
+            logger.info("caching mutation involves data");
+            markerToMutationInvolves = new HashMap<Integer,List<String>>();
+            String query = "select distinct m.marker_key, arm.related_marker_symbol "
+                + "from  marker m, allele a, marker_to_allele ma, allele_related_marker arm "
+                + "where m.marker_key = ma.marker_key "
+                + "and ma.allele_key = a.allele_key "
+                + "and m.marker_type = 'Cytogenetic Marker' "
+                + "and m.marker_subtype != 'unclassified cytogenetic marker' "
+                + "and a.is_wild_type = 0 "
+                + "and a.allele_key = arm.allele_key "
+                + "order by m.marker_key, arm.related_marker_symbol ";
+            ResultSet rs = ex.executeProto(query, cursorLimit);
+            while(rs.next()) {
+                    Integer markerKey = rs.getInt("marker_key");
+                    if (!markerToMutationInvolves.containsKey(markerKey)) {
+                            markerToMutationInvolves.put(markerKey, new ArrayList<String>());
+                    }
+                    markerToMutationInvolves.get(markerKey).add(rs.getString("related_marker_symbol"));
+            }
+            rs.close();
+            logger.info("cached " + markerToMutationInvolves.size() + " mutation involves entries");
+        }
+
 	/* get a mapping from (String) disease ID to an (Integer) count of references
 	 */
 	protected Map<String,Integer> getDiseaseReferenceCounts() throws Exception {
@@ -1493,6 +1521,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 	protected void cacheGridClusterMarkers() throws Exception {
 		if (gcToHumanMarkers != null) { return; }
 		cacheHomologyClusterKeys();
+                cacheMutationInvolves();
 
 		logger.info("retrieving gridcluster markers");
 		Timer.reset();
@@ -1527,6 +1556,7 @@ public abstract class HdpIndexerSQL extends Indexer {
 			String markerType = rs.getString("marker_type");
 			String markerSubType = rs.getString("marker_subtype");
 			Integer markerKey = rs.getInt("marker_key");
+                        String title = "Name: " + name;
 
 			// beginning to collect for a new gridcluster
 			if (lastGcKey != gcKey.intValue()) {
@@ -1541,9 +1571,19 @@ public abstract class HdpIndexerSQL extends Indexer {
 			}
 
 			if ("human".equals(organism)) {
-				humanGM.add(new GridMarker(symbol, hgncId, name, markerType, getHomologyClusterKey(markerKey)));
+				humanGM.add(new GridMarker(symbol, hgncId, name, markerType, getHomologyClusterKey(markerKey), title));
 			} else {
-				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType, getHomologyClusterKey(markerKey)));
+                                title += "\nFeature type: " + markerSubType;
+                                if (markerToMutationInvolves.containsKey(markerKey)) {
+                                    List<String> mutationInvolves = markerToMutationInvolves.get(markerKey);
+                                    title += "\nMutation involves " + mutationInvolves.size() + " genes: ";
+                                    if (mutationInvolves.size() <= 5) {
+                                        title += String.join(", ", mutationInvolves);
+                                    } else {
+                                        title += "see allele page for details";
+                                    }
+                                }
+				mouseGM.add(new GridMarker(symbol, accId, name, markerSubType, getHomologyClusterKey(markerKey), title));
 			}
 		}
 		
