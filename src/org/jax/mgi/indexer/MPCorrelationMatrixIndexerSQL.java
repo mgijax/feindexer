@@ -297,7 +297,7 @@ public class MPCorrelationMatrixIndexerSQL extends Indexer {
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
 			Integer genoclusterKey = rs.getInt("hdp_genocluster_key");
-			String alleles = rs.getString("allele_pairs").trim();
+			String alleles = rs.getString("allele_pairs") == null ? "" : rs.getString("allele_pairs").trim();
 			
 			allelePairs.put(genoclusterKey, alleles);
 			genoclusters.add(new SortableGenocluster(genoclusterKey, alleles, rs.getString("genotype_type")));
