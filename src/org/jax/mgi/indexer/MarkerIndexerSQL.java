@@ -210,6 +210,8 @@ public class MarkerIndexerSQL extends Indexer
 				MarkerLocation ml = locationMap.get(mrkKeyInt);
 				// add any location data for this marker
 				if(ml.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, ml.chromosome);
+				if(ml.genomic_chromosome!=null) doc.addField(IndexConstants.GENOMIC_CHROMOSOME, ml.genomic_chromosome);
+				if(ml.genetic_chromosome!=null) doc.addField(IndexConstants.GENETIC_CHROMOSOME, ml.genetic_chromosome);
 				if(ml.startCoordinate>0) doc.addField(IndexConstants.START_COORD, ml.startCoordinate);
 				if(ml.endCoordinate>0) doc.addField(IndexConstants.END_COORD, ml.endCoordinate);
 				if(ml.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, ml.cmOffset);
@@ -274,11 +276,20 @@ public class MarkerIndexerSQL extends Indexer
 			MarkerLocation ml = locationMap.get(mrkKey);
 
 			// set any non-null fields from this location row
-			if(chromosome!=null) ml.chromosome=chromosome;
+			if(chromosome!=null) {
+				ml.chromosome=chromosome;
+				if(startCoord>0) {
+					ml.genomic_chromosome = chromosome;
+				}
+				else {
+					ml.genetic_chromosome = chromosome;
+				}
+			}
 			if(startCoord>0) ml.startCoordinate=startCoord;
 			if(endCoord>0) ml.endCoordinate=endCoord;
 			if(cmOffset>0.0) ml.cmOffset=cmOffset;
 			if(strand!=null) ml.strand=strand;
+
 		}
 		logger.info("done building map of marker_keys -> marker locations");
 		return locationMap;
@@ -636,6 +647,8 @@ public class MarkerIndexerSQL extends Indexer
 	public class MarkerLocation
 	{
 		String chromosome=null;
+		String genomic_chromosome=null;
+		String genetic_chromosome=null;
 		Integer startCoordinate=0;
 		Integer endCoordinate=0;
 		Double cmOffset=0.0;
