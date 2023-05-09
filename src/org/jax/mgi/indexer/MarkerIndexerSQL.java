@@ -260,7 +260,8 @@ public class MarkerIndexerSQL extends Indexer
 		logger.info("building map of marker_keys -> marker locations");
 		String locationQuery="select ml.* " +
 				"from marker_location ml " +
-				"where ml.marker_key > "+start+" and ml.marker_key <= "+end+" ";
+				"where ml.marker_key > "+start+" and ml.marker_key <= "+end+" " +
+				"order by sequence_num ";
 		Map<Integer,MarkerLocation> locationMap = new HashMap<Integer,MarkerLocation>();
 		ResultSet rs = ex.executeProto(locationQuery);
 		while(rs.next())
@@ -277,7 +278,9 @@ public class MarkerIndexerSQL extends Indexer
 
 			// set any non-null fields from this location row
 			if(chromosome!=null) {
-				ml.chromosome=chromosome;
+				if(ml.chromosome==null) { // prefer the first; see order by in sql
+					ml.chromosome=chromosome;
+				}
 				if(startCoord>0) {
 					ml.genomic_chromosome = chromosome;
 				}
