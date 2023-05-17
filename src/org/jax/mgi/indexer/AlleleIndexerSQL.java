@@ -231,6 +231,8 @@ public class AlleleIndexerSQL extends Indexer {
 				AlleleLocation al = locationMap.get(allKey);
 				// add any location data for this allele
 				if(al.chromosome!=null) doc.addField(IndexConstants.CHROMOSOME, al.chromosome);
+				if(al.genomic_chromosome!=null) doc.addField(IndexConstants.GENOMIC_CHROMOSOME, al.genomic_chromosome);
+				if(al.genetic_chromosome!=null) doc.addField(IndexConstants.GENETIC_CHROMOSOME, al.genetic_chromosome);
 				if(al.startCoordinate>0) doc.addField(IndexConstants.START_COORD, al.startCoordinate);
 				if(al.endCoordinate>0) doc.addField(IndexConstants.END_COORD, al.endCoordinate);
 				if(al.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, al.cmOffset);
@@ -399,7 +401,9 @@ public class AlleleIndexerSQL extends Indexer {
 		String locationQuery="select allele_key,ml.* " +
 				"from marker_to_allele mta join " +
 				"marker_location ml on ml.marker_key=mta.marker_key " +
-				"where mta.allele_key > "+start+" and mta.allele_key <= "+end+" ";
+				"where mta.allele_key > "+start+" and mta.allele_key <= "+end+" " +
+				"order by sequence_num ";
+
 		Map<Integer,AlleleLocation> locationMap = new HashMap<Integer,AlleleLocation>();
 		ResultSet rs = ex.executeProto(locationQuery);
 		while(rs.next()) {
@@ -414,7 +418,17 @@ public class AlleleIndexerSQL extends Indexer {
 			AlleleLocation al = locationMap.get(allKey);
 
 			// set any non-null fields from this location row
-			if(chromosome!=null) al.chromosome=chromosome;
+			if(chromosome!=null) {
+				if(al.chromosome==null) { // prefer the first; see order by in sql
+					al.chromosome=chromosome;
+				}
+				if(startCoord>0) {
+					al.genomic_chromosome = chromosome;
+				}
+				else {
+					al.genetic_chromosome = chromosome;
+				}
+			}
 			if(startCoord>0) al.startCoordinate=startCoord;
 			if(endCoord>0) al.endCoordinate=endCoord;
 			if(cmOffset>0.0) al.cmOffset=cmOffset;
@@ -551,6 +565,8 @@ public class AlleleIndexerSQL extends Indexer {
 	// helper class for storing allele location info
 	public class AlleleLocation {
 		String chromosome=null;
+		String genomic_chromosome=null;
+		String genetic_chromosome=null;
 		Integer startCoordinate=0;
 		Integer endCoordinate=0;
 		Double cmOffset=0.0;
