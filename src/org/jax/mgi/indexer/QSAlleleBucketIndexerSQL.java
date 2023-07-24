@@ -464,7 +464,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
         /* Cache and return old marker names.
          */
         private Map<Integer,List<String>> cacheMarkerOldNames() throws Exception {
-                logger.info(" - caching old marker names")
+                logger.info(" - caching old marker names");
                 HashMap<Integer,List<String>> myOldNames = new HashMap<Integer,List<String>>();
                 String cmd = "select marker_key, term " +
                         "from marker_searchable_nomenclature  " +
@@ -556,7 +556,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
          * or old name is the same and is contained in this method. Note that the code uses the variable name "synonym" to
          * mean either old name of synonym.
          */
-        private void indexByOldNameOrSynonym(QSAllele allele, String synonym, String matchType, int weight, int pieceWeight) throws Exception {
+        private void indexOneSynonym(QSAllele allele, String synonym, String matchType, int weight, int pieceWeight) throws Exception {
                 addDoc(buildDoc(allele, null, synonym, null, synonym, matchType, weight));
                 addDoc(buildDoc(allele, null, null, synonym, synonym, matchType, weight));
                 
