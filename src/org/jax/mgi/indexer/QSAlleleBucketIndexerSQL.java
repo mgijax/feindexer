@@ -51,7 +51,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	private static int MARKER_SYMBOL_WEIGHT = 750;
 	private static int MARKER_SYMBOL_PIECE_WEIGHT = 725;
 	private static int MARKER_SYNONYM_WEIGHT = 700;
+	private static int MARKER_OLDNAME_WEIGHT = 700;
 	private static int MARKER_SYNONYM_PIECE_WEIGHT = 675;
+	private static int MARKER_OLDNAME_PIECE_WEIGHT = 675;
 	private static int TRANSGENE_PART_WEIGHT = 650;
 	private static int DISEASE_ID_WEIGHT = 600;
 	private static int DISEASE_NAME_WEIGHT = 550;
@@ -459,6 +461,32 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		logger.info(" - indexed " + ct + " mouse disease annotations for alleles");
 	}
 
+        /* Cache and return old marker names.
+         */
+        private Map<Integer,List<String>> cacheMarkerOldNames() throws Exception {
+                logger.info(" - caching old marker names")
+                HashMap<Integer,List<String>> myOldNames = new HashMap<Integer,List<String>>();
+                String cmd = "select marker_key, term " +
+                        "from marker_searchable_nomenclature  " +
+                        "where term_type = 'old name'";
+                ResultSet rs = ex.executeProto(cmd, cursorLimit);   
+		int ct = 0;							// count of synonyms processed
+		while (rs.next()) {
+			ct++;
+			Integer markerKey = rs.getInt("marker_key");
+			String oldName = rs.getString("term");
+			
+			if (!myOldNames.containsKey(markerKey)) {
+				myOldNames.put(markerKey, new ArrayList<String>());
+			}
+			myOldNames.get(markerKey).add(oldName);
+                }
+                rs.close();
+
+                logger.info(" - cached " + ct + " mouse old marker names");
+                return myOldNames;
+        }
+
 	/* Cache and return all synonyms for alleles, populating the synonyms object.
 	 * Note that this caching method is different from the others in that it does not directly modify the object's
 	 * cache.  Instead, the map produced is returned.  This lets us also easily cache marker synonyms when dealing
@@ -524,6 +552,51 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		return parts;
 	}
 	
+        /* Alleles should be indexed by both marker syonyms and marker old names. The actual processing for a given synonym
+         * or old name is the same and is contained in this method. Note that the code uses the variable name "synonym" to
+         * mean either old name of synonym.
+         */
+        private void indexByOldNameOrSynonym(QSAllele allele, String synonym, String matchType, int weight, int pieceWeight) throws Exception {
+                addDoc(buildDoc(allele, null, synonym, null, synonym, matchType, weight));
+                addDoc(buildDoc(allele, null, null, synonym, synonym, matchType, weight));
+                
+                for (String part : this.getParts(synonym)) {
+                        addDoc(buildDoc(allele, part, null, null, synonym, matchType, pieceWeight));
+                        
+                        // Also use inexact field for wildcard matching.
+                        addDocUnchecked(buildDoc(allele, null, part, null, synonym, matchType, pieceWeight));
+                }
+
+                // If the synonym is a single-letter word, then also index it as an exact match.  (Because
+                // single letter search strings are de-emphasized except for that bucket.)
+                if (synonym.trim().length() == 1) {
+                        addDocUnchecked(buildDoc(allele, synonym, null, null, synonym, matchType, weight));
+                }
+                
+                // For synonyms that contain angle brackets (e.g.- look like an allele symbol), we must also
+                // process them in pieces like we do an allele symbol.  (code copied and modified from there)
+                if ((synonym.indexOf("<") >= 0) && (synonym.indexOf(">") > 0)) {
+                        boolean first = true;
+                        for (String piece : getAlleleSymbolPieces(synonym)) {
+                                if (first) {
+                                        addDoc(buildDoc(allele, piece, null, null, synonym, matchType, weight));
+                                        addDocUnchecked(buildDoc(allele, null, piece, null, synonym, matchType, weight));
+
+                                        // Handle inexact (wildcard) matching with parts of allele synonyms.
+                                        addDoc(buildDoc(allele, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, synonym, matchType, weight));
+                                        if (piece.startsWith("Tg(")) {
+                                                addDoc(buildDoc(allele, null, piece.replace("Tg(", "").replaceAll("[<>()]",  ""), null, synonym, matchType, weight));
+                                                addDoc(buildDoc(allele, null, piece.replace("Tg(", "").replaceAll("[<>(),]",  " ").replaceAll("[-]", " "), null, synonym, matchType, weight));
+                                        }
+                                        first = false;
+                                } else {
+                                        addDoc(buildDoc(allele, piece, null, null, synonym, matchType, pieceWeight));
+                                        addDocUnchecked(buildDoc(allele, null, piece, null, synonym, matchType, pieceWeight));
+                                }
+                        }
+                }
+        }
+
 	// Retrieve synonyms, create documents, and index them.  Do both marker synonyms and allele synonyms.
 	private void indexSynonyms() throws Exception {
 		if ((alleles == null) || (alleles.size() == 0)) { throw new Exception("Cache of QSFeatures is empty"); }
@@ -536,51 +609,16 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				QSAllele feature = alleles.get(alleleKey);
 				
 				for (String synonym : mySynonyms.get(alleleKey)) {
-					addDoc(buildDoc(feature, null, synonym, null, synonym, "Synonym", SYNONYM_WEIGHT));
-					addDoc(buildDoc(feature, null, null, synonym, synonym, "Synonym", SYNONYM_WEIGHT));
-					
-					// If the synonym is a single-letter word, then also index it as an exact match.  (Because
-					// single letter search strings are de-emphasized except for the exact fields.)
-					if (synonym.trim().length() == 1) {
-						addDocUnchecked(buildDoc(feature, synonym, null, null, synonym, "Synonym", SYNONYM_WEIGHT));
-					}
-					
-					for (String part : this.getParts(synonym)) {
-						addDoc(buildDoc(feature, part, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
-						
-						// Also use inexact field for wildcard matching.
-						addDocUnchecked(buildDoc(feature, null, part, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
-					}
-					
-					// For synonyms that contain angle brackets (e.g.- look like an allele symbol), we must also
-					// process them in pieces like we do an allele symbol.  (code copied and modified from there)
-					if ((synonym.indexOf("<") >= 0) && (synonym.indexOf(">") > 0)) {
-						boolean first = true;
-						for (String piece : getAlleleSymbolPieces(synonym)) {
-							if (first) {
-								addDoc(buildDoc(feature, piece, null, null, synonym, "Synonym", SYNONYM_WEIGHT));
-								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Synonym", SYNONYM_WEIGHT));
-
-								// Handle inexact (wildcard) matching with parts of allele synonyms.
-								addDoc(buildDoc(feature, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
-								if (piece.startsWith("Tg(")) {
-									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>()]",  ""), null, synonym, "Synonym", SYNONYM_WEIGHT));
-									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>(),]",  " ").replaceAll("[-]", " "), null, synonym, "Synonym", SYNONYM_WEIGHT));
-								}
-								first = false;
-							} else {
-								addDoc(buildDoc(feature, piece, null, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
-								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Synonym", SYNONYM_PIECE_WEIGHT));
-							}
-						}
-					}
+                                        indexOneSynonym(feature, synonym, "Synonym", SYNONYM_WEIGHT, SYNONYM_PIECE_WEIGHT);
 				}
 			}
 		}
 		logger.info("Indexed synonyms for " + mySynonyms.size() + " alleles");
 		
 		// Alleles must also be indexed for the synonyms of their respective markers.
+                // Also, index by old marker names (which are not considered synonyms).
 		Map<Integer,List<String>> markerSynonyms = cacheSynonyms(MARKER);
+		Map<Integer,List<String>> markerOldNames = cacheMarkerOldNames();
 
 		String cmd = "select a.allele_key, m.marker_key " + 
 			"from allele a, marker_to_allele m " + 
@@ -596,44 +634,15 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			if (markerSynonyms.containsKey(markerKey)) {
 				QSAllele feature = alleles.get(alleleKey);
 				for (String synonym : markerSynonyms.get(markerKey)) {
-					addDoc(buildDoc(feature, null, synonym, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-					addDoc(buildDoc(feature, null, null, synonym, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-					
-					for (String part : this.getParts(synonym)) {
-						addDoc(buildDoc(feature, part, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
-						
-						// Also use inexact field for wildcard matching.
-						addDocUnchecked(buildDoc(feature, null, part, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
-					}
+                                        indexOneSynonym(feature, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT, MARKER_SYNONYM_PIECE_WEIGHT);
 
-					// If the synonym is a single-letter word, then also index it as an exact match.  (Because
-					// single letter search strings are de-emphasized except for that bucket.)
-					if (synonym.trim().length() == 1) {
-						addDocUnchecked(buildDoc(feature, synonym, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-					}
-					
-					// For synonyms that contain angle brackets (e.g.- look like an allele symbol), we must also
-					// process them in pieces like we do an allele symbol.  (code copied and modified from there)
-					if ((synonym.indexOf("<") >= 0) && (synonym.indexOf(">") > 0)) {
-						boolean first = true;
-						for (String piece : getAlleleSymbolPieces(synonym)) {
-							if (first) {
-								addDoc(buildDoc(feature, piece, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
+				}
+			}
+			if (markerOldNames.containsKey(markerKey)) {
+				QSAllele feature = alleles.get(alleleKey);
+				for (String synonym : markerOldNames.get(markerKey)) {
+                                        indexOneSynonym(feature, synonym, "Marker Old Name", MARKER_OLDNAME_WEIGHT, MARKER_OLDNAME_PIECE_WEIGHT);
 
-								// Handle inexact (wildcard) matching with parts of allele synonyms.
-								addDoc(buildDoc(feature, null, piece.replaceAll("[<>()]",  "").replaceAll("[<>()]", ""), null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-								if (piece.startsWith("Tg(")) {
-									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>()]",  ""), null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-									addDoc(buildDoc(feature, null, piece.replace("Tg(", "").replaceAll("[<>(),]",  " ").replaceAll("[-]", " "), null, synonym, "Marker Synonym", MARKER_SYNONYM_WEIGHT));
-								}
-								first = false;
-							} else {
-								addDoc(buildDoc(feature, piece, null, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
-								addDocUnchecked(buildDoc(feature, null, piece, null, synonym, "Marker Synonym", MARKER_SYNONYM_PIECE_WEIGHT));
-							}
-						}
-					}
 				}
 			}
 		}
