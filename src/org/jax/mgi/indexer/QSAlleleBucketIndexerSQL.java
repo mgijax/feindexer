@@ -310,6 +310,13 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				"and i.allele_key = a.allele_key " +
 				"and a.primary_id != i.acc_id " +
 				"and a.is_wild_type = 0 " +
+                                "union " +
+                                "select a.allele_key, m.primary_id as acc_id, 'MGI' as logical_db, 'Marker' as prefix " +
+                                "from allele a, marker m, marker_to_allele ma " +
+                                "where a.allele_key = ma.allele_key " +
+                                "and m.marker_key = ma.marker_key " +
+                                "and m.marker_type = 'Transgene' " +
+                                "and a.allele_type = 'Transgenic' " +
 				"union " +
 				"select a.allele_key as allele_key, i.acc_id, i.logical_db, 'Sequence' as prefix " + 
 				"from allele a, allele_to_sequence t, sequence_id i " + 
@@ -339,6 +346,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				idf = idFactory.getFormatter("Sequence", logicalDB, id);
 			} else if ("Cell Line".equals(prefix)){
 				idf = idFactory.getFormatter("Cell Line", logicalDB, id);
+                        } else if ("Marker".equals(prefix)){
+                               idf = idFactory.getFormatter("Marker", logicalDB, id);
 			} else {
 				idf = idFactory.getFormatter("Allele", logicalDB, id);
 			}
