@@ -318,7 +318,6 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
                                 "where a.allele_key = ma.allele_key " +
                                 "and m.marker_key = ma.marker_key " +
                                 "and m.marker_type = 'Transgene' " +
-                                "and a.allele_type = 'Transgenic' " +
 				"union " +
 				"select a.allele_key as allele_key, i.acc_id, i.logical_db, 'Sequence' as prefix " + 
 				"from allele a, allele_to_sequence t, sequence_id i " + 
