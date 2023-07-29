@@ -121,6 +121,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		String cmd4 = "select distinct s.sample_key, m.symbol, m.primary_id, y.synonym "
 			+ "from expression_ht_sample s "
 			+ "inner join allele_to_genotype atg on (s.genotype_key = atg.genotype_key) "
+                        + "inner join allele a on (atg.allele_key = a.allele_key and a.is_recombinase = 0 and a.is_wild_type = 0) "
 			+ "inner join marker_to_allele mta on (atg.allele_key = mta.allele_key) "
 			+ "inner join marker m on (mta.marker_key = m.marker_key) "
 			+ "left outer join marker_synonym y on (m.marker_key = y.marker_key)";
