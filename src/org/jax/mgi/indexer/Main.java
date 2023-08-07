@@ -62,6 +62,7 @@ public class Main {
 		indexerMap.put("mapping", new MappingIndexerSQL());
 		indexerMap.put("gxdHtSample", new GXDHtSampleIndexerSQL());
 		indexerMap.put("gxdHtExperiment", new GXDHtExperimentIndexerSQL());
+		indexerMap.put("mpHpPopup", new MpHpPopupIndexerSQL());
 	}
 
 	public static int maxThreads = 1;
