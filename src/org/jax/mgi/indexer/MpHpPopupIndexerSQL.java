@@ -39,10 +39,11 @@ public class MpHpPopupIndexerSQL extends Indexer {
                 "ORDER BY " +
                 "  CASE evidence " +
                 "      WHEN 'LexicalMatching' THEN 1 " +
-                "      WHEN 'mgiTermLexicalMatching' THEN 2 " +
-                "      WHEN 'LogicalReasoning' THEN 3 " +
-                "      WHEN 'ManualMappingCuration' THEN 4 " +
-                "      ELSE 5 " +
+                "      WHEN 'mgiSynonymLexicalMatching' THEN 2 " +
+                "      WHEN 'mgiTermLexicalMatching' THEN 3 " +
+                "      WHEN 'LogicalReasoning' THEN 4 " +
+                "      WHEN 'ManualMappingCuration' THEN 5 " +
+                "      ELSE 6 " +
                 "      END, " +
                 "   CASE cross_reference " +
                 "      WHEN 'relatedMatch' THEN 1 " +
