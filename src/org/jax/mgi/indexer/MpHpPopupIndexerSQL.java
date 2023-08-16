@@ -1,8 +1,10 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
+import java.util.List;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 
@@ -15,15 +17,64 @@ import org.jax.mgi.shr.fe.IndexConstants;
 
 public class MpHpPopupIndexerSQL extends Indexer {
 
+    private Map<String, List<String>> termToSynonym = new HashMap<String, List<String>>();
 
 	public MpHpPopupIndexerSQL () {
 		super("mpHpPopup");
 	}
 
+	/*-----------------------*/
+	/*--- private methods ---*/
+	/*-----------------------*/
+
+	/* get the display value for a term's synonyms
+	 */
+	private String getSynonymText(String termKey) throws Exception {
+
+        String returnString = new String();
+        if (termToSynonym.containsKey(termKey)) {
+        	List<String> thisSynList = termToSynonym.get(termKey);
+        	returnString = String.join(" | ", thisSynList);
+        } else {
+        	returnString = "";
+        }
+		return returnString;
+	}
+
+	/*------------------------------*/
+	/*--- public indexer methods ---*/
+	/*------------------------------*/
+
 	public void index() throws Exception
 	{
-		logger.info("Selecting all associations from term_to_term");
-		ResultSet rs_overall = ex.executeProto("SELECT " +
+		// pre-gather synonyms; these are 1-n for each term
+        logger.info("Selecting all associations from term_to_term");
+        ResultSet rs_synonyms = ex.executeProto("SELECT distinct " +
+                " t1.primary_id, ts.synonym  " +
+                "from term_to_term t2t, term_synonym ts, term t1 " +
+                "where relationship_type = 'MP HP Popup' " +
+                "  AND t2t.term_key_1 = ts.term_key " +
+                "  AND t2t.term_key_1 = t1.term_key " +
+                "order by synonym " +
+                " "); 
+		while (rs_synonyms.next()) {
+			String thisTermKey = rs_synonyms.getString("primary_id");
+			String thisSynonym = rs_synonyms.getString("synonym");
+			if (termToSynonym.containsKey(thisTermKey)) {
+				List<String> oldSynList = termToSynonym.get(thisTermKey);
+				oldSynList.add(thisSynonym);
+				termToSynonym.put(thisTermKey, oldSynList);
+			} else {
+				List newSynList = new ArrayList<String>();
+				newSynList.add(thisSynonym);
+				termToSynonym.put(thisTermKey, newSynList);
+			}
+
+		}
+		logger.info("Terms with synonyms: " + termToSynonym.size());
+
+        logger.info("Selecting all associations from term_to_term");
+        ResultSet rs_overall = ex.executeProto("SELECT " +
                 " t2t.relationship_type,  " +
                 " t2t.evidence,  " +
                 " t2t.cross_reference, " +
@@ -67,12 +118,12 @@ public class MpHpPopupIndexerSQL extends Indexer {
 			doc.addField("matchType", rs_overall.getString("cross_reference"));
 			doc.addField("matchMethod", rs_overall.getString("evidence"));
 			doc.addField("matchTermDefinition", rs_overall.getString("definition"));
-			doc.addField("matchTermSynonym", "matchTermSynonym");
+			doc.addField("matchTermSynonym", getSynonymText(rs_overall.getString("matchID")));
 			docs.add(doc);
 		}
 		logger.info("Created Docs: " + docs.size());
 
-
+        // write these documents out to the index
 		writeDocs(docs);
 		commit();
 
