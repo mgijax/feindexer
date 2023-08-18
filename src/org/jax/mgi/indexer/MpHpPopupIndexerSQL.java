@@ -82,7 +82,8 @@ public class MpHpPopupIndexerSQL extends Indexer {
                 " t2.primary_id as matchID, " +
                 " t1.term as searchTerm, " +
                 " t2.term as matchTerm, " +
-                " t2.definition " +
+                " t1.definition as searchTermDefinition, " +
+                " t2.definition as matchTermDefinition " +
                 "FROM term_to_term t2t, term t1, term t2 " +
                 "WHERE relationship_type = 'MP HP Popup' " +
                 "  AND t2t.term_key_1 = t1.term_key " +
@@ -113,11 +114,12 @@ public class MpHpPopupIndexerSQL extends Indexer {
 			doc.addField("uniqueKey", rs_overall.getString("searchID") + "-" + rs_overall.getString("matchID"));
 			doc.addField("searchTermID", rs_overall.getString("searchID"));
 			doc.addField("searchTerm", rs_overall.getString("searchTerm"));
+			doc.addField("searchTermDefinition", rs_overall.getString("searchTermDefinition"));
 			doc.addField("matchTermID", rs_overall.getString("matchID"));
 			doc.addField("matchTerm", rs_overall.getString("matchTerm"));
 			doc.addField("matchType", rs_overall.getString("cross_reference"));
 			doc.addField("matchMethod", rs_overall.getString("evidence"));
-			doc.addField("matchTermDefinition", rs_overall.getString("definition"));
+			doc.addField("matchTermDefinition", rs_overall.getString("matchTermDefinition"));
 			doc.addField("matchTermSynonym", getSynonymText(rs_overall.getString("matchID")));
 			docs.add(doc);
 		}
