@@ -177,6 +177,7 @@ public class HdpGridAnnotationIndexerSQL extends HdpIndexerSQL {
 		DistinctSolrInputDocument doc = new DistinctSolrInputDocument();
 		doc.addField(DiseasePortalFields.UNIQUE_KEY, uniqueKey);
 		doc.addField(DiseasePortalFields.GRID_KEY, bsu.bsuKey);
+		doc.addField(DiseasePortalFields.GRID_CLUSTER_KEY, bsu.gridclusterKey);
 		doc.addField(DiseasePortalFields.TERM, term);
 		doc.addField(DiseasePortalFields.TERM_ID, getTermId(termKey));
 		doc.addField(DiseasePortalFields.TERM_HEADER, header);
