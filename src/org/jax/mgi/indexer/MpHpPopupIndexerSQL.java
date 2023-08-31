@@ -27,19 +27,67 @@ public class MpHpPopupIndexerSQL extends Indexer {
 	/*--- private methods ---*/
 	/*-----------------------*/
 
-	/* get the display value for a term's synonyms
-	 */
-	private String getSynonymText(String termKey) throws Exception {
+    /* get the display value for a term's synonyms
+     */
+    private String getSynonymText(String termKey) throws Exception {
 
         String returnString = new String();
         if (termToSynonym.containsKey(termKey)) {
-        	List<String> thisSynList = termToSynonym.get(termKey);
-        	returnString = String.join(" | ", thisSynList);
+            List<String> thisSynList = termToSynonym.get(termKey);
+            returnString = String.join(" | ", thisSynList);
         } else {
-        	returnString = "";
+            returnString = "";
         }
-		return returnString;
-	}
+        return returnString;
+    }
+
+    /* get the sort value for a term's vocab
+     */
+    private String getVocabSort(String searchTermID) throws Exception {
+
+        String returnString = "b"; // lowest
+        if (searchTermID.substring(0,2).equals("HP") )  {
+            returnString = "a";
+        } 
+        return returnString;
+    }
+
+    /* get the sort value for a term's match value
+     */
+    private String getMatchTypeSort(String matchType) throws Exception {
+
+        String returnString = "f"; // lowest
+        if (matchType.equals("exactMatch") )  {
+            returnString = "a";
+        } 
+        if (matchType.equals("closeMatch") )  {
+            returnString = "b";
+        } 
+        if (matchType.equals("narrowMatch") )  {
+            returnString = "c";
+        } 
+        if (matchType.equals("broadMatch") )  {
+            returnString = "d";
+        } 
+        if (matchType.equals("relatedMatch") )  {
+            returnString = "e";
+        } 
+        return returnString;
+    }
+
+    /* get the sort value for a term's match method
+     */
+    private String getMatchMethodSort(String matchMethod) throws Exception {
+
+        String returnString = "c"; // lowest
+        if (matchMethod.equals("ManualMappingCuration") )  {
+            returnString = "a";
+        } 
+        if (matchMethod.equals("LogicalReasoning") )  {
+            returnString = "b";
+        } 
+        return returnString;
+    }
 
 	/*------------------------------*/
 	/*--- public indexer methods ---*/
@@ -121,6 +169,9 @@ public class MpHpPopupIndexerSQL extends Indexer {
 			doc.addField("matchMethod", rs_overall.getString("evidence"));
 			doc.addField("matchTermDefinition", rs_overall.getString("matchTermDefinition"));
 			doc.addField("matchTermSynonym", getSynonymText(rs_overall.getString("matchID")));
+			doc.addField("vocabSort", getVocabSort(rs_overall.getString("searchID")));
+			doc.addField("matchTypeSort", getMatchTypeSort(rs_overall.getString("cross_reference")));
+			doc.addField("matchMethodSort", getMatchMethodSort(rs_overall.getString("evidence")));
 			docs.add(doc);
 		}
 		logger.info("Created Docs: " + docs.size());
