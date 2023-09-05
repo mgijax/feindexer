@@ -9,3 +9,7 @@ conf/config.props
 build
 config.props
 *~
+/target/
+.classpath
+.project
+.settings
