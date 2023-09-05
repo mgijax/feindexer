@@ -1,15 +1,13 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import java.util.List;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Map;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.jax.mgi.shr.fe.IndexConstants;
 
 /**
  * Indexer for MP HP Popup (from HDMC)
