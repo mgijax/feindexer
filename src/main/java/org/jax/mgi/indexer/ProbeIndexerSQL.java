@@ -10,6 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -163,7 +164,7 @@ public class ProbeIndexerSQL extends Indexer {
 			marker.setSymbol(rs.getString("symbol"));
 			marker.setPrimaryID(markerID);
 			if ("P".equals(qualifier)) {
-				marker.setIsPutative(true);
+				marker.setPutative(true);
 			}
 			if (locations.containsKey(markerKey)) {
 				marker.setLocation(locations.get(markerKey));

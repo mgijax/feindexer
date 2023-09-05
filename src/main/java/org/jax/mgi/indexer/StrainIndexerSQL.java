@@ -6,6 +6,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -325,7 +326,7 @@ public class StrainIndexerSQL extends Indexer {
 			List<String> synonyms = getSynonyms(strainKey);
 
 			// build the object that we will store as JSON in the strain field of the index
-			SimpleStrain strain = new SimpleStrain(name, primaryID);
+			SimpleStrain strain = new SimpleStrain(name, primaryID, null, null, null, null);
 			strain.setAttributes(getAttributes(strainKey));
 			strain.setAccessionIDs(filterSecondaryIDs(getIDs(strainKey), primaryID));
 			strain.setSynonyms(synonyms);

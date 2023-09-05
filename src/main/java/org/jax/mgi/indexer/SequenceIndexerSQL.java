@@ -7,14 +7,15 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
-import org.jax.mgi.shr.jsonmodel.SimpleSequence;
 import org.jax.mgi.shr.jsonmodel.AccessionID;
 import org.jax.mgi.shr.jsonmodel.GenomicLocation;
 import org.jax.mgi.shr.jsonmodel.SimpleMarker;
+import org.jax.mgi.shr.jsonmodel.SimpleSequence;
 
 /* Is: an indexer that builds the index supporting the sequence summary page (reachable from the
  * 		marker and reference detail pages).  Each document in the index represents data for a single
@@ -389,9 +390,21 @@ public class SequenceIndexerSQL extends Indexer {
 			Integer sequenceKey = rs.getInt("sequence_key");
 
 			// start building the object that we will store as JSON in the sequence field of the index
-			SimpleSequence seq = new SimpleSequence(sequenceKey, rs.getString("primary_id"), rs.getString("provider"),
-				rs.getString("sequence_type"), rs.getString("length"), rs.getString("organism"),
-				rs.getString("description"));
+			SimpleSequence seq = new SimpleSequence(
+				sequenceKey, 
+				rs.getString("primary_id"), 
+				rs.getString("provider"),
+				rs.getString("sequence_type"), 
+				rs.getString("length"), 
+				rs.getString("organism"),
+				rs.getString("description"),
+				null,
+				null,
+				null,
+				null,
+				null,
+				null
+				);
 
 			// collect and assign items from memory caches
 			
