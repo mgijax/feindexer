@@ -12,7 +12,6 @@ import org.apache.solr.common.SolrInputDocument;
 import org.jax.mgi.shr.QSAccIDFormatter;
 import org.jax.mgi.shr.QSAccIDFormatterFactory;
 import org.jax.mgi.shr.fe.IndexConstants;
-import org.jax.mgi.shr.fe.util.StopwordRemover;
 
 /* Is: an indexer that builds the index supporting the quick search's other ID bucket (aka- bucket 3).
  * 		Each document in the index represents data for a single object (e.g.- probe, clone, sequence, etc.)

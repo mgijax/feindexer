@@ -1,13 +1,6 @@
 package org.jax.mgi.indexer;
 
 import java.sql.ResultSet;
-import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
-import org.jax.mgi.shr.fe.util.EasyStemmer;
-import org.jax.mgi.shr.fe.util.StopwordRemover;
-import org.jax.mgi.shr.QSAccIDFormatter;
-import org.jax.mgi.shr.QSAccIDFormatterFactory;
-import org.jax.mgi.shr.QSExpressionFacetToolkit;
-
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -19,7 +12,13 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
+import org.jax.mgi.shr.QSAccIDFormatter;
+import org.jax.mgi.shr.QSAccIDFormatterFactory;
+import org.jax.mgi.shr.QSExpressionFacetToolkit;
 import org.jax.mgi.shr.fe.IndexConstants;
+import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
+import org.jax.mgi.shr.fe.util.EasyStemmer;
+import org.jax.mgi.shr.fe.util.StopwordRemover;
 
 /* Is: an indexer that builds the index supporting the quick search's vocab bucket (aka- bucket 2).
  * 		Each document in the index represents data for a single vocabulary term.
