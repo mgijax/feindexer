@@ -4,7 +4,6 @@ import java.sql.ResultSet;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -371,8 +370,16 @@ public class VocabBrowserIndexerSQL extends Indexer {
 //				throw new Exception("Unexpected term key (" + childKey + ") with no primary ID");
 			}
 
-			BrowserChild child = new BrowserChild(childID.getAccID(), childID.getLogicalDB(), 
-				rs.getString("child_term"), rs.getString("edge_label"), rs.getInt("has_children"));
+			BrowserChild child = new BrowserChild(
+				childID.getAccID(), 
+				childID.getLogicalDB(), 
+				rs.getString("child_term"), 
+				rs.getString("edge_label"), 
+				rs.getInt("has_children"),
+				null,
+				null,
+				null
+				);
 
 			if (annotationCount.containsKey(childKey) && annotationLabel.containsKey(childKey) && annotationUrl.containsKey(childKey)) {
 				child.setAnnotationCount(annotationCount.get(childKey));

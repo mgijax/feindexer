@@ -7,6 +7,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
@@ -120,7 +121,7 @@ public class CdnaIndexerSQL extends Indexer {
 			marker.setSymbol(rs.getString("symbol"));
 			marker.setPrimaryID(markerID);
 			if ("P".equals(qualifier)) {
-				marker.setIsPutative(true);
+				marker.setPutative(true);
 			}
 			
 			// any markers associated with the probe go into the cache of markers for display
