@@ -504,7 +504,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			ct++;
 			Integer featureKey = rs.getInt("marker_key");
 			String accID = rs.getString("term_id");
-			String term = rs.getString("term");
+			//String term = rs.getString("term");
 			
 			if (features.containsKey(featureKey)) {
 				QSFeature feature = features.get(featureKey);
@@ -1027,10 +1027,10 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		// #3 : emapsAncestors (see above)
 		for (String emapsID : emapsAncestors.keySet()) {
 			if (!emapsTerms.contains(emapsID)) {
-				VocabTerm term = emapsCache.getTerm(emapsID);
+				//VocabTerm term = emapsCache.getTerm(emapsID);
 				VocabTerm source = emapsCache.getTerm(emapsAncestors.get(emapsID));
 				String stage = source.getPrimaryID().substring(source.getPrimaryID().length() - 2);
-				String name = term.getTerm();
+				//String name = term.getTerm();
 			
 				// only ID for EMAPS (ancestors)
 				idf = idFactory.getFormatter("Expression", "Expression", emapsID, source.getTerm(), true, stage);

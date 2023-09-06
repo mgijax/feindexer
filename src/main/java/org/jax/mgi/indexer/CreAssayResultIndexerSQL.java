@@ -21,18 +21,18 @@ import org.jax.mgi.shr.fe.indexconstants.GxdResultFields;
 
 /**
  * CreIndexerSQL
+ * 
  * @author mhall
  * 
- * This class is responsible for populating the cre index.  This index is 
- * fairly straight forward, with only one sub object relationship.
+ *         This class is responsible for populating the cre index. This index is
+ *         fairly straight forward, with only one sub object relationship.
  * 
- * Note: refactored during 5.x development
+ *         Note: refactored during 5.x development
  */
 
 public class CreAssayResultIndexerSQL extends Indexer {
 
 	public int BATCH_SIZE = 10000;
-
 
 	/* state variables */
 	private int startResultKey = 0;
@@ -40,73 +40,80 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	private int maxResultKey = 0;
 
 	// lookups
-	Map<String,List<String>> structureAncestorIdMap;
-	Map<String,List<String>> structureSynonymMap;
+	Map<String, List<String>> structureAncestorIdMap;
+	Map<String, List<String>> structureSynonymMap;
 	Map<String, AlleleSorts> alleleSortsMap;
-	Map<String,Integer> byDetected;
-	Map<String,Integer> byNotDetected;
-	
+	Map<String, Integer> byDetected;
+	Map<String, Integer> byNotDetected;
+
 	// map of *all* systems for the allele
 	Map<String, AlleleSystems> alleleSystemsMap;
 	// map of systems for a specific assay result
 	Map<String, List<CreAlleleSystem>> systemMap;
-	
+
 	// mapping from EMAPA structure keys to their respective terms
-	private Map<String,String> emapaTerms;
-	
+	private Map<String, String> emapaTerms;
+
 	// mapping from EMAPA structure keys to their respective synonyms
-	private Map<String,Set<String>> emapaSynonyms;
-	
+	private Map<String, Set<String>> emapaSynonyms;
+
 	// mapping from each allele key to the keys of all EMAPA structures
-	// where recombinase activity is directly detected, (Union over activity locations.)
+	// where recombinase activity is directly detected, (Union over activity
+	// locations.)
 	private Map<String, Set<String>> allStructuresDirect;
-	
-	// mapping from each allele key to the keys of all EMAPA structures (and their ancestors) 
-	// where recombinase activity is detected, (Union over activity locations and their ancestors.)
+
+	// mapping from each allele key to the keys of all EMAPA structures (and their
+	// ancestors)
+	// where recombinase activity is detected, (Union over activity locations and
+	// their ancestors.)
 	private Map<String, Set<String>> allStructures;
-	
-	// mapping from each allele key to the keys of EMAPA structures (and their ancestors) 
-	// where ALL detected activity is found. (Intersection over activity locations and their ancestors,)
+
+	// mapping from each allele key to the keys of EMAPA structures (and their
+	// ancestors)
+	// where ALL detected activity is found. (Intersection over activity locations
+	// and their ancestors,)
 	private Map<String, Set<String>> exclusiveStructures;
-	
+
 	// shared empty set object to make code simpler later on
 	private Set<String> emptySet = new HashSet<String>();
 
 	// map from EMAPS term key to its EMAPA ancestor keys (stage-aware)
 	Map<String, Set<String>> emapaAncestors;
-	
-        // map from driver key (ie, a marker key) to list of search strings it should match.
-        private Map<String,Set<String>> clusterKey2searchStrings;
-        private Map<String,Set<String>> clusterKey2facetStrings;;
 
-	/***--- methods ---***/
+	// map from driver key (ie, a marker key) to list of search strings it should
+	// match.
+	private Map<String, Set<String>> clusterKey2searchStrings;
+	private Map<String, Set<String>> clusterKey2facetStrings;;
 
-	public CreAssayResultIndexerSQL () {
+	/*** --- methods --- ***/
+
+	public CreAssayResultIndexerSQL() {
 		super("creAssayResult");
 	}
 
+	// populate mapping from driver cluster_key to list of search terms (lowercase
+	// driver symbols) for that cluster
+	private void fillDriverSearchStrings() throws SQLException {
+		clusterKey2searchStrings = new HashMap<String, Set<String>>();
+		clusterKey2facetStrings = new HashMap<String, Set<String>>();
+		ResultSet rs1 = ex.executeProto("select driver_key, driver, cluster_key from driver");
+		while (rs1.next()) {
+			//String driverKey = rs1.getString("driver_key");
+			String driver = rs1.getString("driver");
+			String clusterKey = rs1.getString("cluster_key");
+			if (!clusterKey2searchStrings.containsKey(clusterKey)) {
+				clusterKey2searchStrings.put(clusterKey, new HashSet<String>());
+				clusterKey2facetStrings.put(clusterKey, new HashSet<String>());
+			}
+			clusterKey2searchStrings.get(clusterKey).add(driver.toLowerCase());
+			clusterKey2facetStrings.get(clusterKey).add(driver);
+		}
+	}
 
-        // populate mapping from driver cluster_key to list of search terms (lowercase driver symbols) for that cluster
-        private void fillDriverSearchStrings () throws SQLException {
-                clusterKey2searchStrings = new HashMap<String,Set<String>>();
-                clusterKey2facetStrings = new HashMap<String,Set<String>>();
-                ResultSet rs1 = ex.executeProto("select driver_key, driver, cluster_key from driver");
-                while (rs1.next()) {
-                    String driverKey = rs1.getString("driver_key");
-                    String driver = rs1.getString("driver");
-                    String clusterKey = rs1.getString("cluster_key");
-                    if (!clusterKey2searchStrings.containsKey(clusterKey)) {
-                        clusterKey2searchStrings.put(clusterKey, new HashSet<String>());
-                        clusterKey2facetStrings.put(clusterKey, new HashSet<String>());
-                    }
-                    clusterKey2searchStrings.get(clusterKey).add(driver.toLowerCase());
-                    clusterKey2facetStrings.get(clusterKey).add(driver);
-                }
-        }
 	// populate the mapping from EMAPA keys to terms
 	public void fillEmapaTerms() throws Exception {
-		emapaTerms = new HashMap<String,String>();
-		
+		emapaTerms = new HashMap<String, String>();
+
 		String cmd = "select term_key, term from term where vocab_name = 'EMAPA'";
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
@@ -118,12 +125,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 	// populate the mapping from EMAPA keys to synonyms
 	public void fillEmapaSynonyms() throws Exception {
-		emapaSynonyms = new HashMap<String,Set<String>>();
-		
-		String cmd = "select s.term_key, s.synonym "
-			+ "from term t, term_synonym s "
-			+ "where t.vocab_name = 'EMAPA' "
-			+ " and t.term_key = s.term_key";
+		emapaSynonyms = new HashMap<String, Set<String>>();
+
+		String cmd = "select s.term_key, s.synonym " + "from term t, term_synonym s " + "where t.vocab_name = 'EMAPA' " + " and t.term_key = s.term_key";
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
 			String termKey = rs.getString("term_key");
@@ -135,18 +139,14 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("Got " + emapaSynonyms.size() + " EMAPA synonyms");
 	}
-	
+
 	// get the mapping from each EMAPS term key to its EMAPA ancestor terms
 	public void fillEmapaAncestors() throws Exception {
-		emapaAncestors = new HashMap<String,Set<String>>();
-		
-		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key "
-			+ "from term_ancestor a, term t, term_emap e, term_emap te "
-			+ "where a.term_key = t.term_key "
-			+ " and a.ancestor_term_key = e.term_key "
-			+ " and t.term_key = te.term_key "
+		emapaAncestors = new HashMap<String, Set<String>>();
+
+		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key " + "from term_ancestor a, term t, term_emap e, term_emap te " + "where a.term_key = t.term_key " + " and a.ancestor_term_key = e.term_key " + " and t.term_key = te.term_key "
 			+ " and t.vocab_name = 'EMAPS'";
-		
+
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
 			String emapsTermKey = rs.getString("term_key");
@@ -154,16 +154,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			String ancestorTermKey = rs.getString("ancestor_term_key");
 
 			if (!emapaAncestors.containsKey(emapsTermKey)) {
-				// add the initial set for this term, populated by the corresponding EMAPA term and its synonyms
+				// add the initial set for this term, populated by the corresponding EMAPA term
+				// and its synonyms
 				emapaAncestors.put(emapsTermKey, new HashSet<String>());
-				//emapaAncestors.get(emapsTermKey).add(emapaTerms.get(emapaTermKey));
+				// emapaAncestors.get(emapsTermKey).add(emapaTerms.get(emapaTermKey));
 				emapaAncestors.get(emapsTermKey).add(emapaTermKey);
 				if (emapaSynonyms.containsKey(emapaTermKey)) {
-					//emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(emapaTermKey));
+					// emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(emapaTermKey));
 				}
 			}
 			// then add the term and its synonyms for the EMAPA ancestor term
-			//emapaAncestors.get(emapsTermKey).add(emapaTerms.get(ancestorTermKey));
+			// emapaAncestors.get(emapsTermKey).add(emapaTerms.get(ancestorTermKey));
 			emapaAncestors.get(emapsTermKey).add(ancestorTermKey);
 			if (emapaSynonyms.containsKey(ancestorTermKey)) {
 				// emapaAncestors.get(emapsTermKey).addAll(emapaSynonyms.get(ancestorTermKey));
@@ -172,8 +173,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		rs.close();
 		logger.info("Got EMAPA ancestors for " + emapaAncestors.size() + " EMAPS terms");
 	}
-	
-	// get the set of EMAPA structure keys that are ancestors of the given EMAPS structure key,
+
+	// get the set of EMAPA structure keys that are ancestors of the given EMAPS
+	// structure key,
 	// including EMAPA key for 'emapsKey' itself
 	public Set<String> getEmapaAncestors(String emapsKey) throws Exception {
 		if (emapaAncestors == null) {
@@ -186,74 +188,73 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	}
 
 	// Precompute three structure sets for searching recombinase alleles.
-	// 1. exclusiveStructures: identify the exclusive structures for each allele (the set of structures outside which there is
+	// 1. exclusiveStructures: identify the exclusive structures for each allele
+	// (the set of structures outside which there is
 	// no recombinase activity detected for that allele), returning a mapping from:
-	//		allele key (String) : set of structure terms (Strings)
-	// Because everything traces up the DAG to 'mouse', everything should at least have one exclusive
+	// allele key (String) : set of structure terms (Strings)
+	// Because everything traces up the DAG to 'mouse', everything should at least
+	// have one exclusive
 	// structure returned.
-	// Use:  This field is used when the user specifies a structure and checks the "nowhere else" checkbox.
-        // 2. allStructuresDirect: set of all EMAPA structure keys where recombinase activity is directly detected
-	// 3. allStructures: set of all EMAPA structure keys (and their ancestors) where recombinase activity is detected
+	// Use: This field is used when the user specifies a structure and checks the
+	// "nowhere else" checkbox.
+	// 2. allStructuresDirect: set of all EMAPA structure keys where recombinase
+	// activity is directly detected
+	// 3. allStructures: set of all EMAPA structure keys (and their ancestors) where
+	// recombinase activity is detected
 	//
 	private void findStructures() throws Exception {
 		allStructures = new HashMap<String, Set<String>>();
 		allStructuresDirect = new HashMap<String, Set<String>>();
 		exclusiveStructures = new HashMap<String, Set<String>>();
-		
-		int minAlleleKey = 0;	// lowest allele key with recombinase data
-		int maxAlleleKey = 0;	// highest allele key with recombinase data
-		int chunkSize = 50000;	// number of allele keys to process in a chunk
-		
+
+		int minAlleleKey = 0; // lowest allele key with recombinase data
+		int maxAlleleKey = 0; // highest allele key with recombinase data
+		int chunkSize = 50000; // number of allele keys to process in a chunk
+
 		// identify the lowest and highest allele keys, so we can iterate over them
-		String minMaxCmd = "select min(allele_key) as min_key, max(allele_key) as max_key "
-			+ "from recombinase_allele_system";
+		String minMaxCmd = "select min(allele_key) as min_key, max(allele_key) as max_key " + "from recombinase_allele_system";
 		ResultSet rs = ex.executeProto(minMaxCmd);
 		if (rs.next()) {
 			minAlleleKey = rs.getInt("min_key");
 			maxAlleleKey = rs.getInt("max_key");
 		}
 		rs.close();
-		
+
 		// now walk through the alleles in chunks
 		int startAllele = minAlleleKey - 1;
 		int endAllele = startAllele + chunkSize;
-		
+
 		while (startAllele < maxAlleleKey) {
 			// gather the EMAPS structures where recombinase activity was detected
-			Map<String,Set<String>> structuresPerAllele = new HashMap<String,Set<String>>();
+			Map<String, Set<String>> structuresPerAllele = new HashMap<String, Set<String>>();
 
-			String cmd = "select ras.allele_key, rar.structure_key, rar.structure, te.emapa_term_key "
-				+ "from recombinase_allele_system ras, recombinase_assay_result rar, term_emap te "
-				+ "where ras.allele_system_key = rar.allele_system_key "
-				+ " and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') "
-				+ " and ras.allele_key > " + startAllele
-				+ " and ras.allele_key <= " + endAllele
-                                + " and rar.structure_key = te.term_key "
-				+ " order by ras.allele_key";
-			
+			String cmd = "select ras.allele_key, rar.structure_key, rar.structure, te.emapa_term_key " + "from recombinase_allele_system ras, recombinase_assay_result rar, term_emap te " + "where ras.allele_system_key = rar.allele_system_key "
+				+ " and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') " + " and ras.allele_key > " + startAllele + " and ras.allele_key <= " + endAllele + " and rar.structure_key = te.term_key " + " order by ras.allele_key";
+
 			ResultSet rs1 = ex.executeProto(cmd);
 			while (rs1.next()) {
 				String alleleKey = rs1.getString("allele_key");
 				if (!structuresPerAllele.containsKey(alleleKey)) {
 					structuresPerAllele.put(alleleKey, new HashSet<String>());
-                                        allStructuresDirect.put(alleleKey, new HashSet<String>());
+					allStructuresDirect.put(alleleKey, new HashSet<String>());
 				}
 				structuresPerAllele.get(alleleKey).add(rs1.getString("structure_key"));
 				allStructuresDirect.get(alleleKey).add(rs1.getString("emapa_term_key"));
 			}
 			rs1.close();
-			
-			// Now we can compute the set of 'exclusive structures' for each allele by taking the
+
+			// Now we can compute the set of 'exclusive structures' for each allele by
+			// taking the
 			// intersection of the EMAPA ancestors for each EMAPS structure with recombinase
 			// activity detected.
-			
+
 			for (String alleleKey : structuresPerAllele.keySet()) {
 				Set<String> allAncestors = null;
 				Set<String> commonAncestors = null;
 				for (String emapsKey : structuresPerAllele.get(alleleKey)) {
 					Set<String> resultAncestors = new HashSet<String>();
 					resultAncestors.addAll(this.getEmapaAncestors(emapsKey));
-					
+
 					if (allAncestors == null) {
 						allAncestors = new HashSet<String>(resultAncestors);
 					} else {
@@ -278,12 +279,11 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	}
 
 	/*
-	 * Indexes both assay result documents 
-	 * 	and the documents for alleles with no assay results (i.e. stubs)
+	 * Indexes both assay result documents and the documents for alleles with no
+	 * assay results (i.e. stubs)
 	 */
-	public void index() throws Exception
-	{   
-                fillDriverSearchStrings();
+	public void index() throws Exception {
+		fillDriverSearchStrings();
 		fillEmapaTerms();
 		fillEmapaSynonyms();
 		fillSystemSorts();
@@ -292,13 +292,11 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		loadAssayResults();
 		loadAllelesWithNoData();
 
-		commit();    
+		commit();
 
 	}
 
-
 	private void loadAssayResults() throws SQLException {
-
 
 		// Fetch relevant data maps
 		this.structureAncestorIdMap = queryStructureAncestorIdMap();
@@ -306,8 +304,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 		// Process Cre Assay Results in batches of this.batchSize
 
-		ResultSet rs = ex.executeProto("select max(result_key) as max_result_key "
-				+ "from recombinase_assay_result");
+		ResultSet rs = ex.executeProto("select max(result_key) as max_result_key " + "from recombinase_assay_result");
 		rs.next();
 
 		this.startResultKey = 0;
@@ -328,47 +325,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			this.startResultKey = i * this.BATCH_SIZE;
 			this.endResultKey = this.startResultKey + this.BATCH_SIZE;
 
-
 			logger.info("Processing cre assay result_key > " + startResultKey + " and <= " + endResultKey);
-			String assayResultQuery = "select "
-					+ "rar.result_key, "
-					+ "rar.structure, "
-					+ "rar.level, "
-					+ "rar.structure_key, "
-					+ "emapa.primary_id as structure_id, "
-					+ "ras.allele_id, "
-					+ "ras.allele_key, "
-					+ "a.driver, "
-					+ "a.driver_key, "
-                                        + "drv.cluster_key, "
-					+ "a.inducible_note, "
-					+ "rarsn.by_structure, "
-					+ "rarsn.by_age, "
-					+ "rarsn.by_level, "
-					+ "rarsn.by_pattern, "
-					+ "rarsn.by_jnum_id, "
-					+ "rarsn.by_assay_type, "
-					+ "rarsn.by_reporter_gene, "
-					+ "rarsn.by_detection_method, "
-					+ "rarsn.by_assay_note, "
-					+ "rarsn.by_allelic_composition, "
-					+ "rarsn.by_sex, "
-					+ "rarsn.by_specimen_note, "
-					+ "rarsn.by_result_note "
-					+ "from recombinase_allele_system as ras "
-					+ "join recombinase_assay_result as rar on "
-					+ 	"ras.allele_system_key = rar.allele_system_key " 
-					+ "join recombinase_assay_result_sequence_num as rarsn on "
-					+ 	"rar.result_key = rarsn.result_key "
-					+ "join allele a on "
-					+ 	"a.allele_key = ras.allele_key "
-					+ "join driver drv on "
-                                        +       "drv.driver_key = a.driver_key "
-					+ "join term_emap e on rar.structure_key = e.term_key "
-					+ "join term emapa on "
-					+ 	"e.emapa_term_key = emapa.term_key "
-					+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
-					+ " order by rar.result_key ";
+			String assayResultQuery = "select " + "rar.result_key, " + "rar.structure, " + "rar.level, " + "rar.structure_key, " + "emapa.primary_id as structure_id, " + "ras.allele_id, " + "ras.allele_key, " + "a.driver, " + "a.driver_key, " + "drv.cluster_key, " + "a.inducible_note, "
+				+ "rarsn.by_structure, " + "rarsn.by_age, " + "rarsn.by_level, " + "rarsn.by_pattern, " + "rarsn.by_jnum_id, " + "rarsn.by_assay_type, " + "rarsn.by_reporter_gene, " + "rarsn.by_detection_method, " + "rarsn.by_assay_note, " + "rarsn.by_allelic_composition, " + "rarsn.by_sex, "
+				+ "rarsn.by_specimen_note, " + "rarsn.by_result_note " + "from recombinase_allele_system as ras " + "join recombinase_assay_result as rar on " + "ras.allele_system_key = rar.allele_system_key " + "join recombinase_assay_result_sequence_num as rarsn on "
+				+ "rar.result_key = rarsn.result_key " + "join allele a on " + "a.allele_key = ras.allele_key " + "join driver drv on " + "drv.driver_key = a.driver_key " + "join term_emap e on rar.structure_key = e.term_key " + "join term emapa on " + "e.emapa_term_key = emapa.term_key "
+				+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " order by rar.result_key ";
 
 			rs = ex.executeProto(assayResultQuery);
 
@@ -380,13 +342,11 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			logger.info("Parsing Assay Results");
 			processResults(rs, ResultType.ASSAY_RESULT);
 
-
 			// clear batch lookups until next use
 			this.alleleSortsMap = null;
 			this.alleleSystemsMap = null;
 			this.systemMap = null;
 		}
-
 
 		// clear global structure lookups
 		this.structureAncestorIdMap = null;
@@ -396,19 +356,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 	private void loadAllelesWithNoData() throws SQLException {
 		// Process all cre alleles with no cre data
-		String alleleQuery = "select a.allele_key, "
-				+ "a.primary_id as allele_id,"
-				+ "a.driver,"
-				+ "a.driver_key,"
-                                + "drv.cluster_key,"
-				+ "a.inducible_note "
-				+ "from allele a "
-                                + "join driver drv on "
-                                +    "drv.driver_key = a.driver_key "
-				+ "where a.driver is not null "
-				+ "and not exists (select 1 from recombinase_allele_system ras "
-				+ 	"where ras.allele_key = a.allele_key "
-				+ ") ";
+		String alleleQuery = "select a.allele_key, " + "a.primary_id as allele_id," + "a.driver," + "a.driver_key," + "drv.cluster_key," + "a.inducible_note " + "from allele a " + "join driver drv on " + "drv.driver_key = a.driver_key " + "where a.driver is not null "
+			+ "and not exists (select 1 from recombinase_allele_system ras " + "where ras.allele_key = a.allele_key " + ") ";
 
 		ResultSet rs = ex.executeProto(alleleQuery);
 
@@ -417,16 +366,13 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		logger.info("Parsing Alleles");
 		processResults(rs, ResultType.ALLELE);
 
-
 		// clear allele lookups
 		this.alleleSortsMap = null;
 	}
 
-
 	/*
-	 * Process the current result set (rs)
-	 * 	of resultType (ALLELE or ASSAY_RESULT)
-	 * 	and send the documents to Solr
+	 * Process the current result set (rs) of resultType (ALLELE or ASSAY_RESULT)
+	 * and send the documents to Solr
 	 */
 	private void processResults(ResultSet rs, ResultType resultType) throws SQLException {
 
@@ -451,17 +397,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.DRIVER_SORT, alleleSorts.byDriver);
 			}
 			doc.addField(CreFields.DRIVER, rs.getString("driver"));
-                        for(String searchString : clusterKey2searchStrings.get(rs.getString("cluster_key"))) {
-                            doc.addField(CreFields.DRIVER_SEARCH, searchString);
-                        }
-                        String facetString = "";
-                        for(String fString : clusterKey2facetStrings.get(rs.getString("cluster_key"))) {
-                            if (facetString.length() > 0) {
-                                facetString += ",";
-                            }
-                            facetString += fString;
-                        }
-                        doc.addField(CreFields.DRIVER_FACET, facetString);
+			for (String searchString : clusterKey2searchStrings.get(rs.getString("cluster_key"))) {
+				doc.addField(CreFields.DRIVER_SEARCH, searchString);
+			}
+			String facetString = "";
+			for (String fString : clusterKey2facetStrings.get(rs.getString("cluster_key"))) {
+				if (facetString.length() > 0) {
+					facetString += ",";
+				}
+				facetString += fString;
+			}
+			doc.addField(CreFields.DRIVER_FACET, facetString);
 
 			doc.addField(CreFields.INDUCER, rs.getString("inducible_note"));
 
@@ -476,17 +422,15 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.DETECTED, false);
 
 			} // end ALLELE fields
-			// ASSAY_RESULT only fields
+				// ASSAY_RESULT only fields
 			else if (resultType == ResultType.ASSAY_RESULT) {
-
 
 				String resultKey = rs.getString("result_key");
 				String structure = rs.getString("structure");
-				String structureKey = rs.getString("structure_key");	// EMAPS key
-				String structureId = rs.getString("structure_id");		// EMAPA ID
+				String structureKey = rs.getString("structure_key"); // EMAPS key
+				String structureId = rs.getString("structure_id"); // EMAPA ID
 
 				boolean detected = this.isDetected(rs.getString("level"));
-
 
 				// system level fields
 				if (this.systemMap.containsKey(resultKey)) {
@@ -503,7 +447,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				}
 
 				// *all* systems for the allele associated with this assay result
-				if(this.alleleSystemsMap.containsKey(alleleKey)) {
+				if (this.alleleSystemsMap.containsKey(alleleKey)) {
 
 					AlleleSystems alleleSystems = this.alleleSystemsMap.get(alleleKey);
 					for (String system : alleleSystems.detectedSystems) {
@@ -521,30 +465,25 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.ANNOTATED_STRUCTURE, structure);
 				doc.addField(CreFields.ANNOTATED_STRUCTURE_KEY, structureKey);
 
+				this.addFieldNoDup(doc, CreFields.STRUCTURE_SEARCH, structure);
+				this.addFieldNoDup(doc, CreFields.STRUCTURE_ID, structureId);
 
-				this.addFieldNoDup(doc,CreFields.STRUCTURE_SEARCH,structure);
-				this.addFieldNoDup(doc,CreFields.STRUCTURE_ID, structureId);
-
-				if(this.structureAncestorIdMap.containsKey(structureKey))
-				{
+				if (this.structureAncestorIdMap.containsKey(structureKey)) {
 					// get ancestors
 					List<String> structure_ancestor_ids = this.structureAncestorIdMap.get(structureKey);
-					for (String structure_ancestor_id : structure_ancestor_ids)
-					{
+					for (String structure_ancestor_id : structure_ancestor_ids) {
 						// get synonyms for each ancestor/term
-						if(this.structureSynonymMap.containsKey(structure_ancestor_id))
-						{
-							//also add structure MGI ID
-							this.addFieldNoDup(doc,GxdResultFields.STRUCTURE_ID, structure_ancestor_id);
+						if (this.structureSynonymMap.containsKey(structure_ancestor_id)) {
+							// also add structure MGI ID
+							this.addFieldNoDup(doc, GxdResultFields.STRUCTURE_ID, structure_ancestor_id);
 							List<String> structureSynonyms = this.structureSynonymMap.get(structure_ancestor_id);
-							for (String structureSynonym : structureSynonyms)
-							{
-								this.addFieldNoDup(doc,CreFields.STRUCTURE_SEARCH,structureSynonym);
+							for (String structureSynonym : structureSynonyms) {
+								this.addFieldNoDup(doc, CreFields.STRUCTURE_SEARCH, structureSynonym);
 							}
 						}
 					}
 					this.resetDupTracking();
-				}              
+				}
 
 				if (allStructures.containsKey(alleleKey)) {
 					doc.addField(CreFields.ALL_ALL_STRUCTURES, allStructures.get(alleleKey));
@@ -575,9 +514,10 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.BY_RESULT_NOTE, rs.getString("by_result_note"));
 			} // end ASSAY_RESULT fields
 
-			// add allele-level fields computed to sort by Detected and Not Detected systems (where
+			// add allele-level fields computed to sort by Detected and Not Detected systems
+			// (where
 			// available) and falling back on smart-alpha symbol sort otherwise
-			
+
 			if (this.byDetected.containsKey(alleleKey)) {
 				doc.addField(CreFields.BY_DETECTED, this.byDetected.get(alleleKey));
 			}
@@ -596,78 +536,47 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 	}
 
-
-
 	/**
 	 * Helper queries
 	 */
 
 	/*
-	 * Query the sorts needed for allele level fields
-	 * 	where allele is cre but has no data
+	 * Query the sorts needed for allele level fields where allele is cre but has no
+	 * data
 	 */
 	private Map<String, AlleleSorts> queryNoDataAlleleSortsMap() throws SQLException {
 
-		String query = "select a.allele_key, "
-				+ "asn.by_allele_type, "
-				+ "asn.by_symbol, "
-				+ "asn.by_driver, "
-				+ "ac.reference_count, "
-				+ "aic.strain_count "  
-				+ "from allele a "
-				+ "join allele_sequence_num as asn "
-				+	"on asn.allele_key = a.allele_key  "
-				+ "join allele_counts as ac "
-				+	"on a.allele_key = ac.allele_key "
-				+ "join allele_imsr_counts as aic "
-				+	"on a.allele_key = aic.allele_key  "
-				+ "where a.driver is not null "
-				;
+		String query = "select a.allele_key, " + "asn.by_allele_type, " + "asn.by_symbol, " + "asn.by_driver, " + "ac.reference_count, " + "aic.strain_count " + "from allele a " + "join allele_sequence_num as asn " + "on asn.allele_key = a.allele_key  " + "join allele_counts as ac "
+			+ "on a.allele_key = ac.allele_key " + "join allele_imsr_counts as aic " + "on a.allele_key = aic.allele_key  " + "where a.driver is not null ";
 
 		return queryAlleleSortsMap(query);
 	}
 
 	/*
-	 * Query the sorts needed for allele level fields
-	 * 	where result_key between startResultKey to endResultKey
+	 * Query the sorts needed for allele level fields where result_key between
+	 * startResultKey to endResultKey
 	 */
 	private Map<String, AlleleSorts> queryAlleleSortsMap(int startResultKey, int endResultKey) throws SQLException {
 
-		String query = "select a.allele_key, "
-				+ "asn.by_allele_type, "
-				+ "asn.by_symbol, "
-				+ "asn.by_driver, "
-				+ "ac.reference_count, "
-				+ "aic.strain_count "  
-				+ "from allele as a "
-				+ "join allele_sequence_num as asn "
-				+	"on a.allele_key = asn.allele_key  "
-				+ "join allele_counts as ac "
-				+	"on a.allele_key = ac.allele_key "
-				+ "join allele_imsr_counts as aic "
-				+	"on a.allele_key = aic.allele_key  "
+		String query = "select a.allele_key, " + "asn.by_allele_type, " + "asn.by_symbol, " + "asn.by_driver, " + "ac.reference_count, " + "aic.strain_count " + "from allele as a " + "join allele_sequence_num as asn " + "on a.allele_key = asn.allele_key  " + "join allele_counts as ac "
+			+ "on a.allele_key = ac.allele_key " + "join allele_imsr_counts as aic " + "on a.allele_key = aic.allele_key  "
 
-	        	// Filter by this result_key batch
-	        	+ "where exists (select 1 from "
-	        	+ 	"recombinase_allele_system ras join "
-	        	+ 	"recombinase_assay_result rar on "
-	        	+ 		"rar.allele_system_key = ras.allele_system_key "
-	        	+ 	"where ras.allele_key = a.allele_key and "
-	        	+   "rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
-	        	+ ")";
+			// Filter by this result_key batch
+			+ "where exists (select 1 from " + "recombinase_allele_system ras join " + "recombinase_assay_result rar on " + "rar.allele_system_key = ras.allele_system_key " + "where ras.allele_key = a.allele_key and " + "rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey
+			+ ")";
 
 		return queryAlleleSortsMap(query);
 	}
 
 	/*
 	 * Takes a query for allele counts and packages it into AlleleSorts objects
-	 * 	mapped by allele_key
+	 * mapped by allele_key
 	 */
 	private Map<String, AlleleSorts> queryAlleleSortsMap(String query) throws SQLException {
 		Map<String, AlleleSorts> alleleSortsMap = new HashMap<String, AlleleSorts>();
 		logger.info("building map of allele keys to allele sorts");
 		ResultSet rs = ex.executeProto(query);
-		while(rs.next()){
+		while (rs.next()) {
 
 			AlleleSorts alleleSorts = new AlleleSorts();
 			alleleSorts.strainCount = rs.getInt("strain_count");
@@ -684,53 +593,33 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	}
 
 	/*
-	 * Query all the detected and not detected systems for each allele
-	 * 	with result_key between startResultKey and endResultKey
-	 *  Maps them by allele_key
+	 * Query all the detected and not detected systems for each allele with
+	 * result_key between startResultKey and endResultKey Maps them by allele_key
 	 */
 	private Map<String, AlleleSystems> queryAlleleSystemsMap(int startResultKey, int endResultKey) throws SQLException {
 
-		String query = "with batch_alleles as ( "
-				+ 	"select distinct allele_key from "
-				+ 	"recombinase_allele_system ras "
-				+ 	"join recombinase_assay_result rar on "
-				+ 		"rar.allele_system_key = ras.allele_system_key "
-				// filter out only alleles that apply to this batch of assay results
-				+ 	"where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " "
-				+ ")"
-				+ "select aus.allele_key, "
-				+ "aus.system, "
-				+ "false as detected "
-				+ "from recombinase_unaffected_system aus "
-				+ "join batch_alleles ba on "
-				+ 	"ba.allele_key = aus.allele_key "
-				+ "UNION "
-				+ "select aas.allele_key, "
-				+ "aas.system, "
-				+ "true as detected "
-				+ "from recombinase_affected_system aas "
-				+ "join batch_alleles ba on "
-				+ 	"ba.allele_key = aas.allele_key "
-				;
+		String query = "with batch_alleles as ( " + "select distinct allele_key from " + "recombinase_allele_system ras " + "join recombinase_assay_result rar on " + "rar.allele_system_key = ras.allele_system_key "
+		// filter out only alleles that apply to this batch of assay results
+			+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " " + ")" + "select aus.allele_key, " + "aus.system, " + "false as detected " + "from recombinase_unaffected_system aus " + "join batch_alleles ba on " + "ba.allele_key = aus.allele_key " + "UNION "
+			+ "select aas.allele_key, " + "aas.system, " + "true as detected " + "from recombinase_affected_system aas " + "join batch_alleles ba on " + "ba.allele_key = aas.allele_key ";
 
 		Map<String, AlleleSystems> alleleSystemsMap = new HashMap<String, AlleleSystems>();
 
 		ResultSet rs = ex.executeProto(query);
 
-		while(rs.next()) {
+		while (rs.next()) {
 
 			String alleleKey = rs.getString("allele_key");
 			String system = rs.getString("system");
 			boolean detected = rs.getBoolean("detected");
 
-			if(!alleleSystemsMap.containsKey(alleleKey)){
+			if (!alleleSystemsMap.containsKey(alleleKey)) {
 				alleleSystemsMap.put(alleleKey, new AlleleSystems());
 			}
 
-			if(detected) {
+			if (detected) {
 				alleleSystemsMap.get(alleleKey).detectedSystems.add(system);
-			}
-			else {
+			} else {
 				alleleSystemsMap.get(alleleKey).notDetectedSystems.add(system);
 			}
 
@@ -747,17 +636,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		Map<String, List<CreAlleleSystem>> systemMap = new HashMap<String, List<CreAlleleSystem>>();
 		logger.info("building map of result keys to affected system");
 
-		String query = "select rar.result_key, "
-				+ "ras.allele_system_key, "
-				+ "ras.system "
-				+ "from recombinase_allele_system ras "
-				+ "join recombinase_assay_result rar on "
-				+ 	"rar.allele_system_key = ras.allele_system_key "
-				+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey;
+		String query = "select rar.result_key, " + "ras.allele_system_key, " + "ras.system " + "from recombinase_allele_system ras " + "join recombinase_assay_result rar on " + "rar.allele_system_key = ras.allele_system_key " + "where rar.result_key > " + startResultKey + " and rar.result_key <= "
+			+ endResultKey;
 
 		ResultSet rs = ex.executeProto(query);
 
-		while(rs.next()) {
+		while (rs.next()) {
 
 			String resultKey = rs.getString("result_key");
 			if (!systemMap.containsKey(resultKey)) {
@@ -772,28 +656,24 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		}
 		logger.info("done building map of result keys to affected system");
 
-
 		return systemMap;
 	}
-
 
 	/*
 	 * Query the ancestor IDs for all structures
 	 */
-	private Map<String,List<String>> queryStructureAncestorIdMap() throws SQLException {
-		Map<String,List<String>> structureAncestorIdMap = new HashMap<String,List<String>>();
+	private Map<String, List<String>> queryStructureAncestorIdMap() throws SQLException {
+		Map<String, List<String>> structureAncestorIdMap = new HashMap<String, List<String>>();
 		logger.info("building map of structure term_key to ancestor IDs");
 
 		String structureAncestorQuery = SharedQueries.GXD_EMAP_ANCESTOR_QUERY;
 		ResultSet rs = ex.executeProto(structureAncestorQuery);
 
-		while (rs.next())
-		{
+		while (rs.next()) {
 			String skey = rs.getString("structure_term_key");
 			String ancestorId = rs.getString("ancestor_id");
 			String structureId = rs.getString("structure_id");
-			if(!structureAncestorIdMap.containsKey(skey))
-			{
+			if (!structureAncestorIdMap.containsKey(skey)) {
 				structureAncestorIdMap.put(skey, new ArrayList<String>());
 				// Include original term
 				structureAncestorIdMap.get(skey).add(structureId);
@@ -808,18 +688,16 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	/*
 	 * Query the synonyms for all structures
 	 */
-	private Map<String,List<String>> queryStructureSynonymMap() throws SQLException {
-		Map<String,List<String>> structureSynonymMap = new HashMap<String,List<String>>();
+	private Map<String, List<String>> queryStructureSynonymMap() throws SQLException {
+		Map<String, List<String>> structureSynonymMap = new HashMap<String, List<String>>();
 		logger.info("building map of structure synonyms");
 		String structureSynonymQuery = SharedQueries.GXD_EMAP_SYNONYMS_QUERY;
 		ResultSet rs = ex.executeProto(structureSynonymQuery);
-		while (rs.next())
-		{
+		while (rs.next()) {
 			String sId = rs.getString("structure_id");
 			String synonym = rs.getString("synonym");
 			String structure = rs.getString("structure");
-			if(!structureSynonymMap.containsKey(sId))
-			{
+			if (!structureSynonymMap.containsKey(sId)) {
 				structureSynonymMap.put(sId, new ArrayList<String>());
 				// Include original term
 				structureSynonymMap.get(sId).add(structure);
@@ -830,7 +708,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 		return structureSynonymMap;
 	}
-
 
 	/**
 	 * Helper functions
@@ -858,7 +735,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	String getSystemHighlightGroup(String alleleKey, String system, boolean detected) {
 
 		String detection = "yes";
-		if ( !detected) {
+		if (!detected) {
 			detection = "no";
 		}
 
@@ -866,27 +743,22 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return StringUtils.join(keys, "-");
 	}
 
-	/* Populate the maps for sorting by Detected and Not Detected systems.  Each map is from
-	 * a (String) allele key to a sort value (Integer).
+	/*
+	 * Populate the maps for sorting by Detected and Not Detected systems. Each map
+	 * is from a (String) allele key to a sort value (Integer).
 	 */
 	public void fillSystemSorts() throws SQLException {
 		// first, we need to collect systems for all the recombinase alleles
-		
-		// ordered to group rows by allele, then system, then detected before not detected
-		String cmd = "select distinct a.allele_key, s.system, n.by_symbol, "
-			+ " case when r.level in ('Ambiguous', 'Absent', 'Not Specified') then 0 "
-			+ "   else 1 end detected "
-			+ "from allele a "
-			+ "inner join allele_sequence_num n on (a.allele_key = n.allele_key) "
-			+ "left outer join recombinase_allele_system s on (s.allele_key = a.allele_key) "
-			+ "left outer join recombinase_assay_result r on (r.allele_system_key = s.allele_system_key) "
-			+ "where driver_key is not null "
-			+ "order by 3, 2, 4 desc";
 
-		Map<String,Integer> bySymbol = new HashMap<String,Integer>();				// allele key : sort value
-		Map<String,StringBuffer> detecteds = new HashMap<String,StringBuffer>();	// allele key : detected systems
-		Map<String,StringBuffer> notDetecteds = new HashMap<String,StringBuffer>();	// allele key : not detected systems
-		
+		// ordered to group rows by allele, then system, then detected before not
+		// detected
+		String cmd = "select distinct a.allele_key, s.system, n.by_symbol, " + " case when r.level in ('Ambiguous', 'Absent', 'Not Specified') then 0 " + "   else 1 end detected " + "from allele a " + "inner join allele_sequence_num n on (a.allele_key = n.allele_key) "
+			+ "left outer join recombinase_allele_system s on (s.allele_key = a.allele_key) " + "left outer join recombinase_assay_result r on (r.allele_system_key = s.allele_system_key) " + "where driver_key is not null " + "order by 3, 2, 4 desc";
+
+		Map<String, Integer> bySymbol = new HashMap<String, Integer>(); // allele key : sort value
+		Map<String, StringBuffer> detecteds = new HashMap<String, StringBuffer>(); // allele key : detected systems
+		Map<String, StringBuffer> notDetecteds = new HashMap<String, StringBuffer>(); // allele key : not detected systems
+
 		String lastAlleleKey = "default";
 		String lastSystem = "default";
 
@@ -895,16 +767,17 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			String alleleKey = rs.getString("allele_key");
 			String system = rs.getString("system");
 			Integer detected = rs.getInt("detected");
-			Map<String,StringBuffer> map = null;
+			Map<String, StringBuffer> map = null;
 
 			if (!bySymbol.containsKey(alleleKey)) {
 				bySymbol.put(alleleKey, rs.getInt("by_symbol"));
 			}
-			
+
 			// if there's no system, no other data to collect
 			if ((system != null) && (system.trim().length() > 0)) {
 
-				// if the allele & system match the previous, then this 'not detected' annotation is
+				// if the allele & system match the previous, then this 'not detected'
+				// annotation is
 				// overridden by the previous 'detected' annotation, so skip it
 				if (!lastAlleleKey.equals(alleleKey) || !lastSystem.equals(system)) {
 
@@ -914,7 +787,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					} else {
 						map = detecteds;
 					}
-			
+
 					if (map.containsKey(alleleKey)) {
 						map.get(alleleKey).append(",");
 						map.get(alleleKey).append(rs.getString("system"));
@@ -928,14 +801,14 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		}
 		rs.close();
 		logger.info("Collected systems for " + bySymbol.size() + " alleles");
-		
+
 		this.byDetected = buildSortMap(bySymbol, detecteds);
 		this.byNotDetected = buildSortMap(bySymbol, notDetecteds);
 		logger.info("Sorted " + bySymbol.size() + " alleles by systems");
 	}
-	
+
 	// helper method for fillSystemSorts()
-	public Map<String,Integer> buildSortMap(Map<String,Integer> bySymbol, Map<String,StringBuffer> systems) {
+	public Map<String, Integer> buildSortMap(Map<String, Integer> bySymbol, Map<String, StringBuffer> systems) {
 		// compile a list of allele data that we can sort
 		List<SortableAllele> sortableAlleles = new ArrayList<SortableAllele>();
 		for (String alleleKey : bySymbol.keySet()) {
@@ -952,9 +825,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		if (sortableAlleles.size() > 0) {
 			Collections.sort(sortableAlleles, sortableAlleles.get(0).getComparator());
 		}
-		
+
 		// assign a sequence number to each
-		Map<String,Integer> detectedSorts = new HashMap<String,Integer>();
+		Map<String, Integer> detectedSorts = new HashMap<String, Integer>();
 		int i = 0;
 		for (SortableAllele allele : sortableAlleles) {
 			detectedSorts.put(allele.alleleKey, i++);
@@ -970,11 +843,11 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		public String alleleKey;
 		public int bySymbol = -1;
 		public String systems;
-		
+
 		public SortableAlleleComparator getComparator() {
 			return new SortableAlleleComparator();
 		}
-		
+
 		private class SortableAlleleComparator implements Comparator<SortableAllele> {
 			@Override
 			public int compare(SortableAllele a, SortableAllele b) {
@@ -986,21 +859,22 @@ public class CreAssayResultIndexerSQL extends Indexer {
 					int bySystems = a.systems.compareTo(b.systems);
 					if (bySystems != 0) {
 						return bySystems;
-					} 
+					}
 				} else if (aEmpty && !bEmpty) {
-					return 1;	
+					return 1;
 				} else if (!aEmpty && bEmpty) {
-					return -1;	
-				} 
+					return -1;
+				}
 
-				// if both are missing systems or if the systems match, fall back on symbol comparison
+				// if both are missing systems or if the systems match, fall back on symbol
+				// comparison
 				return Integer.compare(a.bySymbol, b.bySymbol);
 			}
 		}
 	}
-	
+
 	private class AlleleSorts {
-		public  int strainCount;
+		public int strainCount;
 		public int referenceCount;
 		public int byAlleleType;
 		public int bySymbol;
@@ -1023,8 +897,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	}
 
 	/*
-	 * What type of result
-	 * 	Allele or assay result
+	 * What type of result Allele or assay result
 	 */
 	private enum ResultType {
 		ALLELE, ASSAY_RESULT

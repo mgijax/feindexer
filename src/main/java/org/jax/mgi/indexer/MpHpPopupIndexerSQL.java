@@ -111,7 +111,7 @@ public class MpHpPopupIndexerSQL extends Indexer {
 				oldSynList.add(thisSynonym);
 				termToSynonym.put(thisTermKey, oldSynList);
 			} else {
-				List newSynList = new ArrayList<String>();
+				List<String> newSynList = new ArrayList<String>();
 				newSynList.add(thisSynonym);
 				termToSynonym.put(thisTermKey, newSynList);
 			}

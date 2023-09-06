@@ -71,15 +71,14 @@
 		</dependency>
 		<dependency>
 			<groupId>org.jax.mgi</groupId>
-			<artifactId>fedatamodel</artifactId>
-			<version>0.0.1</version>
+			<artifactId>lib_java_fe</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.jax.mgi</groupId>
-			<artifactId>lib_java_fe</artifactId>
-			<version>0.0.1</version>
+			<artifactId>fedatamodel</artifactId>
+			<version>${project.version}</version>
 		</dependency>
-		
 	</dependencies>
 
 	<build>

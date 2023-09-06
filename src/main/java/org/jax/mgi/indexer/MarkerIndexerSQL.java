@@ -134,7 +134,7 @@ public class MarkerIndexerSQL extends Indexer
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 
 		// strictly for mapping the field boosts for nomen queries
-		List<String> nomenKeyList = new ArrayList<String>(MarkerSummaryFields.NOMEN_FIELDS.keySet());
+		//List<String> nomenKeyList = new ArrayList<String>(MarkerSummaryFields.NOMEN_FIELDS.keySet());
 
 		// Parse the base query, adding its contents into solr  
 		while (rs.next()) 
