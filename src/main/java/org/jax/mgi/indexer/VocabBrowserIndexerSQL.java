@@ -6,7 +6,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
 import org.codehaus.jackson.map.ObjectMapper;
@@ -53,7 +52,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	private Map<Integer,String> annotationUrl;				// term key : url for annotation link
 	private Map<Integer,String> comments;					// term key : comment field
 	private Map<Integer,List<String>> crossRefs;			// term key : list of IDs cited as cross-references
-	private Set<Integer> relatedToAnatomy;					// contains keys of terms with related anatomy terms
+	//private Set<Integer> relatedToAnatomy;					// contains keys of terms with related anatomy terms
 	
 	private ObjectMapper mapper = new ObjectMapper();				// converts objects to JSON
 

@@ -93,7 +93,7 @@ public class GXDLitIndexerSQL extends Indexer {
 		 */
 		List<Integer> myInts = new ArrayList<Integer>(30);
 		for (int i = 0; i < 30; i++) {
-			myInts.add(Integer.valueOf(i));
+			myInts.add(i);
 		}
 
 		while (rs_base.next()) {
@@ -320,8 +320,8 @@ public class GXDLitIndexerSQL extends Indexer {
 						"max_theiler_stage");
 
 				if ((minTS != null) && (maxTS != null)) {
-					pair.setMinTheilerStage(Integer.valueOf(minTS));
-					pair.setMaxTheilerStage(Integer.valueOf(maxTS));
+					pair.setMinTheilerStage(Integer.parseInt(maxTS));
+					pair.setMaxTheilerStage(Integer.parseInt(maxTS));
 				}
 
 				if (records.containsKey(rs_assay_age_pair.getString("index_key"))) {

@@ -80,7 +80,12 @@ public abstract class Indexer implements Runnable {
 
 		logger.info("Setting up index: " + solrUrl);
 		try {
-			client = new ConcurrentUpdateSolrClient.Builder(solrUrl).withQueueSize(160).withThreadCount(4).build();
+			client = new ConcurrentUpdateSolrClient.Builder(solrUrl)
+				.withQueueSize(160)
+				.withThreadCount(4)
+				.withConnectionTimeout(3 * 60000)
+				.withSocketTimeout(3 * 60000)
+				.build();
 		} catch (Throwable e) {
 			logger.info("Failed to set up solr client:");
 			e.printStackTrace();
@@ -88,9 +93,6 @@ public abstract class Indexer implements Runnable {
 		}
 
 		logger.info("Working with index: " + solrUrl);
-
-		client.setConnectionTimeout(3 * 60000);
-		client.setSoTimeout(3 * 60000);
 
 		try {
 			logger.info("Deleting current index: " + solrIndexName);
@@ -315,7 +317,7 @@ public abstract class Indexer implements Runnable {
 			String uniqueField = rs.getString(uniqueFieldName);
 			String secondField = rs.getString(secondFieldName);
 			if (!returnLookup.containsKey(uniqueField)) {
-				returnLookup.put(uniqueField, setClass.newInstance());
+				returnLookup.put(uniqueField, setClass.getDeclaredConstructor().newInstance());
 			}
 			returnLookup.get(uniqueField).add(secondField);
 			rows++;

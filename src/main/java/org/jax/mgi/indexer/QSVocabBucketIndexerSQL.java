@@ -197,7 +197,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			String primaryID = rs.getString("primary_id");
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
-			String dagName = rs.getString("display_vocab_name");
+			//String dagName = rs.getString("display_vocab_name");
 			
 			// Tweaks to adjust for proper Best Match Type display.  (two vocabs where LDB != ID prefix)
 			if ("Mammalian Phenotype".equals(logicalDB)) {
@@ -329,7 +329,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	
 	// Return a singular or plural version of 'noun' based on the given 'count' of items.
 	private String plural(Integer count, String noun) {
-		return plural(Long.valueOf(count), noun);
+		return plural(count, noun);
 	}
 	
 	/* Cache annotation data for the given vocabulary name, populating annotationCount and annotationLabel

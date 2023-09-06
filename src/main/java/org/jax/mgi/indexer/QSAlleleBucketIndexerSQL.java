@@ -340,7 +340,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			String id = rs.getString("acc_id");
 			String logicalDB = rs.getString("logical_db");
 			String prefix = rs.getString("prefix");
-			String suffix = "";
+			//String suffix = "";
 			QSAccIDFormatter idf = null;
 			
 			if ("Sequence DB".equals(logicalDB)) {
@@ -920,11 +920,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 		logger.info(" - loading alleles");
 
-		String prefix = "Allele ";
+		//String prefix = "Allele ";
 
 		alleles = new HashMap<Integer,QSAllele>();
 		
-		long padding = 0;	// amount of initial padding before sequence numbers should begin
+		//long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
 		String cmd = "select a.allele_key as allele_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
 				"m.symbol as marker_symbol, m.name as marker_name, s.by_symbol, lower(a.transmission_type) as transmission_type " +
