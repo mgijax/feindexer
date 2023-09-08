@@ -24,6 +24,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String,String> strains = null;					// maps genotype key to strain
 	HashMap<String,String> alleles = null;					// maps genotype key to allele combination
 	HashMap<String, HashSet<String>> markerData = null;		// maps sample key to marker symbols, IDs, and synonyms
+	HashMap<String, HashSet<String>> alleleData = null;		// maps sample key to alleleIDs
 	HashMap<String, HashSet<String>> variables = null;		// maps sample key to experimental variables
 	HashMap<String,String> terms = null;					// maps term key to term (EMAPA)
 	HashMap<String,String> termIDs = null;					// maps term key to term ID (EMAPA)
@@ -115,7 +116,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	}
 	
 	private void cacheMarkerData() throws Exception {
-		// look up symbols, synonyms, ID for mutated gene in each genotype
+		// look up symbols, synonyms, ID for mutated gene in each sample
 		this.markerData = new HashMap<String, HashSet<String>>();
 
 		String cmd4 = "select distinct s.sample_key, m.symbol, m.primary_id, y.synonym "
@@ -139,6 +140,28 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		}
 		rs4.close();
 		logger.info("Retrieved mutated genes for " + this.markerData.size() + " samples");
+	}
+	
+	private void cacheAlleleData() throws Exception {
+		// look up MGI IDs for mutated alleles in each sample
+		this.alleleData = new HashMap<String, HashSet<String>>();
+
+		String cmd4a = "select distinct s.sample_key, a.primary_id "
+			+ "from expression_ht_sample s "
+			+ "inner join allele_to_genotype atg on (s.genotype_key = atg.genotype_key) "
+                        + "inner join allele a on (atg.allele_key = a.allele_key and a.is_recombinase = 0 and a.is_wild_type = 0) "
+                        ;
+		ResultSet rs4a = ex.executeProto(cmd4a);
+		while (rs4a.next()) {
+			String sampleKey = rs4a.getString("sample_key");
+                        String alleleId = rs4a.getString("primary_id");
+			if (!this.alleleData.containsKey(sampleKey)) {
+				this.alleleData.put(sampleKey, new HashSet<String>());
+			}
+			this.alleleData.get(sampleKey).add(rs4a.getString("primary_id"));
+		}
+		rs4a.close();
+		logger.info("Retrieved mutated alleles for " + this.alleleData.size() + " samples");
 	}
 	
 	private void cacheCellTypeData() throws Exception {
@@ -282,6 +305,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		cacheExperimentData();
 		cacheGenotypeData();
 		cacheMarkerData();
+		cacheAlleleData();
 		cacheEmapaData();
 		cacheCellTypeData();
 		
@@ -347,6 +371,10 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 
 			if (this.markerData.containsKey(sampleKey)) {
 				doc.addAllDistinct(GxdHtFields.MUTATED_GENE, this.markerData.get(sampleKey));
+			}
+			
+			if (this.alleleData.containsKey(sampleKey)) {
+				doc.addAllDistinct(GxdHtFields.MUTANT_ALLELE_IDS, this.alleleData.get(sampleKey));
 			}
 			
 			if (genotypeKey != null) {
