@@ -149,7 +149,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		String cmd4a = "select distinct s.sample_key, a.primary_id "
 			+ "from expression_ht_sample s "
 			+ "inner join allele_to_genotype atg on (s.genotype_key = atg.genotype_key) "
-                        + "inner join allele a on (atg.allele_key = a.allele_key and a.is_recombinase = 0 and a.is_wild_type = 0) "
+                        + "inner join allele a on (atg.allele_key = a.allele_key and a.is_wild_type = 0) "
                         ;
 		ResultSet rs4a = ex.executeProto(cmd4a);
 		while (rs4a.next()) {
