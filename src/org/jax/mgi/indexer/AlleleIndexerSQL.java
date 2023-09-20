@@ -49,7 +49,7 @@ public class AlleleIndexerSQL extends Indexer {
 
 		Integer start = 0;
 		Integer end = rs.getInt("max_allele_key");
-		int chunkSize = 2000;
+		int chunkSize = 50000;
 
 		int modValue = end.intValue() / chunkSize;
 		// Perform the chunking
@@ -126,7 +126,7 @@ public class AlleleIndexerSQL extends Indexer {
 		Map<Integer,Integer> diseaseSortMap = getAlleleDiseaseSortMap(startKey,endKey);
 
 		// The main sql for allele
-		ResultSet rs = ex.executeProto("select m.marker_key,m.primary_id marker_id, " +
+                String query = "select m.marker_key,m.primary_id marker_id, " +
 				"a.allele_key, " +
 				"a.symbol, a.name, " +
 				"a.allele_type,a.allele_subtype, " +
@@ -135,11 +135,13 @@ public class AlleleIndexerSQL extends Indexer {
 				"asn.by_symbol, " +
 				"asn.by_chromosome, " +
 				"asn.by_allele_type " +
-				"from allele a join " +
-				"marker_to_allele mta on a.allele_key=mta.allele_key join " +
+				"from allele a left join " +
+				"marker_to_allele mta on a.allele_key=mta.allele_key left join " +
 				"marker m on m.marker_key=mta.marker_key join " +
 				"allele_sequence_num asn on asn.allele_key=a.allele_key "+
-				"where mta.allele_key > "+startKey+" and mta.allele_key <= "+endKey+" ");
+				"where a.allele_key > "+startKey+" and a.allele_key <= "+endKey+" ";
+                logger.info(query);
+		ResultSet rs = ex.executeProto(query);
 
 		Collection<SolrInputDocument> docs = new ArrayList<SolrInputDocument>();
 		while (rs.next()) {
