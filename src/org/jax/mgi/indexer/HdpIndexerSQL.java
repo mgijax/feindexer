@@ -1841,33 +1841,20 @@ public abstract class HdpIndexerSQL extends Indexer {
 				// (exclude docking site markers by key)
 
 				"select m.marker_key, arm.related_marker_key " + 
-				"from allele_related_marker arm, allele a, marker_to_allele mta, marker m, ec_count one, rolled_up ru " + 
+				"from allele_related_marker arm, allele a, marker_to_allele mta, marker m, ec_count one, rolled_up ru, marker rm " + 
 				"where arm.relationship_category = 'expresses_component' " + 
+                                "and arm.related_marker_key = rm.marker_key " +
+                                "and rm.organism in ('mouse','human') " +
 				"and arm.allele_key = a.allele_key " + 
 				"and a.allele_key = ru.allele_key " + 
 				"and a.allele_key = mta.allele_key " + 
 				"and mta.marker_key = m.marker_key " + 
+                                "and m.organism = 'mouse' " +
 				"and m.marker_type = 'Transgene' " + 
 				"and m.marker_key not in (1092, 37270, 9936) " + 
 				"and a.allele_key = one.allele_key " + 
+                                "";
 
-				"union " + 
-
-				// transgene markers where the corresponding allele has expressed components that are human markers
-				// (exclude docking site markers by key)
-
-				"select m.marker_key, r.marker_key as expressed_marker_key " + 
-				"from allele a " + 
-				"inner join ec_count one on (a.allele_key = one.allele_key) " + 
-				"inner join marker_to_allele m on (m.allele_key = a.allele_key) " + 
-				"inner join allele_related_marker arm on (a.allele_key = arm.allele_key and arm.relationship_category = 'expresses_component') " + 
-				"inner join allele_arm_property po on (arm.arm_key = po.arm_key and po.name = 'Non-mouse_Organism') " + 
-				"inner join allele_arm_property pi on (arm.arm_key = pi.arm_key and pi.name = 'Non-mouse_NCBI_Gene_ID') " + 
-				"inner join allele_arm_property ps on (arm.arm_key = ps.arm_key and ps.name = 'Non-mouse_Gene_Symbol') " + 
-				"inner join marker_id ri on (pi.value = ri.acc_id) " + 
-				"inner join marker r on (ri.marker_key = r.marker_key and ps.value = r.symbol and po.value ilike r.organism and r.organism = 'human') " + 
-				"inner join rolled_up ru on (a.allele_key = ru.allele_key) " + 
-				"where m.marker_key not in (1092, 37270, 9936)";
 
 		expressedComponents = new HashMap<Integer,Set<Integer>>();
 
@@ -1904,50 +1891,27 @@ public abstract class HdpIndexerSQL extends Indexer {
                 //
                 logger.info("Retrieving expressed component tooltip data.");
                 markerToExpressesComponent = new HashMap<Integer, List<String>> ();
-                String ec_tooltip_query_mouse = "select m.marker_key, arm.related_marker_symbol "
-                        + "from marker m, marker_to_allele ma, allele a, allele_related_marker arm "
+                String ec_tooltip_query = "select m.marker_key, arm.related_marker_symbol, rm.organism "
+                        + "from marker m, marker_to_allele ma, allele a, allele_related_marker arm, marker rm "
                         + "where m.marker_type = 'Transgene' "
                         + "and m.marker_key = ma.marker_key "
                         + "and ma.allele_key = a.allele_key "
                         + "and a.allele_key = arm.allele_key "
-                        + "and arm.relationship_term = 'expresses' ";
-                ResultSet rs2 = ex.executeProto(ec_tooltip_query_mouse, cursorLimit);
+                        + "and arm.relationship_category = 'expresses_component' "
+                        + "and arm.related_marker_key = rm.marker_key "
+                        + "order by m.marker_key, arm.arm_key "
+                        ;
+                ResultSet rs2 = ex.executeProto(ec_tooltip_query, cursorLimit);
                 while (rs2.next()) {
                     Integer markerKey = rs2.getInt("marker_key");
                     String expressedMarker = rs2.getString("related_marker_symbol");
-                    if (! markerToExpressesComponent.containsKey(markerKey)) {
-                        markerToExpressesComponent.put(markerKey, new ArrayList<String>());
-                    }
-                    markerToExpressesComponent.get(markerKey).add(expressedMarker + " (mouse)");
-                }
-
-                /* Non mouse markers are stored as multiple properties associated with the EC annotation.
-                 * We need the organism and the gene symbol. These are returned in separate rows by
-                 * the following query and are assembled in the code that follows.
-                 * For each non mouse EC, this query returns one row containing the symbol, immediately followed
-                 * by a second row containing the organism.
-                 */
-                String ec_tooltip_query_nonmouse = "select m.marker_key, arm.arm_key, arp.name, arp.value "
-                        + "from marker m, marker_to_allele ma, allele a, allele_related_marker arm  "
-                        + "left join allele_arm_property arp on arm.arm_key = arp.arm_key "
-                        + "and arp.name in ('Non-mouse_Organism','Non-mouse_Gene_Symbol') "
-                        + "where m.marker_type = 'Transgene' "
-                        + "and m.marker_key = ma.marker_key "
-                        + "and ma.allele_key = a.allele_key "
-                        + "and a.allele_key = arm.allele_key "
-                        + "and arm.relationship_term = 'expresses an ortholog of' "
-                        + "order by m.marker_key, arm.arm_key, arp.name";
-                ResultSet rs3 = ex.executeProto(ec_tooltip_query_nonmouse, cursorLimit);
-                while(rs3.next()) {
-                    Integer markerKey = rs3.getInt("marker_key");
-                    String expressedMarker = rs3.getString("value");
-                    rs3.next();
-                    String organism = rs3.getString("value");
+                    String organism = rs2.getString("organism");
                     if (! markerToExpressesComponent.containsKey(markerKey)) {
                         markerToExpressesComponent.put(markerKey, new ArrayList<String>());
                     }
                     markerToExpressesComponent.get(markerKey).add(expressedMarker + " (" + organism + ")");
                 }
+
                 logger.info("Cached expressed component tooltip data for " + markerToExpressesComponent.size() + " transgenes.");
 
 	}
