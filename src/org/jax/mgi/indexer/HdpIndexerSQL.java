@@ -934,17 +934,17 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// updated to include references for descendant terms, since diseases are now a DAG
 			String diseaseRefCountQuery = 
 				"with closure as ( "
-					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor s "
+					+ "select ha.term_key, ha.primary_id, s.ancestor_primary_id "
+					+ "from term ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ "  and ha.vocab_name = 'Disease Ontology' "
 					+ "union " 
-					+ "select ha.term_key, ha.term_id, ha.term_id "
-					+ "from hdp_annotation ha "
+					+ "select ha.term_key, ha.primary_id, ha.primary_id "
+					+ "from term ha "
 					+ "where ha.vocab_name = 'Disease Ontology' "
 					+ ") "
 				+ "select c.ancestor_primary_id as disease_id, count(distinct trt.reference_key) as ref_count "
-				+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
+				+ "from hdp_term_to_reference trt, term ha, closure c "
 				+ "where ha.term_key = trt.term_key "
 				+ " and ha.term_key = c.term_key "
 				+ " and ha.vocab_name='Disease Ontology' "
@@ -1066,20 +1066,20 @@ public abstract class HdpIndexerSQL extends Indexer {
 			// updated to include models for descendant terms, since diseases are now a DAG
 			String diseaseModelQuery=
 				"with closure as ( "
-					+ "select ha.term_key, ha.term_id, s.ancestor_primary_id "
-					+ "from hdp_annotation ha, term_ancestor s "
+					+ "select ha.term_key, ha.primary_id, s.ancestor_primary_id "
+					+ "from term ha, term_ancestor s "
 					+ "where ha.term_key = s.term_key "
 					+ " and ha.vocab_name = 'Disease Ontology' "
 					+ "union "
-					+ "select ha.term_key, ha.term_id, ha.term_id "
-					+ "from hdp_annotation ha "
+					+ "select ha.term_key, ha.primary_id, ha.primary_id "
+					+ "from term ha "
 					+ "where ha.vocab_name = 'Disease Ontology' "
 					+ ") "
 				+ "select c.ancestor_primary_id as disease_id, "
 				+ " count(distinct dm.disease_model_key) as diseaseModelCount "
 				+ "from disease_model dm, closure c "
 				+ "where dm.is_not_model=0 "
-				+ " and dm.disease_id = c.term_id "
+				+ " and dm.disease_id = c.primary_id "
 				+ "group by 1";
 
 			ResultSet rs = ex.executeProto(diseaseModelQuery, cursorLimit);

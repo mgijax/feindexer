@@ -26,14 +26,14 @@ public class RefIndexerSQL extends Indexer {
 		
 		String cmd0 = "select ha.term_key, t.term_key as ancestor_key, s.ancestor_primary_id "
 				+ "into temp table closure "
-				+ "from hdp_annotation ha, term_ancestor s, term t "
+				+ "from term ha, term_ancestor s, term t "
 				+ "where ha.term_key = s.term_key "
 				+ " and ha.vocab_name = 'Disease Ontology' "
 				+ " and s.ancestor_primary_id = t.primary_id "
 				+ " and t.vocab_name = 'Disease Ontology' "
 				+ "union "
-				+ "select ha.term_key, ha.term_key, ha.term_id "
-				+ "from hdp_annotation ha "
+				+ "select ha.term_key, ha.term_key, ha.primary_id "
+				+ "from term ha "
 				+ "where ha.vocab_name = 'Disease Ontology' ";
 		ex.executeVoid(cmd0);
 		this.createTempIndex("closure", "term_key");
@@ -86,7 +86,7 @@ public class RefIndexerSQL extends Indexer {
 	// get a mapping from reference key to disease IDs associated with it
 	public Map<String,Set<String>> getDiseaseRelevantReferenceMap(int startKey, int endKey) throws Exception {
 		String diseaseRelevantRefQuery = "select distinct trt.reference_key, c.ancestor_primary_id as disease_id "
-			+ "from hdp_term_to_reference trt, hdp_annotation ha, closure c "
+			+ "from hdp_term_to_reference trt, term ha, closure c "
 			+ "where ha.term_key = c.term_key "
 			+ " and c.term_key = trt.term_key "
 			+ " and trt.reference_key >= " + startKey
