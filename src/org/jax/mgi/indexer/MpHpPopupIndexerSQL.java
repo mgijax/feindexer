@@ -96,13 +96,13 @@ public class MpHpPopupIndexerSQL extends Indexer {
 	public void index() throws Exception
 	{
 		// pre-gather synonyms; these are 1-n for each term
-        logger.info("Selecting all associations from term_to_term");
+        logger.info("Selecting all relevant term synonyms");
         ResultSet rs_synonyms = ex.executeProto("SELECT distinct " +
                 " t1.primary_id, ts.synonym  " +
                 "from term_to_term t2t, term_synonym ts, term t1 " +
                 "where relationship_type = 'MP HP Popup' " +
-                "  AND t2t.term_key_1 = ts.term_key " +
-                "  AND t2t.term_key_1 = t1.term_key " +
+                "  AND t2t.term_key_2 = ts.term_key " +
+                "  AND t2t.term_key_2 = t1.term_key " +
                 "order by synonym " +
                 " "); 
 		while (rs_synonyms.next()) {
