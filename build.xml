@@ -35,6 +35,8 @@
   <!-- compile -->
   <target name="compile" depends="clean, init" >
     <javac debug="on" srcdir="${src}" destdir="${build}">
+        <compilerarg value="-Xlint:deprecation"/>
+        <compilerarg value="-Xlint:unchecked"/>
 	<classpath>
 		<fileset dir="lib">
 			<include name="**/*.jar"/>
