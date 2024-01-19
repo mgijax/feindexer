@@ -10,12 +10,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.GridMarker;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /* Is: parent class of the various HMDC-related indexers (Hdp*)
  * Has: knowledge of how to produce various temp tables, mappings, and such

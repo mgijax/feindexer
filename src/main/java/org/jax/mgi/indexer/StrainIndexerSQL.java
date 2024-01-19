@@ -8,10 +8,11 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.jsonmodel.AccessionID;
 import org.jax.mgi.shr.jsonmodel.SimpleStrain;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /* Is: an indexer that builds the index supporting the strain summary page (reachable from the strains/SNPs
  * 		minihome page).  Each document in the index represents data for a single mouse strain, and each strain

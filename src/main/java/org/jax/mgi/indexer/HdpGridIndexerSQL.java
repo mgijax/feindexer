@@ -9,12 +9,13 @@ import java.util.Map;
 import java.util.Set;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.reporting.Timer;
 import org.jax.mgi.shr.DistinctSolrInputDocument;
 import org.jax.mgi.shr.fe.indexconstants.DiseasePortalFields;
 import org.jax.mgi.shr.jsonmodel.GridGenocluster;
 import org.jax.mgi.shr.jsonmodel.GridGenoclusterAllele;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /* Is: an indexer that builds the index supporting the Grid tab of the HMDC summary
  *		page.  Each document in the index represents a basic unit of HMDC searching:

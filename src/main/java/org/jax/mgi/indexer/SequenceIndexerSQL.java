@@ -9,13 +9,14 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.AccessionID;
 import org.jax.mgi.shr.jsonmodel.GenomicLocation;
 import org.jax.mgi.shr.jsonmodel.SimpleMarker;
 import org.jax.mgi.shr.jsonmodel.SimpleSequence;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /* Is: an indexer that builds the index supporting the sequence summary page (reachable from the
  * 		marker and reference detail pages).  Each document in the index represents data for a single

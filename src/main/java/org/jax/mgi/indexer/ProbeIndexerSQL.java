@@ -12,11 +12,12 @@ import java.util.Locale;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 import org.jax.mgi.shr.jsonmodel.MolecularProbe;
 import org.jax.mgi.shr.jsonmodel.MolecularProbeMarker;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /* Is: an indexer that builds the index supporting the molecular probe summary page (reachable from the
  * 		marker detail page and the reference summary/detail page).  Each document in the index represents
