@@ -21,33 +21,20 @@
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.solr</groupId>
-			<artifactId>solr-dataimporthandler</artifactId>
-			<version>${solr.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.solr</groupId>
-			<artifactId>solr-dataimporthandler-extras</artifactId>
-			<version>${solr.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.solr</groupId>
 			<artifactId>solr-core</artifactId>
-			<version>${solr.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.solr</groupId>
-			<artifactId>solr-clustering</artifactId>
-			<version>${solr.version}</version>
-		</dependency>
-		<dependency>
-			<groupId>org.apache.solr</groupId>
-			<artifactId>solr-cell</artifactId>
 			<version>${solr.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.apache.solr</groupId>
 			<artifactId>solr-solrj</artifactId>
 			<version>8.5.2</version>
+		</dependency>
+
+		<!-- https://mvnrepository.com/artifact/com.fasterxml.jackson.core/jackson-core -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-core</artifactId>
+			<version>2.16.1</version>
 		</dependency>
 
 		<!-- https://mvnrepository.com/artifact/org.hibernate/hibernate-core -->

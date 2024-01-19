@@ -8,13 +8,14 @@ import java.util.List;
 import java.util.Map;
 
 import org.apache.solr.common.SolrInputDocument;
-import org.codehaus.jackson.map.ObjectMapper;
 import org.jax.mgi.shr.fe.IndexConstants;
 import org.jax.mgi.shr.jsonmodel.BrowserChild;
 import org.jax.mgi.shr.jsonmodel.BrowserID;
 import org.jax.mgi.shr.jsonmodel.BrowserParent;
 import org.jax.mgi.shr.jsonmodel.BrowserSynonym;
 import org.jax.mgi.shr.jsonmodel.BrowserTerm;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 /* Is: an indexer that builds the index supporting the shared vocabulary browser (beginning with the 
  * 		[Adult] Mouse Anatomy vocabulary, now extended to the Mammalian Phenotype Ontology, and hopefully
