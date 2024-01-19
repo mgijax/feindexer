@@ -18,6 +18,14 @@
 		<solr.version>4.10.4</solr.version>
 	</properties>
 
+<repositories>
+  <repository>
+    <id>maven.restlet.org</id>
+    <name>maven.restlet.org</name>
+    <url>http://maven.restlet.org</url>
+  </repository>        
+</repositories> 
+
 	<dependencies>
 		<dependency>
 			<groupId>org.apache.solr</groupId>
