@@ -15,7 +15,7 @@
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.compiler.source>17</maven.compiler.source>
 		<maven.compiler.target>17</maven.compiler.target>
-		<solr.version>4.10.4</solr.version>
+		<solr.version>8.5.2</solr.version>
 	</properties>
 
 <repositories>
@@ -45,6 +45,12 @@
 			<version>2.16.1</version>
 		</dependency>
 
+<!-- https://mvnrepository.com/artifact/org.apache.commons/commons-lang3 -->
+<dependency>
+    <groupId>commons-lang</groupId>
+    <artifactId>commons-lang</artifactId>
+    <version>2.6</version>
+</dependency>
 		<!-- https://mvnrepository.com/artifact/org.hibernate/hibernate-core -->
 		<dependency>
 			<groupId>org.hibernate</groupId>
