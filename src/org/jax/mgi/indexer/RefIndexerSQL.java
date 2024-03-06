@@ -271,7 +271,7 @@ public class RefIndexerSQL extends Indexer {
 		
 			logger.info("Getting basic references data");
 			String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title,"
-				+ " r.journal, r.vol, r.issue, ra.abstract, rc.marker_count, rc.probe_count, rc.mapping_expt_count, "
+				+ " r.journal, r.vol, r.issue, ra.abstract, rc.marker_count, rc.disease_model_count, rc.probe_count, rc.mapping_expt_count, "
 				+ " rc.gxd_index_count, rc.gxd_result_count, rc.gxd_structure_count, rc.gxd_assay_count, "
 				+ " rc.allele_count, rc.sequence_count, rc.go_annotation_count, r.reference_group "
 				+ "from reference as r "
@@ -354,6 +354,7 @@ public class RefIndexerSQL extends Indexer {
 				// now deal with all the counts, tracking if we've found a non-zero one
 				
 				boolean foundACount = handleCount(doc, IndexConstants.MRK_COUNT, rs_overall.getInt("marker_count"), "Genome features");
+				foundACount = handleCount(doc, IndexConstants.DO_MODEL_COUNT, rs_overall.getInt("disease_model_count"), "Disease models") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.PRB_COUNT, rs_overall.getInt("probe_count"), "Molecular probes and clones") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.MAP_EXPT_COUNT, rs_overall.getInt("mapping_expt_count"), "Mapping data") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.GXD_INDEX_COUNT, rs_overall.getInt("gxd_index_count"), "Expression literature records") || foundACount;
