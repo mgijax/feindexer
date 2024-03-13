@@ -55,12 +55,11 @@ fi
 
 # prepare the memory settings for the JVM
 
-#MEMORY_ARGS="-d64 -Xms${MIN_MEM}g -Xmx${MAX_MEM}g -XX:MaxPermSize=256m -XX:-UseParallelGC"
 MEMORY_ARGS="-Xms${MIN_MEM}g -Xmx${MAX_MEM}g -XX:-UseParallelGC"
 
 # set up the classpath for the JVM
 
-CLASSPATH=$INSTALL_DIR/dist/feindexer.jar:$LIB_DIR/*
+CLASSPATH=/home/jer/tmp/j17/feindexer/target/feindexer-jar-with-dependencies.jar:$LIB_DIR/*
 export CLASSPATH
 
 # map the index name to its Java class
