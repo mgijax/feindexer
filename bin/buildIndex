@@ -59,7 +59,7 @@ MEMORY_ARGS="-Xms${MIN_MEM}g -Xmx${MAX_MEM}g -XX:-UseParallelGC"
 
 # set up the classpath for the JVM
 
-CLASSPATH=/home/jer/tmp/j17/feindexer/target/feindexer-jar-with-dependencies.jar:$LIB_DIR/*
+CLASSPATH=$INSTALL_DIR/target/feindexer-jar-with-dependencies.jar:$LIB_DIR/*
 export CLASSPATH
 
 # map the index name to its Java class

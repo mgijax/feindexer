@@ -68,12 +68,12 @@ fi
 
 BASE_URL="http://${HTTP_HOST}:${SOLR_PORT}/solr"
 
-cat config.props.template \
+cat config.properties.template \
 	| sed "s={BASE_URL}=${BASE_URL}=" \
 	| sed "s={DB_USER}=${DB_USER}=" \
 	| sed "s={DB_PASSWORD}=${DB_PASSWORD}=" \
 	| sed "s={DB_SERVER}=${DB_SERVER}=" \
-	| sed "s={DB_DATABASE}=${DB_DATABASE}=" > config.props
+	| sed "s={DB_DATABASE}=${DB_DATABASE}=" > ../src/main/resources/config.properties
 
 cd ..
 ./Install
