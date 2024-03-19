@@ -49,7 +49,7 @@ public class SQLExecutor {
 	public SQLExecutor () {
 		try {
 
-			InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.props");
+			InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.properties");
 			try {
 				props.load(in);
 			} catch (IOException e1) {
