@@ -63,10 +63,10 @@ public abstract class Indexer implements Runnable {
 	public void setupConnection() throws Exception {
 		logger.info("Setting up the properties");
 
-		InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.props");
+		InputStream in = Indexer.class.getClassLoader().getResourceAsStream("config.properties");
 		Properties props = new Properties();
 		if (in == null) {
-			logger.info("resource config.props not found");
+			logger.info("resource config.properties not found");
 		}
 		try {
 			props.load(in);
