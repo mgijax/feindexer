@@ -57,6 +57,9 @@ fi
 
 MEMORY_ARGS="-Xms${MIN_MEM}g -Xmx${MAX_MEM}g -XX:-UseParallelGC"
 
+# Uncomment to have log4j print lots of log messages
+#XTRA_ARGS="-Dlog4j2.debug=true"
+
 # set up the classpath for the JVM
 
 CLASSPATH=$INSTALL_DIR/target/feindexer-jar-with-dependencies.jar:$LIB_DIR/*
@@ -68,5 +71,5 @@ INDEX_CLASS="$1"
 
 # run the indexer
 
-${JAVA_HOME}/bin/java -classpath $CLASSPATH $MEMORY_ARGS org.jax.mgi.indexer.Main $INDEX_CLASS 
+${JAVA_HOME}/bin/java -classpath $CLASSPATH $MEMORY_ARGS ${XTRA_ARGS} org.jax.mgi.indexer.Main $INDEX_CLASS 
 exit $?
