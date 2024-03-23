@@ -329,7 +329,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	
 	// Return a singular or plural version of 'noun' based on the given 'count' of items.
 	private String plural(Integer count, String noun) {
-		return plural(count, noun);
+		if (count == 1) return noun;
+		return noun + "s";
 	}
 	
 	/* Cache annotation data for the given vocabulary name, populating annotationCount and annotationLabel
