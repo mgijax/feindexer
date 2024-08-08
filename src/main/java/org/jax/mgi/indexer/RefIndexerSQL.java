@@ -268,7 +268,7 @@ public class RefIndexerSQL extends Indexer {
 			Map<String,Set<String>> referenceIDMap = getReferenceIDMap(startKey, endKey);
 		
 			logger.info("Getting basic references data");
-			String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.pubmed_id, r.authors, r.title,"
+			String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.jnum_numeric, r.pubmed_id, r.authors, r.title,"
 				+ " r.journal, r.vol, r.issue, ra.abstract, rc.marker_count, rc.disease_model_count, rc.probe_count, rc.mapping_expt_count, "
 				+ " rc.gxd_index_count, rc.gxd_result_count, rc.gxd_structure_count, rc.gxd_assay_count, "
 				+ " rc.allele_count, rc.sequence_count, rc.go_annotation_count, r.reference_group "
@@ -347,6 +347,7 @@ public class RefIndexerSQL extends Indexer {
 				if (rs_overall.getString("jnum_id") != null) {
 					String jnumID [] = rs_overall.getString("jnum_id").split(":");
 					doc.addField(IndexConstants.REF_ID, jnumID[1]); 
+					doc.addField(IndexConstants.REF_JNUM, rs_overall.getInt("jnum_numeric"));
 				}
 				
 				// now deal with all the counts, tracking if we've found a non-zero one
