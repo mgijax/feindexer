@@ -34,6 +34,7 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 		logger.info("Gathering distinct structures & synonyms");
 		String query = "WITH anatomy_synonyms as "
 				+ "(select distinct "
+				+ "    t.term_key, "
 				+ "    t.term structure, "
 				+ "    ts.synonym, "
 				+ "    t.primary_id, "
@@ -46,7 +47,32 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "  from term t "
 				+ "    join term_emap e on t.term_key = e.term_key "
 				+ "    left outer join term_synonym ts on t.term_key = ts.term_key "
-				+ "  where t.vocab_name='EMAPA') "
+				+ "  where t.vocab_name='EMAPA'), "
+				+ "hasCresults as ( "
+				+ "  select distinct te.emapa_term_key as term_key "
+				+ "  from expression_result_summary s, term_emap te "
+				+ "  where s.structure_key = te.term_key "
+				+ "), "
+				+ "hasCresultsA as ( "
+				+ "  select distinct te.emapa_term_key as term_key "
+				+ "  from expression_result_summary s, term_ancestor ta, term_emap te "
+				+ "  where s.structure_key = ta.term_key "
+				+ "  and ta.ancestor_term_key = te.term_key "
+				+ "  UNION "
+				+ "  select term_key from hasCresults "
+				+ "), "
+				+ "hasHTresults as "
+				+ "  (select distinct cs.emapa_key as term_key "
+				+ "  from  expression_ht_consolidated_sample cs "
+				+ "  where exists (select 1 from expression_ht_consolidated_sample_measurement csm  "
+				+ "  where cs.consolidated_sample_key = csm.consolidated_sample_key)), "
+				+ "hasHTresultsA as "
+				+ "  (select distinct ta.ancestor_term_key as term_key "
+				+ "  from hasHTresults hhr, term_ancestor ta "
+				+ "  where hhr.term_key = ta.term_key  "
+				+ "  union "
+				+ "  select term_key from hasHTresults "
+				+ " ) "
 				+ "select distinct "
 				+ "  a1.structure, "
 				+ "  a1.synonym, "
@@ -57,7 +83,23 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "  case when (exists (select 1 from anatomy_synonyms a2 where a2.structure=a1.synonym)) "
 				+ "    then false "
 				+ "    else true "
-				+ "  end as is_strict_synonym "
+				+ "  end as is_strict_synonym, "
+				+ "  case when (exists (select 1 from hasCresultsA hcr where hcr.term_key = a1.term_key)) "
+				+ "    then true "
+				+ "    else false "
+				+ "  end as has_c_results, "
+				+ "  case when (exists (select 1 from hasCresultsA hcr where hcr.term_key = a1.term_key)) "
+				+ "    then true "
+				+ "    else false "
+				+ "  end as has_c_results_a, "
+				+ "  case when (exists (select 1 from hasHTresults hhr where hhr.term_key = a1.term_key)) "
+				+ "    then true "
+				+ "    else false "
+				+ "  end as has_ht_results, "
+				+ "  case when (exists (select 1 from hasHTresultsA hhr where hhr.term_key = a1.term_key)) "
+				+ "    then true "
+				+ "    else false "
+				+ "  end as has_ht_results_a "
 				+ "from anatomy_synonyms a1 "
 				+ "order by a1.structure ";
 
@@ -97,6 +139,10 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 			String startStage = rs.getString("start_stage");
 			String endStage = rs.getString("end_stage");
 			String accID = rs.getString("primary_id");
+			Boolean hasCresults = rs.getBoolean("has_c_results");
+			Boolean hasCresultsA = rs.getBoolean("has_c_results_a");
+			Boolean hasHTresults = rs.getBoolean("has_ht_results");
+			Boolean hasHTresultsA = rs.getBoolean("has_ht_results_a");
 
 			// structure_key is merely a unique id so that Solr is happy,
 			// because structures and synonyms can repeat.
@@ -121,6 +167,11 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, isStrictSynonym);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_CPOS,hasCresultsA);
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_CNEG,true);
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RPOS,hasHTresultsA);
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RNEG,hasHTresults);
 				docs.add(doc);
 			}
 
@@ -139,6 +190,11 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.STRUCTUREAC_KEY,structure_key);
 				doc.addField(IndexConstants.STRUCTUREAC_IS_STRICT_SYNONYM, false);
 				doc.addField(IndexConstants.STRUCTUREAC_HAS_CRE,hasCre);
+
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_CPOS,hasCresultsA);
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_CNEG,true);
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RPOS,hasHTresultsA);
+				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RNEG,hasHTresults);
 				docs.add(doc);
 			}
 		} // end while loop
