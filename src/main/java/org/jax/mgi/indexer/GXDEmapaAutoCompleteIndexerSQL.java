@@ -22,6 +22,8 @@ import org.jax.mgi.shr.fe.sort.SmartAlphaComparator;
 
 public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 {
+	private static String MOUSE_ID = "EMAPA:25765";
+
 	public GXDEmapaAutoCompleteIndexerSQL ()
 	{ super("gxdEmapaAC"); }
 
@@ -48,24 +50,104 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "    join term_emap e on t.term_key = e.term_key "
 				+ "    left outer join term_synonym ts on t.term_key = ts.term_key "
 				+ "  where t.vocab_name='EMAPA'), "
-				+ "hasCresults as ( "
-				+ "  select distinct te.emapa_term_key as term_key "
-				+ "  from expression_result_summary s, term_emap te "
-				+ "  where s.structure_key = te.term_key "
-				+ "), "
-				+ "hasCresultsA as ( "
-				+ "  select distinct te.emapa_term_key as term_key "
-				+ "  from expression_result_summary s, term_ancestor ta, term_emap te "
-				+ "  where s.structure_key = ta.term_key "
-				+ "  and ta.ancestor_term_key = te.term_key "
-				+ "  UNION "
-				+ "  select term_key from hasCresults "
-				+ "), "
+
+				// ------------- classical --
+				// EMAPS keys from classical, WT, positive results
+				+ " emapsC as ( "
+				+ " select distinct r.structure_key as term_key "
+				+ " from expression_result_summary r "
+				+ " where r.is_wild_type = 1 "
+				+ " and r.is_expressed = 'Yes' "
+				+ " ),  "
+
+				// EMAPA keys corresp to EMAPS keys in emapsC
+				+ " emapaC as ( "
+				+ "   select distinct e.emapa_term_key as term_key "
+				+ "   from emapsC s, term_emap e "
+				+ "   where s.term_key = e.term_key "
+				+ " ), "
+
+				// EMAPS keys from emapsC plus their EMAPS ancestors
+				+ " emapsCA as ( "
+				+ " select e.ancestor_term_key as term_key "
+				+ " from emapsC t, term_ancestor e "
+				+ " where t.term_key = e.term_key "
+				+ " union "
+				+ " select term_key from emapsC "
+				+ " ), "
+
+				// EMAPA keys + stages corresp. to EMAPS keys in emapsCA
+				// (includes ancestors)
+				+ " emapaStagesCA as ( "
+				+ " select distinct e.emapa_term_key as term_key, e.stage "
+				+ " from emapsCA t, term_emap e "
+				+ " where t.term_key = e.term_key "
+				+ " ), "
+
+				// Aggregated stages by EMAPA key
+				+ " emapaStagesCAagg as ( "
+				+ " select term_key, string_agg(stage::text, ',' order by stage) as stages "
+				+ " from emapaStagesCA "
+				+ " group by term_key "
+				+ " ), "
+
+				// ------------- high throughput --
+				// EMAPS keys of samples having HT data (all consolidated samples have data)
+				+ " emapsHT as ( "
+				+ " select distinct e.term_key "
+				+ " from expression_ht_consolidated_sample cs, term_emap e "
+				+ " where cs.emapa_key = e.emapa_term_key "
+				+ " and cs.theiler_stage = e.stage::text "
+				+ " and cs.is_wild_type = 1 "
+				+ " ), "
+
+				+ " emapaStagesHT as ( "
+				+ "   select distinct emapa_key as term_key, theiler_stage as stage "
+				+ "   from expression_ht_consolidated_sample "
+				+ "   where is_wild_type = 1 "
+				+ " ), "
+				+ " emapaStagesHTagg as ( "
+				+ "   select term_key, string_agg(stage, ',' order by stage) as stages "
+				+ "   from emapaStagesHT "
+				+ "   group by term_key "
+				+ " ), "
+
+				// EMAPS keys from emapsHT plus EMAPS ancestors
+				+ " emapsHTA as ( "
+				+ " select a.ancestor_term_key as term_key "
+				+ " from emapsHT v, term_ancestor a "
+				+ " where v.term_key = a.term_key "
+				+ " union "
+				+ " select term_key from emapsHT "
+				+ " ), "
+
+				// EMAPA keys and stages corresponding to emapsHTA
+				// (includes ancestors)
+				+ " emapaStagesHTA as ( "
+				+ " select distinct e.emapa_term_key as term_key, e.stage "
+				+ " from emapsHTA t, term_emap e "
+				+ " where t.term_key = e.term_key "
+				+ " ), "
+
+				// EMAPA keys with aggregated stages
+				// (includes ancestors)
+				+ " emapaStagesHTAagg as ( "
+				+ " select term_key, string_agg(stage::text, ',' order by stage) as stages "
+				+ " from emapaStagesHTA "
+				+ " group by term_key "
+				+ " ), "
+
+				// -------------
+
+				// distinct EMAPA keys from HT, WT samples
 				+ "hasHTresults as "
 				+ "  (select distinct cs.emapa_key as term_key "
 				+ "  from  expression_ht_consolidated_sample cs "
-				+ "  where exists (select 1 from expression_ht_consolidated_sample_measurement csm  "
+				+ "  where cs.is_wild_type = 1 and "
+				+ "  exists (select 1 from expression_ht_consolidated_sample_measurement csm  "
 				+ "  where cs.consolidated_sample_key = csm.consolidated_sample_key)), "
+
+				// EMAPA keys from hasHTresults plus their (stage aware) ancestors
 				+ "hasHTresultsA as "
 				+ "  (select distinct ta.ancestor_term_key as term_key "
 				+ "  from hasHTresults hhr, term_ancestor ta "
@@ -73,6 +155,7 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "  union "
 				+ "  select term_key from hasHTresults "
 				+ " ) "
+
 				+ "select distinct "
 				+ "  a1.structure, "
 				+ "  a1.synonym, "
@@ -84,11 +167,11 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "    then false "
 				+ "    else true "
 				+ "  end as is_strict_synonym, "
-				+ "  case when (exists (select 1 from hasCresultsA hcr where hcr.term_key = a1.term_key)) "
+				+ "  case when (exists (select 1 from emapaStagesCAagg hcr where hcr.term_key = a1.term_key)) "
 				+ "    then true "
 				+ "    else false "
 				+ "  end as has_c_results, "
-				+ "  case when (exists (select 1 from hasCresultsA hcr where hcr.term_key = a1.term_key)) "
+				+ "  case when (exists (select 1 from emapaStagesCAagg hcr where hcr.term_key = a1.term_key)) "
 				+ "    then true "
 				+ "    else false "
 				+ "  end as has_c_results_a, "
@@ -99,8 +182,14 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				+ "  case when (exists (select 1 from hasHTresultsA hhr where hhr.term_key = a1.term_key)) "
 				+ "    then true "
 				+ "    else false "
-				+ "  end as has_ht_results_a "
+				+ "  end as has_ht_results_a, "
+				+ "  esa.stages as c_stages_a, "
+				+ "  eshta.stages as ht_stages_a, "
+				+ "  esht.stages as ht_stages "
 				+ "from anatomy_synonyms a1 "
+				+ "  left outer join emapaStagesCAagg esa on a1.term_key = esa.term_key "
+				+ "  left outer join emapaStagesHTAagg eshta on a1.term_key = eshta.term_key "
+				+ "  left outer join emapaStagesHTagg esht on a1.term_key = esht.term_key "
 				+ "order by a1.structure ";
 
 		ResultSet rs = ex.executeProto(query);
@@ -143,6 +232,15 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 			Boolean hasCresultsA = rs.getBoolean("has_c_results_a");
 			Boolean hasHTresults = rs.getBoolean("has_ht_results");
 			Boolean hasHTresultsA = rs.getBoolean("has_ht_results_a");
+			String cStagesA = rs.getString("c_stages_a");
+			String htStagesA = rs.getString("ht_stages_a");
+			String htStages = rs.getString("ht_stages");
+			String allStages = "";
+			for (int i = Integer.valueOf(startStage); i <= Integer.valueOf(endStage); i++) {
+			    if (!allStages.equals("")) allStages += ",";
+			    allStages += i;
+
+			}
 
 			// structure_key is merely a unique id so that Solr is happy,
 			// because structures and synonyms can repeat.
@@ -172,6 +270,16 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_CNEG,true);
 				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RPOS,hasHTresultsA);
 				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RNEG,hasHTresults);
+
+				doc.addField(IndexConstants.STRUCTUREAC_STAGES_CPOS,cStagesA);
+				doc.addField(IndexConstants.STRUCTUREAC_STAGES_CNEG,allStages);
+				doc.addField(IndexConstants.STRUCTUREAC_STAGES_RPOS,htStagesA);
+				if (accID.equals(MOUSE_ID)) {
+				    doc.addField(IndexConstants.STRUCTUREAC_STAGES_RNEG,htStagesA);
+				} else {
+				    doc.addField(IndexConstants.STRUCTUREAC_STAGES_RNEG,htStages);
+				}
+
 				docs.add(doc);
 			}
 
@@ -195,6 +303,16 @@ public class GXDEmapaAutoCompleteIndexerSQL extends Indexer
 				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_CNEG,true);
 				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RPOS,hasHTresultsA);
 				doc.addField(IndexConstants.STRUCTUREAC_SHOW_IN_RNEG,hasHTresults);
+
+				doc.addField(IndexConstants.STRUCTUREAC_STAGES_CPOS,cStagesA);
+				doc.addField(IndexConstants.STRUCTUREAC_STAGES_CNEG,allStages);
+				doc.addField(IndexConstants.STRUCTUREAC_STAGES_RPOS,htStagesA);
+				if (accID.equals(MOUSE_ID)) {
+				    doc.addField(IndexConstants.STRUCTUREAC_STAGES_RNEG,htStagesA);
+				} else {
+				    doc.addField(IndexConstants.STRUCTUREAC_STAGES_RNEG,htStages);
+				}
+
 				docs.add(doc);
 			}
 		} // end while loop
