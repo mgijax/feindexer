@@ -29,11 +29,12 @@ public class VocabBrowserIndexerSQL extends Indexer {
 	/*--- class variables ---*/
 	/*--------------------------*/
 
-	private static String MA_VOCAB = "Adult Mouse Anatomy";		// name of the MA vocabulary
-	private static String MP_VOCAB = "Mammalian Phenotype";		// name of the MP vocabulary
-	private static String GO_VOCAB = "GO";						// name of the GO vocabulary
+	private static String MA_VOCAB = "Adult Mouse Anatomy";			// name of the MA vocabulary
+	private static String MP_VOCAB = "Mammalian Phenotype";			// name of the MP vocabulary
+	private static String GO_VOCAB = "GO";							// name of the GO vocabulary
 	private static String HPO_VOCAB = "Human Phenotype Ontology";	// name of HPO vocabulary
-	private static String DO_VOCAB = "Disease Ontology";		// name of DO vocabulary
+	private static String DO_VOCAB = "Disease Ontology";			// name of DO vocabulary
+	private static String CO_VOCAB = "Cell Ontology";				// name of DO vocabulary
 	
 	/*--------------------------*/
 	/*--- instance variables ---*/
@@ -138,6 +139,13 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		if (MA_VOCAB.equals(vocabName)) {
 			return;							// no annotations for MA vocabulary
 		}
+
+// tmp; will add annotation counts later
+		if (CO_VOCAB.equals(vocabName)) {
+			return;							
+		}
+
+
 		
 		if (MP_VOCAB.equals(vocabName) || GO_VOCAB.equals(vocabName) || DO_VOCAB.equals(vocabName) || HPO_VOCAB.equals(vocabName)) {
 			String cmd = "select c.term_key, t.primary_id, c.object_count_with_descendents, c.annot_count_with_descendents "
@@ -576,6 +584,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 		processVocabulary(GO_VOCAB);
 		processVocabulary(HPO_VOCAB);
 		processVocabulary(DO_VOCAB);
+		processVocabulary(CO_VOCAB);
 		
 		// commit all the changes to Solr
 		commit();
