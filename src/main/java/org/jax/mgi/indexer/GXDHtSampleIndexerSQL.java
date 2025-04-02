@@ -310,7 +310,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		cacheCellTypeData();
 		
 		// main query for sample data
-		String cmd = "select s.sample_key, s.emapa_key, s.theiler_stage, s.celltype_key, s.genotype_key, s.age, s.sex, "
+		String cmd = "select s.sample_key, s.emapa_key, s.rnaseqType, s.theiler_stage, s.celltype_key, s.genotype_key, s.age, s.sex, "
 			+ "  e.method, s.name as sample_name, s.organism, s.sequence_num, e.experiment_key, "
 			+ "  e.name as title, e.description, s.genotype_key, s.age_min, s.age_max, e.study_type, s.relevancy "
 			+ "from expression_ht_sample s, expression_ht_experiment e "
@@ -332,6 +332,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			doc.addField(GxdHtFields.SAMPLE_KEY, sampleKey);
 			doc.addField(GxdHtFields.EXPERIMENT_KEY, exptKey);
 			doc.addField(GxdHtFields.NAME, rs.getString("sample_name"));
+			doc.addField(GxdHtFields.RNASEQ_TYPE, rs.getString("rnaseqType"));
 			doc.addField(GxdHtFields.TITLE, rs.getString("title"));
 			doc.addField(GxdHtFields.DESCRIPTION, rs.getString("description"));
 			doc.addField(GxdHtFields.METHOD, rs.getString("method"));
