@@ -118,7 +118,7 @@ public class MarkerIndexerSQL extends Indexer
 		logger.info("Getting all mouse markers");
 		String markerSQL = "select m.marker_key, m.primary_id marker_id,m.symbol, " +
 				"m.name, m.marker_type, m.marker_subtype, m.status, m.organism, " +
-				"m.coordinate_display, " +
+				"REPLACE(m.coordinate_display, ' (.)', '') AS coordinate_display, " +
 				"m.location_display, " +
 				"m_sub_type.term_key marker_subtype_key, " +
 				"msn.by_symbol, " +
@@ -214,7 +214,7 @@ public class MarkerIndexerSQL extends Indexer
 				if(ml.startCoordinate>0) doc.addField(IndexConstants.START_COORD, ml.startCoordinate);
 				if(ml.endCoordinate>0) doc.addField(IndexConstants.END_COORD, ml.endCoordinate);
 				if(ml.cmOffset>0.0) doc.addField(IndexConstants.CM_OFFSET, ml.cmOffset);
-				if(ml.strand!=null) doc.addField(IndexConstants.STRAND,ml.strand);
+				if(ml.strand!=null) doc.addField(IndexConstants.STRAND, ".".equals(ml.strand) ? null : ml.strand);				
 			}
 
 			/*
