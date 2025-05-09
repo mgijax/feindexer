@@ -89,6 +89,15 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		HashMap<String, HashSet<String>> sampleCounts = makeHash(cmd1, "experiment_key", "sample_count");
 		logger.info("Retrieved " + sampleCounts.size() + " sample counts");
 		
+		// look up distinct RNA-seq subtypes used in experiments
+		String cmd1b = "select distinct experiment_key, rnaseqType "
+				+ "from expression_ht_sample "
+				+ "where rnaseqType != 'Not Applicable' "
+				+ "order by experiment_key, rnaseqType"; 
+		HashMap<String, HashSet<String>> rnaseqTypes = makeHash(cmd1b, "experiment_key", "rnaseqType");
+		logger.info("Retrieved rnaseqTypes for " + rnaseqTypes.size() + " experiments");
+
+
 		// look up GEO ID for each experiment
 		String cmd2 = "select experiment_key, acc_id "
 			+ "from expression_ht_experiment_id "
@@ -151,6 +160,10 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 				doc.addAllDistinct(GxdHtFields.SAMPLE_COUNT, sampleCounts.get(exptKey));
 			} else {
 				doc.addField(GxdHtFields.SAMPLE_COUNT, "0");
+			}
+
+			if (rnaseqTypes.containsKey(exptKey)) {
+				doc.addAllDistinct(GxdHtFields.RNASEQ_TYPE, rnaseqTypes.get(exptKey));
 			}
 			
 			if (aeIDs.containsKey(exptKey)) {
