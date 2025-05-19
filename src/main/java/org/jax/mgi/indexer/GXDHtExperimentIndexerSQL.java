@@ -162,9 +162,16 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 				doc.addField(GxdHtFields.SAMPLE_COUNT, "0");
 			}
 
+			List<String> methods = new ArrayList<String>();
 			if (rnaseqTypes.containsKey(exptKey)) {
-				doc.addAllDistinct(GxdHtFields.RNASEQ_TYPE, rnaseqTypes.get(exptKey));
+				// specific RNA seq types
+				methods.addAll(rnaseqTypes.get(exptKey));
+			} else {
+				// transcription profiling by array
+				methods.add(rs.getString("method"));
 			}
+			methods.sort((a, b) -> a.compareTo(b));
+			doc.addAllDistinct(GxdHtFields.METHODS, methods);
 			
 			if (aeIDs.containsKey(exptKey)) {
 				doc.addField(GxdHtFields.ARRAYEXPRESS_ID, getFirst(aeIDs.get(exptKey)));

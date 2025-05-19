@@ -332,10 +332,16 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			doc.addField(GxdHtFields.SAMPLE_KEY, sampleKey);
 			doc.addField(GxdHtFields.EXPERIMENT_KEY, exptKey);
 			doc.addField(GxdHtFields.NAME, rs.getString("sample_name"));
-			doc.addField(GxdHtFields.RNASEQ_TYPE, rs.getString("rnaseqType"));
 			doc.addField(GxdHtFields.TITLE, rs.getString("title"));
 			doc.addField(GxdHtFields.DESCRIPTION, rs.getString("description"));
-			doc.addField(GxdHtFields.METHOD, rs.getString("method"));
+
+			String m = rs.getString("method");
+			String r = rs.getString("rnaseqType");
+			if (m.contains("RNA") && r.contains("RNA")) {
+			    m = r;
+			}
+			doc.addField(GxdHtFields.METHOD, m);
+
 			doc.addField(GxdHtFields.ORGANISM, rs.getString("organism"));
 			doc.addField(GxdHtFields.BY_DEFAULT, rs.getString("sequence_num"));
 			doc.addField(GxdHtFields.AGE, rs.getString("age"));
