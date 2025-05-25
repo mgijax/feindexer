@@ -30,6 +30,8 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String,String> termIDs = null;					// maps term key to term ID (EMAPA)
 	HashMap<String,String> clTerms = null;					// maps term key to term (Cell type)
 	HashMap<String,String> clTermIDs = null;					// maps term key to term ID (Cell type)
+	HashMap<String, HashSet<String>> ctSearchIds = null;	// maps term key to term IDs of the term and all its ancestors
+	HashMap<String, HashSet<String>> ctSearchTerms = null;	// maps term key to term strings of the term and all its ancestors
 	HashMap<String, HashSet<String>> termStrings = null;	// maps term key to terms, IDs, and synonyms
 	HashSet<String> conditionalGenotypes = null;		// set of genotype keys for conditional genotypes
 
@@ -170,6 +172,8 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 
 		this.clTerms = new HashMap<String,String>();
 		this.clTermIDs = new HashMap<String,String>();
+		this.ctSearchIds = new HashMap<String,HashSet<String>>();
+		this.ctSearchTerms = new HashMap<String,HashSet<String>>();
 
 		String cmd7 = "select t.term_key, t.primary_id, t.term "
 			+ "from term t "
@@ -183,8 +187,31 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 
                         this.clTerms.put(termKey,term);
                         this.clTermIDs.put(termKey,termID);
+
+			HashSet<String> ids = new HashSet<String>();
+			ids.add(termID);
+			this.ctSearchIds.put(termKey, ids);
+
+			HashSet<String> terms = new HashSet<String>();
+			terms.add(term);
+			this.ctSearchTerms.put(termKey, terms);
                 }
                 rs7.close();
+
+		String cmd9 = "select ta.term_key, ta.ancestor_primary_id, ta.ancestor_term "
+			+ "from term t, term_ancestor ta "
+			+ "where t.vocab_name = 'Cell Ontology' "
+			+ "and t.term_key = ta.term_key "
+			;
+		ResultSet rs9 = ex.executeProto(cmd9);
+		while(rs9.next()) {
+			String termKey = rs9.getString("term_key");
+			String ancId   = rs9.getString("ancestor_primary_id");
+			String ancTerm = rs9.getString("ancestor_term");
+			this.ctSearchIds.get(termKey).add(ancId);
+			this.ctSearchTerms.get(termKey).add(ancTerm);
+		}
+
                 logger.info("Got terms, IDs, synonyms for " + this.clTerms.size() + " CL terms");
         }
 
@@ -402,6 +429,8 @@ public class GXDHtSampleIndexerSQL extends Indexer {
                         if (celltypeKey != null) {
 				doc.addField(GxdHtFields.CELLTYPE_ID, this.getTermID(celltypeKey));
 				doc.addField(GxdHtFields.CELLTYPE_TERM, this.getTerm(celltypeKey));
+				doc.addAllDistinct(GxdHtFields.CT_SEARCH_IDS, this.ctSearchIds.get(celltypeKey));
+				doc.addAllDistinct(GxdHtFields.CT_SEARCH_TERMS, this.ctSearchTerms.get(celltypeKey));
                         }
 
 			docs.add(doc);
