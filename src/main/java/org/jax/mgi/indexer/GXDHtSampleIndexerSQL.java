@@ -32,6 +32,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	HashMap<String,String> clTermIDs = null;					// maps term key to term ID (Cell type)
 	HashMap<String, HashSet<String>> ctSearchIds = null;	// maps term key to term IDs of the term and all its ancestors
 	HashMap<String, HashSet<String>> ctSearchTerms = null;	// maps term key to term strings of the term and all its ancestors
+	HashMap<String, HashSet<String>> ctFacetTerms = null;	// maps term key to term strings of the term and all its ancestors
 	HashMap<String, HashSet<String>> termStrings = null;	// maps term key to terms, IDs, and synonyms
 	HashSet<String> conditionalGenotypes = null;		// set of genotype keys for conditional genotypes
 
@@ -174,6 +175,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		this.clTermIDs = new HashMap<String,String>();
 		this.ctSearchIds = new HashMap<String,HashSet<String>>();
 		this.ctSearchTerms = new HashMap<String,HashSet<String>>();
+		this.ctFacetTerms = new HashMap<String,HashSet<String>>();
 
 		String cmd7 = "select t.term_key, t.primary_id, t.term "
 			+ "from term t "
@@ -195,6 +197,8 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			HashSet<String> terms = new HashSet<String>();
 			terms.add(term);
 			this.ctSearchTerms.put(termKey, terms);
+
+			this.ctFacetTerms.put(termKey, new HashSet<String>());
                 }
                 rs7.close();
 
@@ -210,6 +214,20 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			String ancTerm = rs9.getString("ancestor_term");
 			this.ctSearchIds.get(termKey).add(ancId);
 			this.ctSearchTerms.get(termKey).add(ancTerm);
+		}
+
+		String cmd10 = "select term_key, label, sequencenum, accid "
+			+ "from term_to_header "
+			;
+		ResultSet rs10 = ex.executeProto(cmd10);
+		while (rs10.next()) {
+		    String termKey = rs10.getString("term_key");
+		    String headerTerm = rs10.getString("label");
+		    Integer seqNum = rs10.getInt("sequencenum");
+		    String accid = rs10.getString("accid");
+		    if (this.ctFacetTerms.get(termKey) != null) {
+		    	this.ctFacetTerms.get(termKey).add(""+seqNum+"|"+accid+"|"+headerTerm);
+		    }
 		}
 
                 logger.info("Got terms, IDs, synonyms for " + this.clTerms.size() + " CL terms");
@@ -431,6 +449,9 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 				doc.addField(GxdHtFields.CELLTYPE_TERM, this.getTerm(celltypeKey));
 				doc.addAllDistinct(GxdHtFields.CT_SEARCH_IDS, this.ctSearchIds.get(celltypeKey));
 				doc.addAllDistinct(GxdHtFields.CT_SEARCH_TERMS, this.ctSearchTerms.get(celltypeKey));
+				if (this.ctFacetTerms.get(celltypeKey) != null) {
+					doc.addAllDistinct(GxdHtFields.CT_FACET_TERMS, this.ctFacetTerms.get(celltypeKey));
+				}
                         }
 
 			docs.add(doc);
