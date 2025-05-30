@@ -218,6 +218,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 
 		String cmd10 = "select term_key, label, sequencenum, accid "
 			+ "from term_to_header "
+			+ "where accid != 'CL:0000000' "  // exclude root node from facets
 			;
 		ResultSet rs10 = ex.executeProto(cmd10);
 		while (rs10.next()) {
@@ -226,7 +227,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		    Integer seqNum = rs10.getInt("sequencenum");
 		    String accid = rs10.getString("accid");
 		    if (this.ctFacetTerms.get(termKey) != null) {
-		    	this.ctFacetTerms.get(termKey).add(""+seqNum+"|"+accid+"|"+headerTerm);
+		    	this.ctFacetTerms.get(termKey).add(headerTerm);
 		    }
 		}
 
