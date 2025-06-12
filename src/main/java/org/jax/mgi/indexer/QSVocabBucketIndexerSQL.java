@@ -42,6 +42,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 	private static String PIRSF_VOCAB = "PIR Superfamily";			// name of PIRSF vocabulary
 	private static String EMAPA_VOCAB = "EMAPA";					// name of the EMAPA vocabulary
 	private static String EMAPS_VOCAB = "EMAPS";					// name of the EMAPS vocabulary
+	private static String CELL_VOCAB = "Cell Ontology";					// name of the CL vocabulary
 	private static String GO_VOCAB = "GO";							// name of the GO vocabulary
 	private static String HPO_VOCAB = "Human Phenotype Ontology";	// name of HPO vocabulary
 	
@@ -56,7 +57,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		uriPrefixes.put("Phenotype", "/vocab/mp_ontology/");
 		uriPrefixes.put("Disease", "/disease/");
 		uriPrefixes.put("Protein Family", "/vocab/pirsf/");
-		uriPrefixes.put("Expression", "/vocab/gxd/anatomy/");
+		uriPrefixes.put("Expression (anatomy)", "/vocab/gxd/anatomy/");
+		uriPrefixes.put("Expression (cell type)", "/vocab/cell_ontology/");
 		uriPrefixes.put("Human Phenotype", "/vocab/hp_ontology/");
 		uriPrefixes.put(GO_VOCAB, "/vocab/gene_ontology/");
 		uriPrefixes.put(GO_BP, "/vocab/gene_ontology/");
@@ -72,7 +74,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		annotationUris.put("Phenotype", "/mp/annotations/@@@@");
 		annotationUris.put("Disease", "/disease/@@@@?openTab=models");
 		annotationUris.put("Protein Family", "/vocab/pirsf/@@@@");
-		annotationUris.put("Expression", "/gxd/structure/@@@@");
+		annotationUris.put("Expression (anatomy)", "/gxd/structure/@@@@");
+		annotationUris.put("Expression (cell type)", "/gxd/celltype/@@@@");
 		annotationUris.put("Human Phenotype", "/diseasePortal?termID=@@@@");
 		annotationUris.put(GO_VOCAB, "/go/term/@@@@");
 		annotationUris.put(GO_BP, "/go/term/@@@@");
@@ -88,8 +91,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		termPrefixes.put(MP_VOCAB, "Phenotype");
 		termPrefixes.put(DO_VOCAB, "Disease");
 		termPrefixes.put(PIRSF_VOCAB, "Protein Family");
-		termPrefixes.put(EMAPA_VOCAB, "Expression");
-		termPrefixes.put(EMAPS_VOCAB, "Expression");
+		termPrefixes.put(EMAPA_VOCAB, "Expression (anatomy)");
+		termPrefixes.put(EMAPS_VOCAB, "Expression (anatomy)");
+		termPrefixes.put(CELL_VOCAB, "Expression (cell type)");
 		termPrefixes.put(HPO_VOCAB, "Human Phenotype");
 		termPrefixes.put(GO_VOCAB, "GO Term");
 		termPrefixes.put(GO_BP, "Process");
@@ -350,8 +354,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				+ "and t.is_obsolete = 0 "
 				+ "and t.vocab_name = '" + vocabName + "'";
 
-		} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
-			// Just collect zeroes for EMAPA/EMAPS terms, as we'll look those up within the fewi (to be able to accurately 
+		} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName) || CELL_VOCAB.equals(vocabName)) {
+			// Just collect zeroes for EMAPA/EMAPS/CL terms, as we'll look those up within the fewi (to be able to accurately 
 			// include RNA-Seq data.
 			
 			cmd = "select t.primary_id, 0 as object_count_with_descendents, 0 as annot_count_with_descendents " + 
@@ -395,7 +399,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			} else if (PIRSF_VOCAB.equals(vocabName)) {
 				annotationLabel.put(termID, objectCount + plural(objectCount, " gene"));
 
-			} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName)) {
+			} else if (EMAPA_VOCAB.equals(vocabName) || EMAPS_VOCAB.equals(vocabName) || CELL_VOCAB.equals(vocabName)) {
 				annotationLabel.put(termID, "<<gxdCount>>");
 
 			} else {	// GO_VOCAB
@@ -443,6 +447,9 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		} else if (EMAPS_VOCAB.equals(vocabName)) {
 			// headers for each EMAPS ID, computed based on EMAPS expression annotations
 			cmd = toolkit.getHeadersForExpressedEmapsTerms(ex);
+		} else if (CELL_VOCAB.equals(vocabName)) {
+			// headers for each CL ID, computed based on expression annotations
+			cmd = toolkit.getHeadersForExpressedEmapaTerms(ex);
 
 		} else {
 			return ancestorFacets;
@@ -573,6 +580,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		// process one vocabulary at a time, keeping caches in memory only for the current vocabulary
 		processVocabulary(EMAPA_VOCAB);
 		processVocabulary(EMAPS_VOCAB);
+		processVocabulary(CELL_VOCAB);
 		processVocabulary(MP_VOCAB);
 		processVocabulary(GO_VOCAB);
 		processVocabulary(HPO_VOCAB);
@@ -647,7 +655,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				doc.addField(IndexConstants.QS_ANNOTATION_TEXT, this.annotationText);
 				if (this.annotationCount != null) {
 					doc.addField(IndexConstants.QS_ANNOTATION_COUNT, annotationCount);
-					if ((annotationCount > 0L) || this.rawVocabName.startsWith("EMAP")) {
+					if ((annotationCount > 0L) || this.rawVocabName.startsWith("EMAP") || this.rawVocabName.equals("Cell Ontology")) {
 						if (annotationUris.containsKey(this.vocabName) && (this.primaryID != null)) {
 							String uri = annotationUris.get(this.vocabName);
 							if (uri != null) {
