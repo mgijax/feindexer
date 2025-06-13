@@ -449,7 +449,7 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			cmd = toolkit.getHeadersForExpressedEmapsTerms(ex);
 		} else if (CELL_VOCAB.equals(vocabName)) {
 			// headers for each CL ID, computed based on expression annotations
-			cmd = toolkit.getHeadersForExpressedEmapaTerms(ex);
+			cmd = toolkit.getHeadersForExpressedCLTerms();
 
 		} else {
 			return ancestorFacets;
@@ -533,6 +533,12 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 				}
 			}
 			
+			if (CELL_VOCAB.equals(vocabName)) {
+				if (ancestorFacets.containsKey(primaryID)) {
+					qst.cellTypeFacets = ancestorFacets.get(primaryID);
+				}
+			}
+			
 			// now build and save our initial documents for this term
 
 			// any non-null primary IDs for terms will already be indexed when we do IDs, so skip them here
@@ -609,8 +615,8 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 		public Long sequenceNum;
 		public String facetField;			// name of the field with ancestor-based facets for this term
 		public Set<String> facetValues;		// ancestors for facets of this term
-		public Set<String> expressionFacets;	// set of header terms (EMAPA/EMAPS only) for this term where
-												// this term has expression data
+		public Set<String> expressionFacets;	// set of EMAPA/S header terms for this term where this term has expression data
+		public Set<String> cellTypeFacets;	// set of CL header terms for this term where this term has expression data
 
 		// constructor
 		public QSTerm(String primaryID) {
@@ -675,6 +681,12 @@ public class QSVocabBucketIndexerSQL extends Indexer {
 			if ((this.expressionFacets != null) && (this.expressionFacets.size() > 0)) {
 				doc.addField(IndexConstants.QS_EXPRESSION_FACETS, this.expressionFacets); 
 			}
+
+			// If there are cell type facets for this term, include them too.
+			if ((this.cellTypeFacets != null) && (this.cellTypeFacets.size() > 0)) {
+				doc.addField(IndexConstants.QS_CELL_TYPE_FACETS, this.cellTypeFacets); 
+			}
+
 			return doc;
 		}
 	}

@@ -160,6 +160,25 @@ public class QSExpressionFacetToolkit {
 		return EMAPA_TERMS_TO_HEADERS;
 	}
 
+	// Get a String SQL command that returns CL IDs and their respective header terms, but only
+	// for those CL terms that have positive expression data.  Current those data are only from
+	// classical assays. Data for HT assays is coming.  
+	public String getHeadersForExpressedCLTerms() throws SQLException {
+		String cmd = 
+			"with expressed_cl_terms as ( " +
+  			"  select distinct t.term_key, t.primary_id " +
+  			"  from expression_result_cell_type rct, expression_result_summary rs, term t " +
+  			"  where rct.result_key = rs.result_key " +
+  			"  and rs.is_expressed = 'Yes' " +
+  			"  and rct.cell_type_id = t.primary_id " +
+			") " +
+			"select ecl.primary_id, tth.label as header " +
+			"from expressed_cl_terms ecl, term_to_header tth " +
+			"where ecl.term_key = tth.term_key " +
+			"";
+		return cmd;
+	}
+
 	// Create and return the name of a table containing one row for each (EMAPS term key, EMAPS ID, and
 	// header) for terms with positive annotations below them.
 	private String getEmapsTermsToHeadersTable (SQLExecutor ex) throws SQLException {
