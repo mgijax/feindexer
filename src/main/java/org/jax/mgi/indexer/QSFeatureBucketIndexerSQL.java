@@ -56,6 +56,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 	private static int EMAP_ID_WEIGHT = 350;
 	private static int EMAP_NAME_WEIGHT = 300;
 	private static int EMAP_SYNONYM_WEIGHT = 250;
+	private static int CELL_ID_WEIGHT = 350;
+	private static int CELL_NAME_WEIGHT = 300;
+	private static int CELL_SYNONYM_WEIGHT = 250;
 	
 	public static Map<Integer, QSFeature> features;			// marker key : QSFeature object
 
@@ -918,7 +921,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 					if ((idWeight != null) && (termIDs != null) && (termIDs.size() > 0)) {
 						for (String id : termIDs) {
 							idf = idFactory.getFormatter(dataType, dataType, id, term.getTerm(), (directBoost == 0));
-							addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), idf.getMatchType(), idWeight + directBoost));
+							addDoc(buildDoc(feature, id, null, null, idf.getMatchDisplay(), prefix + dataType, idWeight + directBoost));
 							i++;
 						}
 					}
@@ -988,6 +991,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		// can skip the ancestor data because it would just be skipped over anyway.
 		
 		QSAccIDFormatter idf = null;
+
+		String dataType = "Expression (Anatomy)";
 		
 		// #1 : emapsTerms (see above)
 		for (String emapsID : emapsTerms) {
@@ -995,7 +1000,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 			// only ID for EMAPS
 			String stage = term.getPrimaryID().substring(term.getPrimaryID().length() - 2);
-			idf = idFactory.getFormatter("Expression", "Expression", emapsID, term.getTerm(), false, stage);
+			idf = idFactory.getFormatter(dataType, dataType, emapsID, term.getTerm(), false, stage);
 			addDocUnchecked(buildDoc(feature, emapsID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT + 1));
 		}
 		
@@ -1008,18 +1013,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			List<String> synonyms = term.getSynonyms();
 			
 			// ID, term name, synonyms for EMAPA
-			idf = idFactory.getFormatter("Expression", "Expression", emapaID, term.getTerm(), false, stage);
+			idf = idFactory.getFormatter(dataType, dataType, emapaID, term.getTerm(), false, stage);
 			addDocUnchecked(buildDoc(feature, emapaID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT + 1));
 
 			// Add name and synonym both to the stemmed field (for stemmed matching) and to the inexact field
 			// (for wildcard matching).
-			addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
-			addDocUnchecked(buildDoc(feature, null, name, null, "TS" + stage + ": " + name, " Expression", EMAP_NAME_WEIGHT + 1));
+			addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name, dataType, EMAP_NAME_WEIGHT + 1));
+			addDocUnchecked(buildDoc(feature, null, name, null, "TS" + stage + ": " + name, dataType, EMAP_NAME_WEIGHT + 1));
 
 			if (synonyms != null) {
 				for (String synonym : synonyms) {
-					addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
-					addDocUnchecked(buildDoc(feature, null, synonym, null, "TS" + stage + ": " + name, " Expression", EMAP_SYNONYM_WEIGHT + 1));
+					addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name, dataType, EMAP_SYNONYM_WEIGHT + 1));
+					addDocUnchecked(buildDoc(feature, null, synonym, null, "TS" + stage + ": " + name, dataType, EMAP_SYNONYM_WEIGHT + 1));
 				}
 			}
 		}
@@ -1033,7 +1038,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				//String name = term.getTerm();
 			
 				// only ID for EMAPS (ancestors)
-				idf = idFactory.getFormatter("Expression", "Expression", emapsID, source.getTerm(), true, stage);
+				idf = idFactory.getFormatter(dataType, dataType, emapsID, source.getTerm(), true, stage);
 				addDocUnchecked(buildDoc(feature, emapsID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT));
 			}
 		}
@@ -1048,18 +1053,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				List<String> synonyms = term.getSynonyms();
 			
 				// ID, term name, synonyms for EMAPA
-				idf = idFactory.getFormatter("Expression", "Expression", emapaID, term.getTerm(), true, stage);
+				idf = idFactory.getFormatter(dataType, dataType, emapaID, term.getTerm(), true, stage);
 
 				addDocUnchecked(buildDoc(feature, emapaID, null, null, idf.getMatchDisplay(), idf.getMatchType(), EMAP_ID_WEIGHT));
 
 				// Add name and synonym both to the stemmed field (for stemmed matching) and to the inexact field
 				// (for wildcard matching).
-				addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_NAME_WEIGHT));
-				addDocUnchecked(buildDoc(feature, null, name, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_NAME_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, null, name, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", dataType, EMAP_NAME_WEIGHT));
+				addDocUnchecked(buildDoc(feature, null, name, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", dataType, EMAP_NAME_WEIGHT));
 				if (synonyms != null) {
 					for (String synonym : synonyms) {
-						addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
-						addDocUnchecked(buildDoc(feature, null, synonym, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", "Expression", EMAP_SYNONYM_WEIGHT + 1));
+						addDocUnchecked(buildDoc(feature, null, null, synonym, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", dataType, EMAP_SYNONYM_WEIGHT + 1));
+						addDocUnchecked(buildDoc(feature, null, synonym, null, "TS" + stage + ": " + name + " (subterm of " + term.getTerm() + ")", dataType, EMAP_SYNONYM_WEIGHT + 1));
 					}
 				}
 			}
@@ -1099,7 +1104,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and csm.marker_key >= <<start key>> " +
 				"and csm.marker_key < <<end key>> " +
 				"union " + 
-				"select ers.marker_key as feaure_key, s.primary_id as term_id " + 
+				"select ers.marker_key, s.primary_id " + 
 				"from expression_result_summary ers, term s " + 
 				"where ers.is_expressed = 'Yes' " + 
 				"and ers.structure_key = s.term_key " + 
@@ -1154,6 +1159,18 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		}
 
 		logger.info(" - processed " + rows + " Expression rows, indexed " + emapsIndexed + " unique marker/EMAPS pairs");
+	}
+
+	// Index the expression CL terms by marker.
+	private void indexCellTypeExpression() throws SQLException {
+		String cmd = "select distinct rs.marker_key as feature_key, rc.cell_type_id as primary_id  " +
+				"from expression_result_summary rs, expression_result_cell_type rc " +
+				"where rs.result_key = rc.result_key " +
+				"and rs.is_expressed = 'Yes' " +
+				"order by rs.marker_key " +
+				"";
+		indexAnnotations("Expression (Cell Type)", cmd, new VocabTermCache("Cell Ontology", ex),
+			CELL_NAME_WEIGHT, CELL_ID_WEIGHT, CELL_SYNONYM_WEIGHT);
 	}
 
 	// Index the GO term annotations.  Assumes caches are loaded.
@@ -1417,6 +1434,9 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		indexExpression();
 		clearIndexedTermCache();		// only clear once all EMAPS expression data are done
+		
+		indexCellTypeExpression();
+		clearIndexedTermCache();		// only clear once all CL expression data are done
 		
 		indexHumanDiseaseAnnotations();
 		clearIndexedTermCache();		// only clear once all disease data done
