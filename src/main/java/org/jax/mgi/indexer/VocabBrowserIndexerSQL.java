@@ -386,6 +386,7 @@ public class VocabBrowserIndexerSQL extends Indexer {
 				rs.getInt("has_children"),
 				null,
 				null,
+				null,
 				null
 				);
 
