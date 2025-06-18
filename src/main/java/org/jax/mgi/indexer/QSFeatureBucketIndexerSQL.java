@@ -763,7 +763,8 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 
 		} else if ("Anatomy".equals(dagAbbrev)) {
 			cmd = toolkit.getAnatomyHeadersForMarkers(ex);
-
+		} else if ("Cell Type".equals(dagAbbrev)) {
+		        cmd = toolkit.getCLHeadersForMarkers(ex);
 		} else if ("Feature Type".equals(dagAbbrev)) {
 			cmd = "with ancestors as (select a.ancestor_term, t.term  " + 
 					"  from term t, term_ancestor a " + 
@@ -1219,6 +1220,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		logger.info(" - loading markers");
 
 		Map<Integer, Set<String>> expressionFacetCache = this.getFacetValues("Anatomy");
+		Map<Integer, Set<String>> cellTypeFacetCache = this.getFacetValues("Cell Type");
 		Map<Integer, Set<String>> goProcessFacetCache = this.getFacetValues("P");
 		Map<Integer, Set<String>> goFunctionFacetCache = this.getFacetValues("F");
 		Map<Integer, Set<String>> goComponentFacetCache = this.getFacetValues("C");
@@ -1267,6 +1269,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (diseaseFacetCache.containsKey(featureKey)) { feature.diseaseFacets = diseaseFacetCache.get(featureKey); }
 			if (featureTypeFacetCache.containsKey(featureKey)) { feature.markerTypeFacets = featureTypeFacetCache.get(featureKey); }
 			if (expressionFacetCache.containsKey(featureKey)) { feature.expressionFacets = expressionFacetCache.get(featureKey); }
+			if (cellTypeFacetCache.containsKey(featureKey)) { feature.cellTypeFacets = cellTypeFacetCache.get(featureKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
@@ -1475,6 +1478,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 		public Set<String> phenotypeFacets;
 		public Set<String> markerTypeFacets;
 		public Set<String> expressionFacets;
+		public Set<String> cellTypeFacets;
 
 		// constructor
 		public QSFeature(Integer featureKey) {
@@ -1504,6 +1508,7 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 			if (this.phenotypeFacets != null) { doc.addField(IndexConstants.QS_PHENOTYPE_FACETS, this.phenotypeFacets); }
 			if (this.markerTypeFacets != null) { doc.addField(IndexConstants.QS_MARKER_TYPE_FACETS, this.markerTypeFacets); }
 			if (this.expressionFacets != null) { doc.addField(IndexConstants.QS_EXPRESSION_FACETS, this.expressionFacets); }
+			if (this.cellTypeFacets != null) { doc.addField(IndexConstants.QS_CELL_TYPE_FACETS, this.cellTypeFacets); }
 
 			return doc;
 		}

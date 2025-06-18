@@ -179,6 +179,22 @@ public class QSExpressionFacetToolkit {
 		return cmd;
 	}
 
+	// Return an SQL query that returns marker keys and their associated cell type header terms.
+	//
+	public String getCLHeadersForMarkers(SQLExecutor ex) throws SQLException {
+		String cmd = "select distinct ers.marker_key as feature_key, tth.label as term " +
+			"from expression_result_summary ers, " +
+			"    expression_result_cell_type erc, " +
+			"    term t, " +
+			"    term_to_header tth " +
+			"where ers.result_key = erc.result_key " +
+			"    and ers.is_expressed = 'Yes' " +
+			"    and erc.cell_type_id = t.primary_id " +
+			"    and t.term_key = tth.term_key " +
+			"";
+		return cmd;
+	}
+
 	// Create and return the name of a table containing one row for each (EMAPS term key, EMAPS ID, and
 	// header) for terms with positive annotations below them.
 	private String getEmapsTermsToHeadersTable (SQLExecutor ex) throws SQLException {
