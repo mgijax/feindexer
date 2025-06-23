@@ -175,6 +175,7 @@ public class QSExpressionFacetToolkit {
 			"select ecl.primary_id, tth.label as header " +
 			"from expressed_cl_terms ecl, term_to_header tth " +
 			"where ecl.term_key = tth.term_key " +
+			"    and tth.accid != 'CL:0000000' " +
 			"";
 		return cmd;
 	}
@@ -191,6 +192,7 @@ public class QSExpressionFacetToolkit {
 			"    and ers.is_expressed = 'Yes' " +
 			"    and erc.cell_type_id = t.primary_id " +
 			"    and t.term_key = tth.term_key " +
+			"    and tth.accid != 'CL:0000000' " +
 			"";
 		return cmd;
 	}
