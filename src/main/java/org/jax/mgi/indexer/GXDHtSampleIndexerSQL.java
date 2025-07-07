@@ -19,6 +19,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 	//--- instance variables ---//
 
 	HashMap<String, HashSet<String>> refIDs = null;			// maps experiment keys to reference IDs
+	HashMap<String, HashSet<String>> methods = null;		// maps experiment keys to list of experimental methods used in its samples
 	HashMap<String, HashSet<String>> notes = null;			// maps sample keys to notes
 	HashMap<String, HashSet<String>> experimentIDs = null;	// maps experiment keys to exp. IDs
 	HashMap<String,String> strains = null;					// maps genotype key to strain
@@ -60,6 +61,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		logger.info("Retrieved references for " + this.refIDs.size() + " experiments");
 	}
 	
+
 	private void cacheNotes() throws Exception {
 		// look up notes for each sample
 		String cmd1 = "select sample_key, note from expression_ht_sample_note";
@@ -67,6 +69,18 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		logger.info("Retrieved sample notes for " + this.notes.size() + " samples");
 	}
 	
+	private void cacheMethods () throws Exception {
+		String cmd1b = "select distinct experiment_key, rnaseqType as method "
+			+ "from expression_ht_sample "
+			+ "where rnaseqType != 'Not Applicable' "
+			+ "and rnaseqType != 'RNA-seq' "
+			+ "union "
+			+ "select distinct experiment_key, method "
+			+ "from expression_ht_experiment "
+			+ "where method != 'RNA-Seq' "
+			+ "order by experiment_key, method";
+                this.methods = makeHash(cmd1b, "experiment_key", "method");
+	}
 	// add an "Is Conditional" note to each genotype where applicable
 	private void addConditionalGenotypeNotes(String sampleKey) {
 		// prepend to existing notes
@@ -348,6 +362,7 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 		
 		cacheReferenceIDs();	
 		cacheNotes();
+		cacheMethods();
 		cacheExperimentData();
 		cacheGenotypeData();
 		cacheMarkerData();
@@ -428,6 +443,10 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 			
 			if (this.alleleData.containsKey(sampleKey)) {
 				doc.addAllDistinct(GxdHtFields.MUTANT_ALLELE_IDS, this.alleleData.get(sampleKey));
+			}
+			
+			if (this.methods.containsKey(exptKey)) {
+				doc.addAllDistinct(GxdHtFields.METHODS, this.methods.get(exptKey));
 			}
 			
 			if (genotypeKey != null) {
