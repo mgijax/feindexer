@@ -53,6 +53,26 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		return pmIDs;
 	}
 	
+	private Map<String, List<String>> getJnumIDs() throws Exception {
+		logger.info("getting Jnum IDs for experiments");
+		String cmd0 = "select er.experiment_key, r.jnum_id "
+			+ "from expression_ht_experiment_to_reference er, reference r "
+			+ "where er.reference_key = r.reference_key ";
+		Map<String, List<String>> jnumIDs = new HashMap<String, List<String>>();
+
+		ResultSet rs = ex.executeProto(cmd0, 1000);
+		while (rs.next()) {
+			String exptKey = rs.getString("experiment_key");
+			if (!jnumIDs.containsKey(exptKey)) {
+				jnumIDs.put(exptKey, new ArrayList<String>());
+			}
+			jnumIDs.get(exptKey).add(rs.getString("jnum_id"));
+		}
+		rs.close();
+		logger.info(" - finished. got jnums for " + jnumIDs.size() + " experiments");
+		return jnumIDs;
+	}
+	
 	// Get the experiment IDs that have been loaded and are available with
 	// the fully-coded classical expression data.
 	private Set<String> getLoadedIDs() throws Exception {
@@ -77,6 +97,9 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 		
 		// look up the PubMed IDs associated with each experiment
 		Map<String, List<String>> pmIDs = this.getPubMedIDs();
+		
+		// look up the Jnum IDs associated with each experiment
+		Map<String, List<String>> jnumIDs = this.getJnumIDs();
 		
 		// look up the IDs of the experiments that have been loaded
 		Set<String> loadedIDs = this.getLoadedIDs();
@@ -148,6 +171,10 @@ public class GXDHtExperimentIndexerSQL extends Indexer {
 			
 			if (pmIDs.containsKey(exptKey)) {
 				doc.addAllDistinct(GxdHtFields.PUBMED_IDS, pmIDs.get(exptKey));
+			}
+			
+			if (jnumIDs.containsKey(exptKey)) {
+				doc.addAllDistinct(GxdHtFields.JNUM_IDS, jnumIDs.get(exptKey));
 			}
 			
 			if (loadedIDs.contains(primaryID)) {
