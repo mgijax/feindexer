@@ -49,19 +49,14 @@ public class GXDHtSampleIndexerSQL extends Indexer {
 
 	private void cacheReferenceIDs() throws Exception {
 		// look up PubMed IDs and J: numbers for each experiment
-		String cmd0 = "select experiment_key, value as ref_id "
-			+ "from expression_ht_experiment_property "
-			+ "where name = 'PubMed ID' "
-			+ "union "
-			+ "select p.experiment_key, r.jnum_id "
-			+ "from expression_ht_experiment_property p, reference r "
-			+ "where p.name = 'PubMed ID' "
-			+ "and p.value = r.pubmed_id";
-		this.refIDs = makeHash(cmd0, "experiment_key", "ref_id");
+		String cmd0 = "select er.experiment_key, r.jnum_id " +
+			"from expression_ht_experiment_to_reference er, reference r  " +
+			"where er.reference_key = r.reference_key " +
+			"";
+		this.refIDs = makeHash(cmd0, "experiment_key", "jnum_id");
 		logger.info("Retrieved references for " + this.refIDs.size() + " experiments");
 	}
 	
-
 	private void cacheNotes() throws Exception {
 		// look up notes for each sample
 		String cmd1 = "select sample_key, note from expression_ht_sample_note";
