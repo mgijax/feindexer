@@ -62,11 +62,22 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// locations.)
 	private Map<String, Set<String>> allStructuresDirect;
 
+	// mapping from each allele key to the keys of all CL structures
+	// where recombinase activity is directly detected, (Union over activity
+	// locations.)
+	private Map<String, Set<String>> allCellTypesDirect;
+
 	// mapping from each allele key to the keys of all EMAPA structures (and their
 	// ancestors)
 	// where recombinase activity is detected, (Union over activity locations and
 	// their ancestors.)
 	private Map<String, Set<String>> allStructures;
+
+	// mapping from each allele key to the keys of all CL structures (and their
+	// ancestors)
+	// where recombinase activity is detected, (Union over activity locations and
+	// their ancestors.)
+	private Map<String, Set<String>> allCellTypes;
 
 	// mapping from each allele key to the keys of EMAPA structures (and their
 	// ancestors)
@@ -79,6 +90,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 	// map from EMAPS term key to its EMAPA ancestor keys (stage-aware)
 	Map<String, Set<String>> emapaAncestors;
+
+	// map from CL term key to its ancestor keys
+	Map<String, Set<String>> cellTypeAncestors;
 
 	// map from driver key (ie, a marker key) to list of search strings it should
 	// match.
@@ -144,8 +158,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	public void fillEmapaAncestors() throws Exception {
 		emapaAncestors = new HashMap<String, Set<String>>();
 
-		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key " + "from term_ancestor a, term t, term_emap e, term_emap te " + "where a.term_key = t.term_key " + " and a.ancestor_term_key = e.term_key " + " and t.term_key = te.term_key "
-			+ " and t.vocab_name = 'EMAPS'";
+		String cmd = "select distinct a.term_key, te.emapa_term_key, e.emapa_term_key as ancestor_term_key " +
+			"from term_ancestor a, term t, term_emap e, term_emap te " +
+			"where a.term_key = t.term_key " +
+			" and a.ancestor_term_key = e.term_key " +
+			" and t.term_key = te.term_key " +
+			" and t.vocab_name = 'EMAPS'";
 
 		ResultSet rs = ex.executeProto(cmd);
 		while (rs.next()) {
@@ -187,6 +205,38 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return emptySet;
 	}
 
+	// Create the map from CL term key to all ancestor keys (reflexive).
+	public void fillCellTypeAncestors () throws Exception {
+		cellTypeAncestors = new HashMap<String, Set<String>>();
+
+		String cmd = "select a.term_key, a.ancestor_term_key " +
+			"from term t, term_ancestor a " +
+			"where t.term_key = a.term_key " +
+			"and vocab_name='Cell Ontology' " +
+			"";
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			String term_key = rs.getString("term_key");
+			String ancestorTermKey = rs.getString("ancestor_term_key");
+			if (!cellTypeAncestors.containsKey(term_key)) {
+				cellTypeAncestors.put(term_key, new HashSet<String>());
+				cellTypeAncestors.get(term_key).add(term_key);
+			}
+			cellTypeAncestors.get(term_key).add(ancestorTermKey);
+		}
+		rs.close();
+	}
+
+	public Set<String> getCellTypeAncestors(String cellTypeKey) throws Exception {
+		if(cellTypeAncestors == null) {
+			fillCellTypeAncestors();
+		}
+		if (cellTypeAncestors.containsKey(cellTypeKey)) {
+			return cellTypeAncestors.get(cellTypeKey);
+		}
+		return emptySet;
+	}
+
 	// Precompute three structure sets for searching recombinase alleles.
 	// 1. exclusiveStructures: identify the exclusive structures for each allele
 	// (the set of structures outside which there is
@@ -202,10 +252,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// 3. allStructures: set of all EMAPA structure keys (and their ancestors) where
 	// recombinase activity is detected
 	//
-	private void findStructures() throws Exception {
+	private void findStructuresAndCellTypes() throws Exception {
 		allStructures = new HashMap<String, Set<String>>();
 		allStructuresDirect = new HashMap<String, Set<String>>();
 		exclusiveStructures = new HashMap<String, Set<String>>();
+		allCellTypes = new HashMap<String, Set<String>>();
+		allCellTypesDirect = new HashMap<String, Set<String>>();
 
 		int minAlleleKey = 0; // lowest allele key with recombinase data
 		int maxAlleleKey = 0; // highest allele key with recombinase data
@@ -228,8 +280,15 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			// gather the EMAPS structures where recombinase activity was detected
 			Map<String, Set<String>> structuresPerAllele = new HashMap<String, Set<String>>();
 
-			String cmd = "select ras.allele_key, rar.structure_key, rar.structure, te.emapa_term_key " + "from recombinase_allele_system ras, recombinase_assay_result rar, term_emap te " + "where ras.allele_system_key = rar.allele_system_key "
-				+ " and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') " + " and ras.allele_key > " + startAllele + " and ras.allele_key <= " + endAllele + " and rar.structure_key = te.term_key " + " order by ras.allele_key";
+			String cmd = "select ras.allele_key, rar.structure_key, rar.structure, te.emapa_term_key, " + 
+				"  rar.cell_type, rar.cell_type_key " +
+				"from recombinase_allele_system ras, recombinase_assay_result rar, term_emap te " + 
+				"where ras.allele_system_key = rar.allele_system_key " +
+				" and rar.level not in ('Ambiguous', 'Not Specified', 'Absent') " +
+				" and ras.allele_key > " + startAllele + 
+				" and ras.allele_key <= " + endAllele + 
+				" and rar.structure_key = te.term_key " + 
+				" order by ras.allele_key";
 
 			ResultSet rs1 = ex.executeProto(cmd);
 			while (rs1.next()) {
@@ -240,6 +299,13 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				}
 				structuresPerAllele.get(alleleKey).add(rs1.getString("structure_key"));
 				allStructuresDirect.get(alleleKey).add(rs1.getString("emapa_term_key"));
+				if (!allCellTypesDirect.containsKey(alleleKey)) {
+					allCellTypesDirect.put(alleleKey, new HashSet<String>());
+					allCellTypes.put(alleleKey, new HashSet<String>());
+				}
+				allCellTypesDirect.get(alleleKey).add(rs1.getString("cell_type_key"));
+				allCellTypes.get(alleleKey).add(rs1.getString("cell_type_key"));
+				allCellTypes.get(alleleKey).addAll( getCellTypeAncestors(rs1.getString("cell_type_key")) );
 			}
 			rs1.close();
 
@@ -287,7 +353,7 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		fillEmapaTerms();
 		fillEmapaSynonyms();
 		fillSystemSorts();
-		findStructures();
+		findStructuresAndCellTypes();
 
 		loadAssayResults();
 		loadAllelesWithNoData();
@@ -326,11 +392,24 @@ public class CreAssayResultIndexerSQL extends Indexer {
 			this.endResultKey = this.startResultKey + this.BATCH_SIZE;
 
 			logger.info("Processing cre assay result_key > " + startResultKey + " and <= " + endResultKey);
-			String assayResultQuery = "select " + "rar.result_key, " + "rar.structure, " + "rar.level, " + "rar.structure_key, " + "emapa.primary_id as structure_id, " + "ras.allele_id, " + "ras.allele_key, " + "a.driver, " + "a.driver_key, " + "drv.cluster_key, " + "a.inducible_note, "
-				+ "rarsn.by_structure, " + "rarsn.by_age, " + "rarsn.by_level, " + "rarsn.by_pattern, " + "rarsn.by_jnum_id, " + "rarsn.by_assay_type, " + "rarsn.by_reporter_gene, " + "rarsn.by_detection_method, " + "rarsn.by_assay_note, " + "rarsn.by_allelic_composition, " + "rarsn.by_sex, "
-				+ "rarsn.by_specimen_note, " + "rarsn.by_result_note " + "from recombinase_allele_system as ras " + "join recombinase_assay_result as rar on " + "ras.allele_system_key = rar.allele_system_key " + "join recombinase_assay_result_sequence_num as rarsn on "
-				+ "rar.result_key = rarsn.result_key " + "join allele a on " + "a.allele_key = ras.allele_key " + "join driver drv on " + "drv.driver_key = a.driver_key " + "join term_emap e on rar.structure_key = e.term_key " + "join term emapa on " + "e.emapa_term_key = emapa.term_key "
-				+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " order by rar.result_key ";
+			String assayResultQuery = 
+			    "select rar.result_key, rar.structure, rar.level, rar.structure_key, " +
+				"rar.cell_type, rar.cell_type_key, " +
+				"emapa.primary_id as structure_id, ras.allele_id, ras.allele_key, a.driver, a.driver_key, " +
+				"drv.cluster_key, a.inducible_note, rarsn.by_structure, rarsn.by_age, rarsn.by_level, " +
+				"rarsn.by_pattern, rarsn.by_jnum_id, rarsn.by_assay_type, rarsn.by_reporter_gene, " +
+				"rarsn.by_detection_method, rarsn.by_assay_note, rarsn.by_allelic_composition, " +
+				"rarsn.by_sex, rarsn.by_specimen_note, rarsn.by_result_note " +
+			    "from recombinase_allele_system as ras " +
+				"join recombinase_assay_result as rar on ras.allele_system_key = rar.allele_system_key " +
+				"join recombinase_assay_result_sequence_num as rarsn on rar.result_key = rarsn.result_key " +
+				"join allele a on a.allele_key = ras.allele_key " +
+				"join driver drv on drv.driver_key = a.driver_key " +
+				"join term_emap e on rar.structure_key = e.term_key " +
+				"join term emapa on e.emapa_term_key = emapa.term_key " +
+			    "where rar.result_key > " + startResultKey + 
+				" and rar.result_key <= " + endResultKey + 
+				" order by rar.result_key ";
 
 			rs = ex.executeProto(assayResultQuery);
 
@@ -429,6 +508,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				String structure = rs.getString("structure");
 				String structureKey = rs.getString("structure_key"); // EMAPS key
 				String structureId = rs.getString("structure_id"); // EMAPA ID
+				String cellTypeKey = rs.getString("cell_type_key"); // CL term key
+				String cellType = rs.getString("cell_type"); // CL term
 
 				boolean detected = this.isDetected(rs.getString("level"));
 
@@ -464,6 +545,8 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.ASSAY_RESULT_KEY, resultKey);
 				doc.addField(CreFields.ANNOTATED_STRUCTURE, structure);
 				doc.addField(CreFields.ANNOTATED_STRUCTURE_KEY, structureKey);
+				doc.addField(CreFields.ANNOTATED_CELL_TYPE, cellType);
+				doc.addField(CreFields.ANNOTATED_CELL_TYPE_KEY, cellTypeKey);
 
 				this.addFieldNoDup(doc, CreFields.STRUCTURE_SEARCH, structure);
 				this.addFieldNoDup(doc, CreFields.STRUCTURE_ID, structureId);
@@ -495,6 +578,14 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 				if (exclusiveStructures.containsKey(alleleKey)) {
 					doc.addField(CreFields.ALL_EXCLUSIVE_STRUCTURES, exclusiveStructures.get(alleleKey));
+				}
+
+				if (allCellTypesDirect.containsKey(alleleKey)) {
+					doc.addField(CreFields.ALL_CELL_TYPES_DIRECT, allCellTypesDirect.get(alleleKey));
+				}
+
+				if (allCellTypes.containsKey(alleleKey)) {
+					doc.addField(CreFields.ALL_CELL_TYPES, allCellTypes.get(alleleKey));
 				}
 
 				// Add in the result sorting columns
