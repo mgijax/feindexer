@@ -62,11 +62,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	// locations.)
 	private Map<String, Set<String>> allStructuresDirect;
 
-	// mapping from each allele key to the keys of all CL structures
-	// where recombinase activity is directly detected, (Union over activity
-	// locations.)
-	private Map<String, Set<String>> allCellTypesDirect;
-
 	// mapping from each allele key to the keys of all EMAPA structures (and their
 	// ancestors)
 	// where recombinase activity is detected, (Union over activity locations and
@@ -93,6 +88,9 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 	// map from CL term key to its ancestor keys
 	Map<String, Set<String>> cellTypeAncestors;
+
+	// Map for CL term key to label, just for the cell type slim.
+	Map<String, String> cellTypeSlim;
 
 	// map from driver key (ie, a marker key) to list of search strings it should
 	// match.
@@ -205,6 +203,20 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		return emptySet;
 	}
 
+	// Builds cellTypeSlim, a mapping from term_key to labels, just for cell type slim terms
+	public void fillCellTypeSlim () throws Exception {
+		cellTypeSlim = new HashMap<String,String>();
+		String cmd = "select distinct header_term_key, label " +
+			"FROM term_to_header  " +
+			"where accid like 'CL:%' " +
+			"and accid != 'CL:0000000'"; // exclude "all cell types"
+		ResultSet rs = ex.executeProto(cmd);
+		while (rs.next()) {
+			cellTypeSlim.put(rs.getString("header_term_key"), rs.getString("label"));
+		}
+	}
+
+	//
 	// Create the map from CL term key to all ancestor keys (reflexive).
 	public void fillCellTypeAncestors () throws Exception {
 		cellTypeAncestors = new HashMap<String, Set<String>>();
@@ -227,14 +239,34 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		rs.close();
 	}
 
-	public Set<String> getCellTypeAncestors(String cellTypeKey) throws Exception {
-		if(cellTypeAncestors == null) {
-			fillCellTypeAncestors();
+	public Set<String> getCellTypeAncestors(String cellTypeKey) {
+		try {
+			if(cellTypeAncestors == null) {
+				fillCellTypeAncestors();
+				fillCellTypeSlim();
+			}
+			if (cellTypeAncestors.containsKey(cellTypeKey)) {
+				return cellTypeAncestors.get(cellTypeKey);
+			}
+			return emptySet;
+		} catch (Exception e) {
+			return new HashSet<String>();
 		}
-		if (cellTypeAncestors.containsKey(cellTypeKey)) {
-			return cellTypeAncestors.get(cellTypeKey);
+	}
+
+	public Set<String> getCellTypeHeaders(String cellTypeKey) {
+		try {
+			Set<String> ancestors = getCellTypeAncestors(cellTypeKey);
+			Set<String> headers = new HashSet<String>();
+			for (String a : ancestors) {
+				if (cellTypeSlim.containsKey(a)) {
+					headers.add(cellTypeSlim.get(a));
+				}
+			}
+			return headers;
+		} catch (Exception e) {
+			return new HashSet<String>();
 		}
-		return emptySet;
 	}
 
 	// Precompute three structure sets for searching recombinase alleles.
@@ -257,7 +289,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		allStructuresDirect = new HashMap<String, Set<String>>();
 		exclusiveStructures = new HashMap<String, Set<String>>();
 		allCellTypes = new HashMap<String, Set<String>>();
-		allCellTypesDirect = new HashMap<String, Set<String>>();
 
 		int minAlleleKey = 0; // lowest allele key with recombinase data
 		int maxAlleleKey = 0; // highest allele key with recombinase data
@@ -299,13 +330,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				}
 				structuresPerAllele.get(alleleKey).add(rs1.getString("structure_key"));
 				allStructuresDirect.get(alleleKey).add(rs1.getString("emapa_term_key"));
-				if (!allCellTypesDirect.containsKey(alleleKey)) {
-					allCellTypesDirect.put(alleleKey, new HashSet<String>());
+				if (!allCellTypes.containsKey(alleleKey)) {
 					allCellTypes.put(alleleKey, new HashSet<String>());
 				}
-				allCellTypesDirect.get(alleleKey).add(rs1.getString("cell_type_key"));
 				allCellTypes.get(alleleKey).add(rs1.getString("cell_type_key"));
-				allCellTypes.get(alleleKey).addAll( getCellTypeAncestors(rs1.getString("cell_type_key")) );
+
+				allCellTypes.get(alleleKey).addAll(getCellTypeAncestors(rs1.getString("cell_type_key")));
 			}
 			rs1.close();
 
@@ -546,7 +576,16 @@ public class CreAssayResultIndexerSQL extends Indexer {
 				doc.addField(CreFields.ANNOTATED_STRUCTURE, structure);
 				doc.addField(CreFields.ANNOTATED_STRUCTURE_KEY, structureKey);
 				doc.addField(CreFields.ANNOTATED_CELL_TYPE, cellType);
-				doc.addField(CreFields.ANNOTATED_CELL_TYPE_KEY, cellTypeKey);
+				doc.addField(CreFields.CELL_TYPE_SEARCH, getCellTypeAncestors(cellTypeKey));
+
+				List<String> headers = new ArrayList(getCellTypeHeaders(cellTypeKey));
+				Collections.sort(headers);
+				doc.addField(CreFields.CELL_TYPE_HEADERS, headers);
+
+				if (headers.size() > 0) {
+				    String cellTypeGroup = getSystemHighlightGroup(alleleKey, headers.get(0), detected);
+				    doc.addField(CreFields.CELL_TYPE_HL_GROUP, cellTypeGroup);
+				}
 
 				this.addFieldNoDup(doc, CreFields.STRUCTURE_SEARCH, structure);
 				this.addFieldNoDup(doc, CreFields.STRUCTURE_ID, structureId);
@@ -578,10 +617,6 @@ public class CreAssayResultIndexerSQL extends Indexer {
 
 				if (exclusiveStructures.containsKey(alleleKey)) {
 					doc.addField(CreFields.ALL_EXCLUSIVE_STRUCTURES, exclusiveStructures.get(alleleKey));
-				}
-
-				if (allCellTypesDirect.containsKey(alleleKey)) {
-					doc.addField(CreFields.ALL_CELL_TYPES_DIRECT, allCellTypesDirect.get(alleleKey));
 				}
 
 				if (allCellTypes.containsKey(alleleKey)) {
@@ -689,10 +724,21 @@ public class CreAssayResultIndexerSQL extends Indexer {
 	 */
 	private Map<String, AlleleSystems> queryAlleleSystemsMap(int startResultKey, int endResultKey) throws SQLException {
 
-		String query = "with batch_alleles as ( " + "select distinct allele_key from " + "recombinase_allele_system ras " + "join recombinase_assay_result rar on " + "rar.allele_system_key = ras.allele_system_key "
-		// filter out only alleles that apply to this batch of assay results
-			+ "where rar.result_key > " + startResultKey + " and rar.result_key <= " + endResultKey + " " + ")" + "select aus.allele_key, " + "aus.system, " + "false as detected " + "from recombinase_unaffected_system aus " + "join batch_alleles ba on " + "ba.allele_key = aus.allele_key " + "UNION "
-			+ "select aas.allele_key, " + "aas.system, " + "true as detected " + "from recombinase_affected_system aas " + "join batch_alleles ba on " + "ba.allele_key = aas.allele_key ";
+		String query = "with batch_alleles as ( " +
+			    "select distinct allele_key " +
+			    "from recombinase_allele_system ras " +
+			    "join recombinase_assay_result rar on " +
+			    "rar.allele_system_key = ras.allele_system_key " +
+			    "where rar.result_key > " + startResultKey +
+			    " and rar.result_key <= " + endResultKey +
+			    " ) " +
+			"select aus.allele_key, aus.system, false as detected " +
+			"from recombinase_unaffected_system aus " +
+			"join batch_alleles ba on ba.allele_key = aus.allele_key " +
+			"UNION " +
+			"select aas.allele_key, aas.system, true as detected " +
+			"from recombinase_affected_system aas " +
+			"join batch_alleles ba on ba.allele_key = aas.allele_key ";
 
 		Map<String, AlleleSystems> alleleSystemsMap = new HashMap<String, AlleleSystems>();
 
@@ -727,8 +773,12 @@ public class CreAssayResultIndexerSQL extends Indexer {
 		Map<String, List<CreAlleleSystem>> systemMap = new HashMap<String, List<CreAlleleSystem>>();
 		logger.info("building map of result keys to affected system");
 
-		String query = "select rar.result_key, " + "ras.allele_system_key, " + "ras.system " + "from recombinase_allele_system ras " + "join recombinase_assay_result rar on " + "rar.allele_system_key = ras.allele_system_key " + "where rar.result_key > " + startResultKey + " and rar.result_key <= "
-			+ endResultKey;
+		String query = "select rar.result_key, ras.allele_system_key, ras.system " +
+		    "from recombinase_allele_system ras " +
+		    "join recombinase_assay_result rar on " +
+		    "rar.allele_system_key = ras.allele_system_key " +
+		    "where rar.result_key > " + startResultKey +
+		    " and rar.result_key <= " + endResultKey;
 
 		ResultSet rs = ex.executeProto(query);
 
