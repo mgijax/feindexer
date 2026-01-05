@@ -58,6 +58,7 @@ public class Main {
 		indexerMap.put("sequence", new SequenceIndexerSQL());
 		indexerMap.put("cdna", new CdnaIndexerSQL());
 		indexerMap.put("probe", new ProbeIndexerSQL());
+		indexerMap.put("antibody", new AntibodyIndexerSQL());
 		indexerMap.put("strain", new StrainIndexerSQL());
 		indexerMap.put("mapping", new MappingIndexerSQL());
 		indexerMap.put("gxdHtSample", new GXDHtSampleIndexerSQL());
