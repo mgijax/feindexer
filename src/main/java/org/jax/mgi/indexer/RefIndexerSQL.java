@@ -269,7 +269,7 @@ public class RefIndexerSQL extends Indexer {
 		
 			logger.info("Getting basic references data");
 			String referenceSQL = "select r.reference_key, r.year, r.jnum_id, r.jnum_numeric, r.pubmed_id, r.authors, r.title,"
-				+ " r.journal, r.vol, r.issue, ra.abstract, rc.marker_count, rc.disease_model_count, rc.probe_count, rc.mapping_expt_count, "
+				+ " r.journal, r.vol, r.issue, ra.abstract, rc.marker_count, rc.disease_model_count, rc.probe_count, rc.antibody_count, rc.mapping_expt_count, "
 				+ " rc.gxd_index_count, rc.gxd_result_count, rc.gxd_structure_count, rc.gxd_assay_count, rc.gxd_htexp_count, "
 				+ " rc.allele_count, rc.sequence_count, rc.go_annotation_count, r.reference_group "
 				+ "from reference as r "
@@ -355,6 +355,7 @@ public class RefIndexerSQL extends Indexer {
 				boolean foundACount = handleCount(doc, IndexConstants.MRK_COUNT, rs_overall.getInt("marker_count"), "Genome features");
 				foundACount = handleCount(doc, IndexConstants.DO_MODEL_COUNT, rs_overall.getInt("disease_model_count"), "Disease models") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.PRB_COUNT, rs_overall.getInt("probe_count"), "Molecular probes and clones") || foundACount;
+				foundACount = handleCount(doc, IndexConstants.ANTIBODY_COUNT, rs_overall.getInt("antibody_count"), "Antibodies") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.MAP_EXPT_COUNT, rs_overall.getInt("mapping_expt_count"), "Mapping data") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.GXD_INDEX_COUNT, rs_overall.getInt("gxd_index_count"), "Expression literature records") || foundACount;
 				foundACount = handleCount(doc, IndexConstants.GXD_RESULT_COUNT, rs_overall.getInt("gxd_result_count"), "Expression: assays results") || foundACount;
