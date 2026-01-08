@@ -153,9 +153,11 @@ public class AntibodyIndexerSQL extends Indexer {
 		
 		String cmd = "" +
 			" with refCounts as (select antibody_key, count(*) as referenceCount from antibody_to_reference group by antibody_key) " +
-			" select a.antibody_key, a.name, a.primary_id, a.antibody_type, a.host, c.referenceCount, -1 as by_name, -1 as by_type " +
+			" select a.antibody_key, a.name, a.primary_id, a.antibody_type, a.host, c.referenceCount, " +
+				"asn.by_name, asn.by_gene, asn.by_ref_count " +
 				"from antibody a " +
-				"left join refCounts c on a.antibody_key = c.antibody_key ";
+				"left join refCounts c on a.antibody_key = c.antibody_key " +
+				"left join antibody_sequence_num asn on a.antibody_key = asn.antibody_key ";
 
 		ResultSet rs = ex.executeProto(cmd, cursorLimit);
 		logger.debug("  - finished main antibody query in " + ex.getTimestamp());
@@ -181,7 +183,8 @@ public class AntibodyIndexerSQL extends Indexer {
 			SolrInputDocument doc = new SolrInputDocument();
 			doc.addField(IndexConstants.ANTIBODY_KEY, antibodyKey);
 			doc.addField(IndexConstants.ANTIBODY_BY_NAME, rs.getInt("by_name"));
-			doc.addField(IndexConstants.ANTIBODY_BY_TYPE, rs.getInt("by_type"));
+			doc.addField(IndexConstants.ANTIBODY_BY_GENE, rs.getInt("by_gene"));
+			doc.addField(IndexConstants.ANTIBODY_BY_REF_COUNT, rs.getInt("by_ref_count"));
 			
 			// if antibody has associated markers, add them to the antibody object
 			List<String> markers = getMarkers(antibodyKey);
