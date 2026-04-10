@@ -889,6 +889,11 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 					"inner join headers ha on (ta.ancestor_term = ha.header) " + 
 					"where agt.is_disease_model = 1";
 			alleleKeysToSkip = getAlleleKeysToExcludeFromMPandDiseaseFilters();
+		} else if ("Mutation".equals(facetType)) {
+			cmd = "select allele_key, mutation as term " +
+				"from allele_mutation " +
+				"where mutation not in ('Not Specified', 'Not Applicable') " +
+				"";
 		}
 		
 		if (cmd != null) {
@@ -917,6 +922,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
 		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
 		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
+		Map<Integer, Set<String>> mutationFacetCache = this.getFacetValues("Mutation");
 
 		logger.info(" - loading alleles");
 
@@ -974,6 +980,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			if (phenotypeFacetCache.containsKey(alleleKey)) { allele.phenotypeFacets = phenotypeFacetCache.get(alleleKey); }
 			if (diseaseFacetCache.containsKey(alleleKey)) { allele.diseaseFacets = diseaseFacetCache.get(alleleKey); }
 			if (featureTypeFacetCache.containsKey(alleleKey)) { allele.markerTypeFacets = featureTypeFacetCache.get(alleleKey); }
+			if (mutationFacetCache.containsKey(alleleKey)) { allele.mutationFacets = mutationFacetCache.get(alleleKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
@@ -1273,6 +1280,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		public Set<String> diseaseFacets;
 		public Set<String> phenotypeFacets;
 		public Set<String> markerTypeFacets;
+		public Set<String> mutationFacets;
 		public Integer transmissionTypeBoost;
 
 		// constructor
@@ -1300,6 +1308,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			if (this.diseaseFacets != null) { doc.addField(IndexConstants.QS_DISEASE_FACETS, this.diseaseFacets); }
 			if (this.phenotypeFacets != null) { doc.addField(IndexConstants.QS_PHENOTYPE_FACETS, this.phenotypeFacets); }
 			if (this.markerTypeFacets != null) { doc.addField(IndexConstants.QS_MARKER_TYPE_FACETS, this.markerTypeFacets); }
+			if (this.mutationFacets != null) { doc.addField(IndexConstants.QS_MUTATION_FACETS, this.mutationFacets); }
 
 			return doc;
 		}
