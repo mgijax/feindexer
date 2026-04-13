@@ -894,6 +894,18 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 				"from allele_mutation " +
 				"where mutation not in ('Not Specified', 'Not Applicable') " +
 				"";
+		} else if ("Attribute".equals(facetType)) {
+			cmd = "WITH alleleAttrs as ( " +
+			    "SELECT allele_key, string_to_table(allele_subtype , ', ') as term " +
+			    "FROM allele " +
+			    "WHERE allele_subtype IS NOT NULL " +
+			    "ORDER BY allele_key, term " +
+			") " +
+			"SELECT allele_key, term " +
+			"FROM alleleAttrs " +
+			"WHERE term != 'Not Specified' " +
+			"AND term != 'Not Applicable' " +
+			"";
 		}
 		
 		if (cmd != null) {
@@ -923,6 +935,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
 		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
 		Map<Integer, Set<String>> mutationFacetCache = this.getFacetValues("Mutation");
+		Map<Integer, Set<String>> attributeFacetCache = this.getFacetValues("Attribute");
 
 		logger.info(" - loading alleles");
 
@@ -981,6 +994,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			if (diseaseFacetCache.containsKey(alleleKey)) { allele.diseaseFacets = diseaseFacetCache.get(alleleKey); }
 			if (featureTypeFacetCache.containsKey(alleleKey)) { allele.markerTypeFacets = featureTypeFacetCache.get(alleleKey); }
 			if (mutationFacetCache.containsKey(alleleKey)) { allele.mutationFacets = mutationFacetCache.get(alleleKey); }
+			if (attributeFacetCache.containsKey(alleleKey)) { allele.attributeFacets = attributeFacetCache.get(alleleKey); }
 
 			//--- index the new feature object in basic ways (primary ID, symbol, name, etc.)
 			
@@ -1281,6 +1295,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		public Set<String> phenotypeFacets;
 		public Set<String> markerTypeFacets;
 		public Set<String> mutationFacets;
+		public Set<String> attributeFacets;
 		public Integer transmissionTypeBoost;
 
 		// constructor
@@ -1309,6 +1324,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			if (this.phenotypeFacets != null) { doc.addField(IndexConstants.QS_PHENOTYPE_FACETS, this.phenotypeFacets); }
 			if (this.markerTypeFacets != null) { doc.addField(IndexConstants.QS_MARKER_TYPE_FACETS, this.markerTypeFacets); }
 			if (this.mutationFacets != null) { doc.addField(IndexConstants.QS_MUTATION_FACETS, this.mutationFacets); }
+			if (this.attributeFacets != null) { doc.addField(IndexConstants.QS_ATTRIBUTE_FACETS, this.attributeFacets); }
 
 			return doc;
 		}
