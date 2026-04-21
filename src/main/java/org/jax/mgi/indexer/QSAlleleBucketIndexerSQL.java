@@ -931,6 +931,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 	 * Assumes cacheLocations has been run for this featureType.
 	 */
 	private void buildInitialDocs() throws Exception {
+		Map<Integer, List<String>> synonymCache = this.cacheSynonyms(ALLELE);
 		Map<Integer, Set<String>> phenotypeFacetCache = this.getFacetValues("MP");
 		Map<Integer, Set<String>> featureTypeFacetCache = this.getFacetValues("Feature Type");
 		Map<Integer, Set<String>> diseaseFacetCache = this.getFacetValues("Disease");
@@ -988,6 +989,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			} else {
 				allele.name = rs.getString("name");
 			}
+
+			if (synonymCache.containsKey(alleleKey)) { allele.synonyms = synonymCache.get(alleleKey); }
 
 			// add the facet data for the allele
 			if (phenotypeFacetCache.containsKey(alleleKey)) { allele.phenotypeFacets = phenotypeFacetCache.get(alleleKey); }
@@ -1186,6 +1189,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		logger.info("beginning alleles");
 		
 		cacheLocations();
+
 		buildInitialDocs();
 		
 		indexHumanLocations();
@@ -1287,6 +1291,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		public String symbol;
 		public String primaryID;
 		public String name;
+		public List<String> synonyms;
 		public Long sequenceNum;
 		public Set<String> goProcessFacets;
 		public Set<String> goFunctionFacets;
@@ -1311,6 +1316,8 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 			if (this.alleleType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.alleleType + " allele"); }
 			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
+
+			if (this.synonyms != null) { doc.addField(IndexConstants.QS_SYNONYMS, this.synonyms); }
 
 			if (chromosome.containsKey(this.alleleKey)) { doc.addField(IndexConstants.QS_CHROMOSOME, chromosome.get(alleleKey)); }
 			if (startCoord.containsKey(this.alleleKey)) { doc.addField(IndexConstants.QS_START_COORD, startCoord.get(alleleKey)); }
