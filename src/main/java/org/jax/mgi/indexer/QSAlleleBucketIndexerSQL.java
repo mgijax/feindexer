@@ -946,7 +946,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 		
 		//long padding = 0;	// amount of initial padding before sequence numbers should begin
 		
-		String cmd = "select a.allele_key as allele_key, a.primary_id, a.symbol, a.name, a.allele_type as subtype, " + 
+		String cmd = "select a.allele_key as allele_key, a.primary_id, a.symbol, a.name, a.allele_type, " + 
 				"m.symbol as marker_symbol, m.name as marker_name, s.by_symbol, lower(a.transmission_type) as transmission_type, a.collection " +
 			"from allele a " +
 			"inner join allele_sequence_num s on (a.allele_key = s.allele_key) " +
@@ -971,7 +971,7 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 			
 			allele.primaryID = rs.getString("primary_id");
 			allele.symbol = rs.getString("symbol");
-			allele.alleleType = rs.getString("subtype");
+			allele.alleleType = rs.getString("allele_type");
 			allele.collection = rs.getString("collection");
 			allele.sequenceNum = rs.getLong("by_symbol");
 			
@@ -1316,7 +1316,9 @@ public class QSAlleleBucketIndexerSQL extends Indexer {
 
 			if (this.primaryID != null) { doc.addField(IndexConstants.QS_PRIMARY_ID, this.primaryID); }
 
-			if (this.alleleType != null) { doc.addField(IndexConstants.QS_FEATURE_TYPE, this.alleleType + " allele"); }
+			if (this.alleleType != null && !this.alleleType.equals("Not Specified") && !this.alleleType.equals("Not Applicable")) {
+				doc.addField(IndexConstants.QS_FEATURE_TYPE, this.alleleType);
+			}
 			if (this.sequenceNum != null) { doc.addField(IndexConstants.QS_SEQUENCE_NUM, this.sequenceNum); }
 
 			if (this.synonyms != null) { doc.addField(IndexConstants.QS_SYNONYMS, this.synonyms); }
