@@ -1101,14 +1101,14 @@ public class QSFeatureBucketIndexerSQL extends Indexer {
 				"and cs.emapa_key = e.emapa_term_key " + 
 				"and cs.theiler_stage = e.stage::text " + 
 				"and e.term_key = t.term_key " + 
-				"and csm.level != 'Below Cutoff' " + 
+				// "and csm.level != 'Below Cutoff' " + 
 				"and csm.marker_key >= <<start key>> " +
 				"and csm.marker_key < <<end key>> " +
 				"union " + 
 				"select ers.marker_key, s.primary_id " + 
 				"from expression_result_summary ers, term s " + 
-				"where ers.is_expressed = 'Yes' " + 
-				"and ers.structure_key = s.term_key " + 
+				// "where ers.is_expressed = 'Yes' " + 
+				"where ers.structure_key = s.term_key " + 
 				"and ers.marker_key >= <<start key>> " +
 				"and ers.marker_key < <<end key>> " +
 				"order by 1";
