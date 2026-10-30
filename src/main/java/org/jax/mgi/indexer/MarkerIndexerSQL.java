@@ -117,7 +117,7 @@ public class MarkerIndexerSQL extends Indexer
 		
 		logger.info("Getting all mouse markers");
 		String markerSQL = "select m.marker_key, m.primary_id marker_id,m.symbol, " +
-				"m.name, m.marker_type, m.marker_subtype, m.status, m.organism, " +
+				"m.name, m.marker_type, m.marker_subtype, LOWER (m.marker_subtype) AS marker_subtype_sort, m.status, m.organism, " +
 				"REPLACE(m.coordinate_display, ' (.)', '') AS coordinate_display, " +
 				"m.location_display, " +
 				"m_sub_type.term_key marker_subtype_key, " +
@@ -148,6 +148,7 @@ public class MarkerIndexerSQL extends Indexer
 			doc.addField(IndexConstants.MRK_NAME, rs.getString("name"));
 			doc.addField(IndexConstants.MRK_TYPE, rs.getString("marker_type"));
 			doc.addField(MarkerSummaryFields.FEATURE_TYPE, rs.getString("marker_subtype"));
+			doc.addField(MarkerSummaryFields.FEATURE_TYPE_SORT, rs.getString("marker_subtype_sort"));
 			doc.addField(MarkerSummaryFields.FEATURE_TYPE_KEY, rs.getString("marker_subtype_key"));
 			doc.addField(MarkerSummaryFields.COORDINATE_DISPLAY, rs.getString("coordinate_display"));
 			doc.addField(MarkerSummaryFields.LOCATION_DISPLAY, rs.getString("location_display"));
